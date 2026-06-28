@@ -88,13 +88,47 @@ will copy them from your own legally-owned install — an old CD, or a digital e
 
 ---
 
-## Install / play
+## Get started
 
-**The intended easy path** is the native launcher: it finds your Dungeon Keeper install (GOG / Steam / Wine
-prefixes), copies the required files, fetches the engine, and launches the game — the same flow Windows users
-get. *(Prebuilt releases + launcher integration are still being set up; until then, build from source below.)*
+The goal is a one-file, any-distro experience: **download the launcher, run it, play** — it auto-detects your
+Dungeon Keeper install, downloads the game, copies your files, and lets you tweak graphics/sound/controls. The
+launcher already does all of that; what's left is packaging it as a portable **AppImage** (built on an old
+base via CI so it runs everywhere — Ubuntu, Fedora, Arch, Steam Deck). That's the next milestone. ⏳
 
-## Build from source
+In the meantime, you can play today with the **complete package** below, or build from source.
+
+### Play now — the complete package
+
+1. Download **`keeperfx-linux-alpha-x86_64-full.7z`** from the [latest release](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest).
+   It contains the engine + all the free KeeperFX assets + our enhancements (it does **not** contain the
+   original Dungeon Keeper files — you supply those).
+2. Extract it, e.g. to `~/.local/share/keeperfx-alpha`:
+   ```bash
+   mkdir -p ~/.local/share/keeperfx-alpha
+   7z x keeperfx-linux-alpha-x86_64-full.7z -o/tmp/kfx
+   cp -r /tmp/kfx/keeperfx-linux-alpha/. ~/.local/share/keeperfx-alpha/
+   ```
+3. Add your **own** original *Dungeon Keeper* files (proof of ownership) — see [below](#you-still-need-the-original-dungeon-keeper-files).
+   The launcher does this automatically; manually, copy these from your GOG/Steam/CD install into the matching
+   folders: `data/` (`bluepal.dat`, `slab0-0.dat`, the palettes…) and `sound/` (`atmos1.sbk`, `atmos2.sbk`, `bullfrog.sbk`).
+4. Install the runtime libraries (Arch shown; names vary by distro):
+   ```bash
+   sudo pacman -S --needed sdl2-compat sdl2_mixer sdl2_net sdl2_image \
+     ffmpeg openal luajit libspng minizip zlib libepoxy miniupnpc libnatpmp openssl zstd
+   ```
+5. Run it:
+   ```bash
+   cd ~/.local/share/keeperfx-alpha && ./keeperfx
+   ```
+
+**The only thing that should stop you** is not having your original Dungeon Keeper files. Everything else is in
+the package.
+
+---
+
+## Advanced: build from source
+
+> This section is for developers who want to compile the engine. Most people should use the package above.
 
 Tested on Arch Linux (x86-64). Package **names** differ across distros, but the set is the same.
 
