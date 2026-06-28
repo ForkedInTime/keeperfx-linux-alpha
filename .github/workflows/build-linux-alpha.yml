@@ -1,0 +1,88 @@
+# Builds the KeeperFX Linux Alpha engine on an OLD base (Ubuntu 22.04) so the
+# resulting binary runs on every modern Linux distro — Ubuntu, Fedora, Arch,
+# Steam Deck — not just the machine it was built on. This runs on GitHub's
+# servers; nothing is installed on your computer.
+#
+# Triggers:
+#   * when you publish a Release  -> builds and attaches the package to it
+#   * manually (Actions tab -> "Run workflow")
+name: Build Linux Alpha
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to attach the build to the release
+
+jobs:
+  build-engine:
+    runs-on: ubuntu-22.04     # <-- the "old kitchen": older glibc = runs everywhere
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # full history, so the build number (git commit count) is correct
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git python3 pkg-config \
+            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
+            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+
+      - name: Fetch the auto-downloaded deps (serial, avoids a parallel-build race)
+        run: |
+          make -f linux.mk \
+            deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
+            deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
+
+      - name: Build the engine
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          echo "Build number: $BUILD_NUMBER"
+          rm -f src/ver_defs.h
+          make -f linux.mk BUILD_NUMBER="$BUILD_NUMBER" VER_SUFFIX=alpha -j"$(nproc)"
+          # expose a filename-safe version string (e.g. 1.3.2.5182-alpha)
+          VER="$(sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h | tr ' ' '-')"
+          echo "PKG_VER=$VER" >> "$GITHUB_ENV"
+
+      - name: Generate the UTF-8 fonts (needed since upstream #4920)
+        run: |
+          cd tools/fxfontmaker
+          python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
+          python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
+          python3 merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
+          python3 unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
+          python3 unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
+          python3 unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
+          python3 unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+
+      - name: Stage the portable engine package (engine + fonts + config + version)
+        run: |
+          S="dist/keeperfx-linux-alpha"
+          mkdir -p "$S/fxdata" "$S/creatrs" "$S/mods"
+          cp bin/keeperfx "$S/keeperfx"
+          sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "$S/version.txt"
+          cp tools/fxfontmaker/*.fxfont "$S/fxdata/"
+          cp -r config/fxdata/. "$S/fxdata/"
+          cp -r config/creatrs/. "$S/creatrs/"
+          cp -r config/mods/.    "$S/mods/"
+          tar -C dist -czf "keeperfx-linux-alpha-${PKG_VER}-x86_64-portable.tar.gz" keeperfx-linux-alpha
+          ls -la keeperfx-linux-alpha-*-portable.tar.gz
+
+      - name: Upload the build (downloadable from this CI run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: keeperfx-linux-alpha-portable
+          path: keeperfx-linux-alpha-*-x86_64-portable.tar.gz
+
+      - name: Attach the build to the release (only when triggered by a release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: keeperfx-linux-alpha-*-x86_64-portable.tar.gz
