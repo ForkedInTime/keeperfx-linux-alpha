@@ -157,6 +157,11 @@ static struct {
     GLint  cp_loc_shadow_teal;
     GLint  cp_loc_highlight_warm;
     GLint  cp_loc_blackpoint;
+
+    /* Plan B: truecolor movie present. */
+    GLuint prog_movie;   /**< Plan B truecolor passthrough program. */
+    GLuint tex_movie;    /**< RGBA movie-frame texture. */
+    GLint  loc_movie_tex;
 } gl;
 
 /* ----------------------------------------------------------------------- */
@@ -215,6 +220,14 @@ static const char *world_src =
     "{\n"
     "    outColor = vec4(texture(u_world, v_uv).rgb, 1.0);\n"
     "}\n";
+
+/* Plan B: truecolor passthrough for movie frames (RGBA texture -> screen). */
+static const char *movie_src =
+    "#version 330 core\n"
+    "in vec2 v_uv;\n"
+    "out vec4 fragColor;\n"
+    "uniform sampler2D u_tex;\n"
+    "void main(void){ fragColor = texture(u_tex, v_uv); }\n";
 
 /* Seam B GUI composite: the palette-LUT pass, but with a transparency rule so
  * the GPU world (already drawn into the scene FBO) shows through where the
@@ -1201,6 +1214,66 @@ void gl_present_frame(const void *fb_pixels, int fb_width, int fb_height, int pi
     SDL_GL_SwapWindow(gl.window);
 }
 
+void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch)
+{
+    if (!gl.inited || (rgba == NULL) || (w <= 0) || (h <= 0)) {
+        return;
+    }
+    if (gl.prog_movie == 0) {
+        gl.prog_movie = gl_build_program_src(vertex_src, movie_src);
+        if (gl.prog_movie == 0) {
+            return;
+        }
+        gl.loc_movie_tex = glGetUniformLocation(gl.prog_movie, "u_tex");
+    }
+    if (gl.tex_movie == 0) {
+        glGenTextures(1, &gl.tex_movie);
+        glBindTexture(GL_TEXTURE_2D, gl.tex_movie);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    glBindTexture(GL_TEXTURE_2D, gl.tex_movie);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch / 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    int draw_w = 0, draw_h = 0;
+    SDL_GL_GetDrawableSize(gl.window, &draw_w, &draw_h);
+    if ((draw_w <= 0) || (draw_h <= 0)) {
+        return;
+    }
+    int vp_w = draw_w;
+    int vp_h = (int)((long long)draw_w * h / w);
+    if (vp_h > draw_h) { vp_h = draw_h; vp_w = (int)((long long)draw_h * w / h); }
+    int vp_x = (draw_w - vp_w) / 2;
+    int vp_y = (draw_h - vp_h) / 2;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glViewport(0, 0, draw_w, draw_h);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(vp_x, vp_y, vp_w, vp_h);
+
+    glUseProgram(gl.prog_movie);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gl.tex_movie);
+    glUniform1i(gl.loc_movie_tex, 0);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glUseProgram(0);
+
+    SDL_GL_SwapWindow(gl.window);
+}
+
 void gl_present_shutdown(void)
 {
     if (gl.context != NULL) {
@@ -1230,6 +1303,8 @@ void gl_present_shutdown(void)
     if (gl.prog_gui != 0) {
         glDeleteProgram(gl.prog_gui);
     }
+    if (gl.prog_movie != 0) { glDeleteProgram(gl.prog_movie); gl.prog_movie = 0; }
+    if (gl.tex_movie != 0)  { glDeleteTextures(1, &gl.tex_movie); gl.tex_movie = 0; }
     if (gl.context != NULL) {
         SDL_GL_DeleteContext(gl.context);
     }
@@ -1250,6 +1325,10 @@ void gl_present_set_palette(const SDL_Color *colors, int count)
 void gl_present_frame(const void *fb_pixels, int fb_width, int fb_height, int pitch)
 {
     (void)fb_pixels; (void)fb_width; (void)fb_height; (void)pitch;
+}
+void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch)
+{
+    (void)rgba; (void)w; (void)h; (void)pitch;
 }
 void gl_present_shutdown(void)
 {

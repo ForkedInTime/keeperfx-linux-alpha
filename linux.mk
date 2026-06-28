@@ -315,6 +315,7 @@ KFX_LDFLAGS += \
 	$(shell pkg-config --libs-only-l libavformat) \
 	$(shell pkg-config --libs-only-l libavcodec) \
 	$(shell pkg-config --libs-only-l libswresample) \
+	$(shell pkg-config --libs-only-l libswscale) \
 	$(shell pkg-config --libs-only-l libavutil) \
 	$(shell pkg-config --libs-only-l openal) \
 	$(shell pkg-config --libs-only-l luajit) \

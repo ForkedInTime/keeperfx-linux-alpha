@@ -6,6 +6,7 @@
 #include "bflib_vidsurface.h"
 #include "bflib_fileio.h"
 #include "kjm_input.h"
+#include "bflib_render_gl.h"
 
 // See: https://trac.ffmpeg.org/ticket/3626
 extern "C" {
@@ -13,6 +14,7 @@ extern "C" {
 	#include <libavcodec/avcodec.h>
 	#include <libavutil/imgutils.h>
 	#include <libswresample/swresample.h>
+	#include <libswscale/swscale.h>
     #pragma GCC diagnostic warning "-Wdeprecated-declarations"
 }
 
@@ -25,6 +27,8 @@ extern "C" {
 #include <vector>
 #include <SDL2/SDL.h>
 #include "post_inc.h"
+
+extern "C" { extern TbBool lbUseGLPresent; }
 
 namespace {
 
@@ -273,6 +277,14 @@ struct movie_t {
 	AVCodecContext * m_video_context = nullptr;
 	AVPacket * m_packet = nullptr;
 	AVFrame * m_frame = nullptr;
+	// --- truecolor->pal8 conversion (so non-Smacker, truecolor video can play) ---
+	SwsContext * m_sws = nullptr;       // source pix_fmt -> RGB24
+	AVFrame * m_rgb = nullptr;          // RGB24 scratch frame
+	std::vector<uint8_t> m_idx;         // quantised 8-bit indices
+	uint8_t m_pal8_palette[256 * 4];    // fixed palette, stored B,G,R,A per entry
+	bool m_pal8_palette_built = false;
+	SwsContext * m_sws_rgba = nullptr;  // source -> RGBA for the truecolor GL path
+	std::vector<uint8_t> m_rgba;
 	SwrContext * m_resampler = nullptr;
 	time_point m_video_start;
 	AVRational m_time_base;
@@ -315,6 +327,17 @@ struct movie_t {
 		}
 		if (m_frame) {
 			av_frame_free(&m_frame);
+		}
+		if (m_rgb) {
+			av_frame_free(&m_rgb);
+		}
+		if (m_sws) {
+			sws_freeContext(m_sws);
+			m_sws = nullptr;
+		}
+		if (m_sws_rgba) {
+			sws_freeContext(m_sws_rgba);
+			m_sws_rgba = nullptr;
 		}
 		if (m_packet) {
 			av_packet_free(&m_packet);
@@ -517,14 +540,97 @@ struct movie_t {
 		av_freep(&buffer);
 	}
 
+	void build_pal8_palette() {
+		// 216-colour 6x6x6 RGB cube (indices 0..215) + 40 greys (216..255).
+		// Stored as B,G,R,A to match the existing palette reader in output_video_frame().
+		for (int i = 0; i < 256; ++i) {
+			int R, G, B;
+			if (i < 216) {
+				int r = i / 36, g = (i / 6) % 6, b = i % 6;
+				R = r * 255 / 5; G = g * 255 / 5; B = b * 255 / 5;
+			} else {
+				int v = (i - 216) * 255 / 39; R = G = B = v;
+			}
+			m_pal8_palette[i * 4 + 0] = (uint8_t)B;
+			m_pal8_palette[i * 4 + 1] = (uint8_t)G;
+			m_pal8_palette[i * 4 + 2] = (uint8_t)R;
+			m_pal8_palette[i * 4 + 3] = 255;
+		}
+		m_pal8_palette_built = true;
+	}
+
+	// Convert m_frame (any pixel format) into a pal8 view in `out`.
+	// `out` borrows our member buffers; valid until the next call.
+	void convert_frame_to_pal8(AVFrame & out) {
+		static const uint8_t bayer8[64] = {
+			 0,32, 8,40, 2,34,10,42,  48,16,56,24,50,18,58,26,
+			12,44, 4,36,14,46, 6,38,  60,28,52,20,62,30,54,22,
+			 3,35,11,43, 1,33, 9,41,  51,19,59,27,49,17,57,25,
+			15,47, 7,39,13,45, 5,37,  63,31,55,23,61,29,53,21
+		};
+		const int w = m_frame->width;
+		const int h = m_frame->height;
+		m_sws = sws_getCachedContext(m_sws, w, h, (AVPixelFormat)m_frame->format,
+			w, h, AV_PIX_FMT_RGB24, SWS_BILINEAR, nullptr, nullptr, nullptr);
+		if (!m_rgb) { m_rgb = av_frame_alloc(); }
+		if (m_rgb->width != w || m_rgb->height != h || m_rgb->format != AV_PIX_FMT_RGB24) {
+			av_frame_unref(m_rgb);
+			m_rgb->format = AV_PIX_FMT_RGB24; m_rgb->width = w; m_rgb->height = h;
+			av_frame_get_buffer(m_rgb, 32);
+		}
+		sws_scale(m_sws, m_frame->data, m_frame->linesize, 0, h, m_rgb->data, m_rgb->linesize);
+		if (!m_pal8_palette_built) { build_pal8_palette(); }
+		if ((int)m_idx.size() < w * h) { m_idx.resize(w * h); }
+		for (int y = 0; y < h; ++y) {
+			const uint8_t * srow = m_rgb->data[0] + (size_t)y * m_rgb->linesize[0];
+			uint8_t * orow = m_idx.data() + (size_t)y * w;
+			for (int x = 0; x < w; ++x) {
+				int d = (int)bayer8[(y & 7) * 8 + (x & 7)] - 32; // -32..+31
+				int r = srow[x * 3 + 0] + d * 51 / 64;
+				int g = srow[x * 3 + 1] + d * 51 / 64;
+				int b = srow[x * 3 + 2] + d * 51 / 64;
+				if (r < 0) r = 0; else if (r > 255) r = 255;
+				if (g < 0) g = 0; else if (g > 255) g = 255;
+				if (b < 0) b = 0; else if (b > 255) b = 255;
+				int ri = (r * 5 + 127) / 255, gi = (g * 5 + 127) / 255, bi = (b * 5 + 127) / 255;
+				orow[x] = (uint8_t)(ri * 36 + gi * 6 + bi);
+			}
+		}
+		memset(&out, 0, sizeof(out));
+		out.format = AV_PIX_FMT_PAL8;
+		out.width = w; out.height = h;
+		out.data[0] = m_idx.data();
+		out.linesize[0] = w;
+		out.data[1] = m_pal8_palette;
+	}
+
 	void output_video_frame() {
+#ifndef _WIN32
+		if (lbUseGLPresent) {
+			const int w = m_frame->width, h = m_frame->height;
+			m_sws_rgba = sws_getCachedContext(m_sws_rgba, w, h, (AVPixelFormat)m_frame->format,
+				w, h, AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
+			if ((int)m_rgba.size() < w * h * 4) { m_rgba.resize((size_t)w * h * 4); }
+			uint8_t * dst[4] = { m_rgba.data(), nullptr, nullptr, nullptr };
+			int dstst[4] = { w * 4, 0, 0, 0 };
+			sws_scale(m_sws_rgba, m_frame->data, m_frame->linesize, 0, h, dst, dstst);
+			gl_present_frame_rgba(m_rgba.data(), w, h, w * 4);
+			return;
+		}
+#endif
 		// FFMpeg used to provide m_frame->palette_has_changed but it has been deprecated
 		// Assume the palette has changed every frame as there is no way for us to know anymore
+		const AVFrame * vf = m_frame;
+		AVFrame conv;
+		if (m_frame->format != AV_PIX_FMT_PAL8) {
+			convert_frame_to_pal8(conv);
+			vf = &conv;
+		}
 		SDL_Color palette[PALETTE_COLORS];
 		for (size_t i = 0; i < PALETTE_COLORS; ++i) {
-			palette[i].b = m_frame->data[1][(i * 4) + 0]; // blue
-			palette[i].g = m_frame->data[1][(i * 4) + 1]; // green
-			palette[i].r = m_frame->data[1][(i * 4) + 2]; // red
+			palette[i].b = vf->data[1][(i * 4) + 0]; // blue
+			palette[i].g = vf->data[1][(i * 4) + 1]; // green
+			palette[i].r = vf->data[1][(i * 4) + 2]; // red
 		}
 		LbScreenWaitVbi(); // this is a no-op today
 		// LbPaletteSet expects values in range 0-63 for reasons, nuking 75% of the color range
@@ -532,9 +638,9 @@ struct movie_t {
 		if (LbScreenLock() != Lb_SUCCESS) {
 			return;
 		} else if (m_flags & (SMK_FullscreenFit | SMK_FullscreenStretch | SMK_FullscreenCrop)) { // new scaling mode
-			copy_to_screen_scaled(*m_frame, m_flags);
+			copy_to_screen_scaled(*vf, m_flags);
 		} else {
-			copy_to_screen(*m_frame, m_flags);
+			copy_to_screen(*vf, m_flags);
 		}
 		LbScreenUnlock();
 		LbScreenSwap();

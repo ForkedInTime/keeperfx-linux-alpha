@@ -65,6 +65,19 @@ void gl_present_set_palette(const SDL_Color *colors, int count);
  */
 void gl_present_frame(const void *fb_pixels, int fb_width, int fb_height, int pitch);
 
+/** Present one RGBA truecolor frame letterboxed (Plan B: movie truecolor path).
+ *
+ * Uploads rgba into a GL_RGBA8 texture and draws it letterboxed to the screen.
+ * Lazy-compiles the passthrough shader program on first call.
+ * No-op when the GL backend is not initialised.
+ *
+ * @param rgba   Pointer to RGBA pixel data (4 bytes per pixel).
+ * @param w      Frame width in pixels.
+ * @param h      Frame height in pixels.
+ * @param pitch  Row stride in bytes (== w*4 for packed rows).
+ */
+void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch);
+
 /** Tear down all GL objects and the GL context. Safe to call when not inited. */
 void gl_present_shutdown(void);
 
