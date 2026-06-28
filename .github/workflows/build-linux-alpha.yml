@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   build-engine:
-    runs-on: ubuntu-22.04     # <-- the "old kitchen": older glibc = runs everywhere
+    runs-on: ubuntu-24.04     # ffmpeg 6.x (the engine needs ffmpeg >=5.1); glibc 2.39 -> runs on 24.04+ / Fedora / Arch / Steam Deck. Truly-universal coverage (older LTS) needs the AppImage/Flatpak bundling layer (next milestone).
     steps:
       - name: Check out the source
         uses: actions/checkout@v4
