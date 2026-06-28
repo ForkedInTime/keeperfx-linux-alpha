@@ -103,19 +103,22 @@ only thing it ever asks for is your own *Dungeon Keeper* files. Everything else 
 libraries, the game data, and the settings launcher — is bundled inside. No `apt install`, no dependencies,
 nothing to set up.
 
-```bash
-chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
-./KeeperFX-Linux-Alpha-x86_64.AppImage
-```
+1. Download **[`KeeperFX-Linux-Alpha-x86_64.AppImage`](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/KeeperFX-Linux-Alpha-x86_64.AppImage)**
+   from the latest release (~500 MB — it contains everything).
+2. Make it executable and run it:
+   ```bash
+   chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
+   ./KeeperFX-Linux-Alpha-x86_64.AppImage
+   ```
 
 The launcher then auto-detects your Dungeon Keeper install (GOG / Steam / Wine), copies the required files,
 lets you tweak graphics/sound/controls, and plays. If it can't find your Dungeon Keeper files, it asks you to
 point at them — that's the only thing that can stop it.
 
-> 🛠️ **Status:** the AppImage is built automatically by CI
-> ([launcher repo](https://github.com/ForkedInTime/keeperfx-launcher-qt-linux)) and is being finalized.
-> Until it's attached to a [release](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases), use the
-> **complete package** below — it works today.
+> **Won't start with a `libfuse.so.2` error?** Modern distros ship FUSE 3, but AppImages want FUSE 2. Either run
+> it without FUSE — `./KeeperFX-Linux-Alpha-x86_64.AppImage --appimage-extract-and-run` — or install the shim
+> once: `sudo apt install libfuse2t64` (Ubuntu/Debian) / the `fuse2` package on other distros. This is the
+> AppImage *runtime*, not our app — everything our game needs is already bundled.
 
 ### Play now — the complete package
 
