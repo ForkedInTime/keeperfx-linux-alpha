@@ -88,6 +88,14 @@ will copy them from your own legally-owned install — an old CD, or a digital e
 
 ---
 
+## System requirements
+
+- **A current 64-bit Linux distro: Ubuntu 24.04 / 26.04 or newer, Fedora, Arch, Steam Deck**, etc.
+- ⚠️ **Will NOT run on Ubuntu 22.04 or older.** Official builds are compiled on Ubuntu 24.04, whose C
+  library (glibc 2.39) is newer than what 22.04 and earlier provide — the binaries simply won't start on
+  them. Older systems must [build from source](#advanced-build-from-source) instead.
+- An OpenGL 3.3-capable GPU.
+
 ## Get started
 
 The goal is a one-file, any-distro experience: **download the launcher, run it, play** — it auto-detects your
