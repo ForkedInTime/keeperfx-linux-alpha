@@ -7,19 +7,48 @@
 ![Render](https://img.shields.io/badge/display-GPU%20OpenGL%203.3-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--2.0-blue?style=flat-square)
 
-A **native-Linux alpha** of [KeeperFX](https://github.com/dkfans/keeperfx) — the open-source remake of
-Bullfrog's *Dungeon Keeper*. It tracks the KeeperFX team's `master` and layers on a handful of personal
-improvements: a GPU (OpenGL) display path, truecolor front-end movies, a Wine-free native launcher, a few
-modern-Linux / ultrawide fixes, and an in-progress truecolor 3D renderer.
+**Dungeon Keeper, native on Linux. One file — download, run, play.**
 
-> ⚠️ **Unofficial personal alpha — not affiliated with, or endorsed by, the KeeperFX team.**
-> For the official, supported game (Windows, and the canonical cross-platform source), go to
-> **[dkfans/keeperfx](https://github.com/dkfans/keeperfx)**. Anything broken here is almost certainly
-> *my* change, not theirs — **please don't report issues from this fork upstream.**
+## ▶ Download &amp; play
+
+### **[⬇ KeeperFX-Linux-Alpha-x86_64.AppImage](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/KeeperFX-Linux-Alpha-x86_64.AppImage)** &nbsp;·&nbsp; ~500 MB &nbsp;·&nbsp; any current 64-bit Linux
+
+```bash
+chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
+./KeeperFX-Linux-Alpha-x86_64.AppImage
+```
+
+That **one file** has everything — launcher, engine, every library, and the game data. Nothing to `apt install`.
+It opens the settings launcher, finds your *Dungeon Keeper* install, lets you set up graphics/sound, and plays.
+
+🔑 **The only thing you provide is your own original *Dungeon Keeper* files** — from
+[GOG](https://www.gog.com/game/dungeon_keeper),
+[Steam](https://store.steampowered.com/app/1996630/Dungeon_Keeper_Gold/),
+[EA](https://www.ea.com/games/dungeon-keeper/dungeon-keeper), or an old CD. The launcher copies them for you.
+(We never ship the original game — you must own it.)
+
+Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam Deck, … &nbsp;
+*(not Ubuntu 22.04 or older — see [requirements](#system-requirements)).*
+
+<details>
+<summary><b>Won't start?</b> (a <code>libfuse.so.2</code> error)</summary>
+
+> Modern distros ship FUSE 3, but AppImages want FUSE 2 to mount themselves. Either:
+> - run it without FUSE: `./KeeperFX-Linux-Alpha-x86_64.AppImage --appimage-extract-and-run`, or
+> - install the small shim once: `sudo apt install libfuse2t64` (Ubuntu/Debian) / the `fuse2` package elsewhere.
+>
+> That's the AppImage *runtime*, not our app — everything our game needs is already bundled.
+</details>
+
+> ⚠️ *Unofficial personal alpha — **not** affiliated with the KeeperFX team. Please don't report issues from
+> this fork upstream. The game itself is [their work](#credit). Prefer to compile it yourself, or want the
+> details? Read on.*
 
 ---
 
-## Credit — this is the KeeperFX team's game
+<sub>Everything below is detail — you don't need it to play.</sub>
+
+## Credit
 
 **KeeperFX is the work of the KeeperFX team and the Keeper Klan community**, built up over many years: the
 complete decompilation-and-rewrite of *Dungeon Keeper* into modern code, the gameplay, the tooling — **and the
@@ -32,8 +61,6 @@ latest every few months. All the real progress comes from them.
 - **Community (Keeper Klan Discord):** https://discord.gg/hE4p7vy2Hb
 
 If you enjoy this, support **the upstream project** — that's where the game is actually made.
-
----
 
 ## What this alpha adds on top of upstream
 
@@ -74,122 +101,76 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   developed slowly, on top of whatever the team ships, and always behind a separate switch so the classic
   look stays intact. **None of this is enabled in the current build.**
 
----
-
 ## You still need the original Dungeon Keeper files
 
 Like upstream, this is a standalone engine but **requires the original game files as proof of ownership.** It
-will copy them from your own legally-owned install — an old CD, or a digital edition from
+copies them from your own legally-owned install — an old CD, or a digital edition from
 [GOG](https://www.gog.com/game/dungeon_keeper),
 [EA](https://www.ea.com/games/dungeon-keeper/dungeon-keeper), or
 [Steam](https://store.steampowered.com/app/1996630/Dungeon_Keeper_Gold/).
-
 **This project never ships the original Dungeon Keeper data** — only our engine and the free KeeperFX assets.
-
----
 
 ## System requirements
 
 - **A current 64-bit Linux distro: Ubuntu 24.04 / 26.04 or newer, Fedora, Arch, Steam Deck**, etc.
 - ⚠️ **Will NOT run on Ubuntu 22.04 or older.** Official builds are compiled on Ubuntu 24.04, whose C
   library (glibc 2.39) is newer than what 22.04 and earlier provide — the binaries simply won't start on
-  them. Older systems must [build from source](#advanced-build-from-source) instead.
+  them. Older systems must [build from source](#build-from-source) instead.
 - An OpenGL 3.3-capable GPU.
 
-## Get started
+## Other ways to install
 
-**The intended experience is one file.** You download a single self-contained **AppImage**, run it, and the
-only thing it ever asks for is your own *Dungeon Keeper* files. Everything else — the engine, all its
-libraries, the game data, and the settings launcher — is bundled inside. No `apt install`, no dependencies,
-nothing to set up.
-
-1. Download **[`KeeperFX-Linux-Alpha-x86_64.AppImage`](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/KeeperFX-Linux-Alpha-x86_64.AppImage)**
-   from the latest release (~500 MB — it contains everything).
-2. Make it executable and run it:
-   ```bash
-   chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
-   ./KeeperFX-Linux-Alpha-x86_64.AppImage
-   ```
-
-The launcher then auto-detects your Dungeon Keeper install (GOG / Steam / Wine), copies the required files,
-lets you tweak graphics/sound/controls, and plays. If it can't find your Dungeon Keeper files, it asks you to
-point at them — that's the only thing that can stop it.
-
-> **Won't start with a `libfuse.so.2` error?** Modern distros ship FUSE 3, but AppImages want FUSE 2. Either run
-> it without FUSE — `./KeeperFX-Linux-Alpha-x86_64.AppImage --appimage-extract-and-run` — or install the shim
-> once: `sudo apt install libfuse2t64` (Ubuntu/Debian) / the `fuse2` package on other distros. This is the
-> AppImage *runtime*, not our app — everything our game needs is already bundled.
-
-### Play now — the complete package
+<details>
+<summary><b>The complete package</b> (engine + data, you add libraries + DK files)</summary>
 
 1. Download **`keeperfx-linux-alpha-x86_64-full.7z`** from the [latest release](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest).
-   It contains the engine + all the free KeeperFX assets + our enhancements (it does **not** contain the
-   original Dungeon Keeper files — you supply those).
-2. Extract it, e.g. to `~/.local/share/keeperfx-alpha`:
+2. Extract it to `~/.local/share/keeperfx-alpha`:
    ```bash
    mkdir -p ~/.local/share/keeperfx-alpha
    7z x keeperfx-linux-alpha-x86_64-full.7z -o/tmp/kfx
    cp -r /tmp/kfx/keeperfx-linux-alpha/. ~/.local/share/keeperfx-alpha/
    ```
-3. Add your **own** original *Dungeon Keeper* files (proof of ownership) — see [below](#you-still-need-the-original-dungeon-keeper-files).
-   The launcher does this automatically; manually, copy these from your GOG/Steam/CD install into the matching
-   folders: `data/` (`bluepal.dat`, `slab0-0.dat`, the palettes…) and `sound/` (`atmos1.sbk`, `atmos2.sbk`, `bullfrog.sbk`).
+3. Add your **own** Dungeon Keeper files into `data/` (`bluepal.dat`, `slab0-0.dat`, the palettes…) and
+   `sound/` (`atmos1.sbk`, `atmos2.sbk`, `bullfrog.sbk`).
 4. Install the runtime libraries (Arch shown; names vary by distro):
    ```bash
    sudo pacman -S --needed sdl2-compat sdl2_mixer sdl2_net sdl2_image \
      ffmpeg openal luajit libspng minizip zlib libepoxy miniupnpc libnatpmp openssl zstd
    ```
-5. Run it:
-   ```bash
-   cd ~/.local/share/keeperfx-alpha && ./keeperfx
-   ```
+5. Run: `cd ~/.local/share/keeperfx-alpha && ./keeperfx`
+</details>
 
-**The only thing that should stop you** is not having your original Dungeon Keeper files. Everything else is in
-the package.
+### Build from source
 
----
-
-## Advanced: build from source
-
-> This section is for developers who want to compile the engine. Most people should use the package above.
+<details>
+<summary>For developers who want to compile the engine themselves</summary>
 
 Tested on Arch Linux (x86-64). Package **names** differ across distros, but the set is the same.
 
-### 1. Install build dependencies
-
-**Arch / derivatives:**
+**1. Install build dependencies** (Arch / derivatives):
 ```bash
 sudo pacman -S --needed base-devel git python \
   sdl2-compat sdl2_mixer sdl2_net sdl2_image \
   ffmpeg openal luajit libspng minizip zlib libepoxy \
   miniupnpc libnatpmp openssl zstd
 ```
-> Other distros: you need a C/C++ toolchain, `make`, `git`, `python3`, and the dev packages for
-> **SDL2 (+mixer, +net, +image), ffmpeg (avformat/avcodec/avutil/swscale/swresample), OpenAL, LuaJIT, libspng,
-> minizip, zlib, libepoxy, miniupnpc, libnatpmp, openssl, zstd.** A few small libraries
-> (centijson, astronomy, enet6, libcurl) are fetched and built automatically by the makefile.
+> Other distros: a C/C++ toolchain, `make`, `git`, `python3`, and the dev packages for SDL2 (+mixer/net/image),
+> ffmpeg (avformat/avcodec/avutil/swscale/swresample), OpenAL, LuaJIT, libspng, minizip, zlib, libepoxy,
+> miniupnpc, libnatpmp, openssl, zstd. centijson/astronomy/enet6/libcurl are fetched by the makefile.
 
-### 2. Clone and build the engine
-
+**2. Clone and build the engine:**
 ```bash
 git clone https://github.com/ForkedInTime/keeperfx-linux-alpha.git
 cd keeperfx-linux-alpha
-
-# Fetch the auto-downloaded deps serially first (avoids a parallel-build race)
 make -f linux.mk \
   deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
   deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
-
-# Build. BUILD_NUMBER = git commit count, exactly as the team's CI computes it,
-# so the engine reports a real "1.3.2.<build> alpha" version.
 rm -f src/ver_defs.h
 make -f linux.mk BUILD_NUMBER="$(git rev-list --count HEAD)" VER_SUFFIX=alpha -j"$(nproc)"
 ```
 This produces **`bin/keeperfx`** (a native ELF).
 
-### 3. Generate the UTF-8 fonts
-
-Upstream's UTF-8 text needs binary font files that the makefile doesn't build. Generate them:
+**3. Generate the UTF-8 fonts** (the makefile doesn't build them):
 ```bash
 ( cd tools/fxfontmaker && PY=$(command -v python3 || command -v python)
   "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
@@ -202,38 +183,13 @@ Upstream's UTF-8 text needs binary font files that the makefile doesn't build. G
   rm -f merged12.hex wenquanyi.hex unifont12.hex )
 ```
 
-### 4. Assemble a playable install
+**4. Assemble a playable install.** This repo has engine source + text config only — not the game data. Get a
+KeeperFX data tree (via the launcher or an official install), then overlay your build + fonts + `config/` and
+write `version.txt`. The whole rebase-build-deploy is automated by **`./refresh-alpha.sh`**.
 
-This repo contains the **engine source and text config only** — not the playable game data. You need a
-KeeperFX **data tree** (free assets: sprites, sounds, campaigns, movies) plus your own Dungeon Keeper files.
-The simplest way to get that tree is the **KeeperFX launcher** (or an official KeeperFX install); then overlay
-our build on top:
-
-```bash
-PREFIX="$HOME/.local/share/keeperfx-alpha"   # your KeeperFX data tree
-
-cp -f bin/keeperfx "$PREFIX/keeperfx"                       # our engine
-cp -f tools/fxfontmaker/*.fxfont "$PREFIX/fxdata/"          # UTF-8 fonts
-cp -rf config/fxdata/. "$PREFIX/fxdata/"                    # config matching this engine
-cp -rf config/creatrs/. "$PREFIX/creatrs/"
-cp -rf config/mods/.    "$PREFIX/mods/"
-# record the version so the native launcher can read it
-sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "$PREFIX/version.txt"
-
-cd "$PREFIX" && ./keeperfx          # play
-```
-
-> Steps 2–4 are automated by **`./refresh-alpha.sh`** once you have a data tree at
-> `~/.local/share/keeperfx-alpha` and `upstream` set to `https://github.com/dkfans/keeperfx`.
-
-### (Optional) Build the native launcher
-
-The settings launcher is the team's separate repo, [`dkfans/keeperfx-launcher-qt`](https://github.com/dkfans/keeperfx-launcher-qt)
-(Qt6 / CMake). It builds on Linux but needs small patches to drive the *native* engine instead of Wine
-(native-binary detection, native launch, version-from-`version.txt`, and dropping the Windows-only `-static`
-link flag). Those patches are tracked with this project; build with `qt6-base`, `cmake` and `ninja`.
-
----
+The native launcher is its own repo:
+[**keeperfx-launcher-qt-linux**](https://github.com/ForkedInTime/keeperfx-launcher-qt-linux).
+</details>
 
 ## How this alpha stays current with upstream
 
@@ -242,8 +198,8 @@ git fetch upstream                          # the KeeperFX team's master
 git log --oneline HEAD~N..upstream/master   # see what they changed
 ./refresh-alpha.sh                          # rebase our changes, rebuild, redeploy
 ```
-The few local commits (GPU layer, truecolor movies, the fixes, tooling) re-base cleanly onto their latest
-most of the time; occasionally a file we touch needs a quick manual merge.
+The few local commits re-base cleanly onto their latest most of the time; occasionally a file we touch needs a
+quick manual merge. The CI then rebuilds the AppImage automatically on each new release.
 
 ## License
 
