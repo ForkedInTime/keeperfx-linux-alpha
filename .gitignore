@@ -3,6 +3,8 @@
 /obj
 /sdl
 /pkg
+# generated UTF-8 unifont binaries (produced by refresh-alpha.sh from tools/fxfontmaker)
+/tools/fxfontmaker/*.fxfont
 /gfx
 /sfx
 /tools/peresec

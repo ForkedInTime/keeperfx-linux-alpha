@@ -1483,7 +1483,13 @@ static short load_unifont_file(struct AsianFont * dbcfont)
         return 3;
     }
     LbFileClose(fhandle);
-    free(fpath);
+    // NOTE (keeperfx-alpha local fix): fpath comes from prepare_file_fmtpath() ->
+    // get_mod_file_path(), which returns a pointer into a STATIC buffer
+    // (static char ffullpath[4096]) — it must NOT be freed. The original free()
+    // here corrupts the heap and aborts on glibc the moment the .fxfont files
+    // exist (before they exist, the function returns early at the size check and
+    // never reaches this line). Upstream UTF-8 (#4920) bug; not reported per
+    // our no-contribution policy.
 
     unsigned short *widths = (unsigned short *)malloc(UNIFONT_INDEX_COUNT * sizeof(*widths));
     unsigned int *offsets = (unsigned int *)malloc(UNIFONT_INDEX_COUNT * sizeof(*offsets));
