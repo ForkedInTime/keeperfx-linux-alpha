@@ -42,6 +42,23 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 > That's the AppImage *runtime*, not our app — everything our game needs is already bundled.
 </details>
 
+<details>
+<summary><b>Prefer Flatpak?</b> &nbsp;(AppImage vs Flatpak — which should I pick?)</summary>
+
+> Both contain the same game; they're just two ways to install it.
+>
+> - **AppImage — recommended.** The simplest: download one file, make it runnable, go. Nothing is installed
+>   into your system, and you can delete it any time. Best if you just want to play.
+> - **Flatpak.** Pick this if you already use Flatpak and want KeeperFX in your app menu with automatic
+>   updates. It needs Flatpak set up first and downloads a shared system runtime the first time (a few hundred
+>   MB, reused by your other Flatpaks). It's newer and less-tested for this game, so if anything misbehaves,
+>   use the AppImage. Grab `KeeperFX-Linux-Alpha-x86_64.flatpak` from
+>   [Releases](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases) and:
+>   `flatpak install --user ./KeeperFX-Linux-Alpha-x86_64.flatpak`
+>
+> **Short version: use the AppImage unless you specifically want Flatpak.**
+</details>
+
 > ⚠️ *Unofficial personal alpha — **not** affiliated with the KeeperFX team. Please don't report issues from
 > this fork upstream. The game itself is [their work](#credit). Prefer to compile it yourself, or want the
 > details? Read on.*
