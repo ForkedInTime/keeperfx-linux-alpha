@@ -127,20 +127,16 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   developed slowly, on top of whatever the team ships, and always behind a separate switch so the classic
   look stays intact. **None of this is enabled in the current build.**
 
-## You still need the original Dungeon Keeper files
-
-Like upstream, this is a standalone engine but **requires the original game files as proof of ownership.** It
-copies them from your own legally-owned install — an old CD, or a digital edition from
-[GOG](https://www.gog.com/game/dungeon_keeper),
-[EA](https://www.ea.com/games/dungeon-keeper/dungeon-keeper), or
-[Steam](https://store.steampowered.com/app/1996630/Dungeon_Keeper_Gold/).
-**This project never ships the original Dungeon Keeper data** — only our engine and the free KeeperFX assets.
-
 ## How do I install DK1 on Linux?
 
-GOG, EA and Steam only sell *Dungeon Keeper* as a **Windows** program — there's no native Linux installer, and
-no GOG client for Linux. But you only need the game's **data files**, and getting them on Linux is easy. Pick
-whichever fits you; once DK is installed, just run the KeeperFX AppImage and the launcher finds it automatically.
+KeeperFX is a standalone engine but **needs the original *Dungeon Keeper* files as proof of ownership** — we
+never ship the original game, only our engine and the free KeeperFX assets. The catch on Linux:
+[GOG](https://www.gog.com/game/dungeon_keeper),
+[EA](https://www.ea.com/games/dungeon-keeper/dungeon-keeper) and
+[Steam](https://store.steampowered.com/app/1996630/Dungeon_Keeper_Gold/) only sell *Dungeon Keeper* as a
+**Windows** program, and there's no GOG client for Linux. But you only need its **data files**, and getting them
+is easy. Pick whichever fits you; once DK is installed, run the KeeperFX AppImage and the launcher finds it
+automatically.
 
 **Option A — Lutris (easiest, fully automatic).**
 [Lutris](https://lutris.net) has a one-click community installer that downloads and installs *Dungeon Keeper
