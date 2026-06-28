@@ -98,12 +98,24 @@ will copy them from your own legally-owned install — an old CD, or a digital e
 
 ## Get started
 
-The goal is a one-file, any-distro experience: **download the launcher, run it, play** — it auto-detects your
-Dungeon Keeper install, downloads the game, copies your files, and lets you tweak graphics/sound/controls. The
-launcher already does all of that; what's left is packaging it as a portable **AppImage** (built on an old
-base via CI so it runs everywhere — Ubuntu, Fedora, Arch, Steam Deck). That's the next milestone. ⏳
+**The intended experience is one file.** You download a single self-contained **AppImage**, run it, and the
+only thing it ever asks for is your own *Dungeon Keeper* files. Everything else — the engine, all its
+libraries, the game data, and the settings launcher — is bundled inside. No `apt install`, no dependencies,
+nothing to set up.
 
-In the meantime, you can play today with the **complete package** below, or build from source.
+```bash
+chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
+./KeeperFX-Linux-Alpha-x86_64.AppImage
+```
+
+The launcher then auto-detects your Dungeon Keeper install (GOG / Steam / Wine), copies the required files,
+lets you tweak graphics/sound/controls, and plays. If it can't find your Dungeon Keeper files, it asks you to
+point at them — that's the only thing that can stop it.
+
+> 🛠️ **Status:** the AppImage is built automatically by CI
+> ([launcher repo](https://github.com/ForkedInTime/keeperfx-launcher-qt-linux)) and is being finalized.
+> Until it's attached to a [release](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases), use the
+> **complete package** below — it works today.
 
 ### Play now — the complete package
 
