@@ -99,6 +99,9 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   through **Wine** and read the version from a Windows `.exe`). Here it's built for Linux and patched to detect
   and launch the **native** engine directly — **no Wine** — read the real version, and expose all of its
   Graphics / Sound / Input settings.
+- **Built-in updates.** The launcher checks *this* repo's releases and shows **"Update available — vX"** when a
+  newer build is out; one click downloads just the updated game package (no need to re-download the whole
+  AppImage). It notifies — it never auto-overwrites.
 
 **Stability fixes** *(genuine upstream bugs, fixed locally for modern Linux & ultrawide)*
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
@@ -218,7 +221,7 @@ git log --oneline HEAD~N..upstream/master   # see what they changed
 ./refresh-alpha.sh                          # rebase our changes, rebuild, redeploy
 ```
 The few local commits re-base cleanly onto their latest most of the time; occasionally a file we touch needs a
-quick manual merge. The CI then rebuilds the AppImage automatically on each new release.
+quick manual merge. The CI then rebuilds the AppImage **and Flatpak** automatically on each new release.
 
 ## License
 
