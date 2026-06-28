@@ -441,8 +441,13 @@ TbBool LensManager::AllocateBuffers()
     m_buffer_width = lbDisplay.GraphicsScreenWidth;
     m_buffer_height = lbDisplay.GraphicsScreenHeight;
     
-    unsigned long buffer_size = m_buffer_width * m_buffer_height + 2;
-    
+    // +2 rows of margin: draw_lens_effect() reads at scrmem[viewport_x + ...],
+    // and viewport_x (the possess-view's horizontal offset, large on ultrawide
+    // screens) can push the last reads past width*height. Without margin this
+    // overflows the buffer and segfaults in DisplacementEffect::Draw at high
+    // resolutions. (Upstream bug, exposed at 3440x1440.)
+    unsigned long buffer_size = m_buffer_width * (m_buffer_height + 2) + 2;
+
     // Ensure minimum size for 256x256 mist textures
     if (buffer_size < 256 * 256) {
         buffer_size = 256 * 256 + 2;

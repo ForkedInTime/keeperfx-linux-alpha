@@ -25,6 +25,10 @@
 #include "bflib_render.h"
 #include "bflib_sprfnt.h"
 #include "bflib_vidsurface.h"
+#ifndef _WIN32
+#include "bflib_render_gl.h"
+#include "bflib_render_glworld.h"
+#endif
 
 #include "keeperfx.hpp"
 
@@ -54,6 +58,9 @@ volatile unsigned short lbEngineBPP = 8;
 extern volatile TbBool lbAppActive;
 /** True if we have two surfaces. */
 volatile TbBool lbHasSecondSurface;
+/** True when the OpenGL GPU present backend is active (Linux only).
+ * When false we fall back to the legacy CPU blit present path. */
+TbBool lbUseGLPresent = false;
 /** True if we request the double buffering to be on in next mode switch. */
 TbBool lbDoubleBufferingRequested;
 /** Name of the video driver to be used. Must be set before LbScreenInitialize().
@@ -142,6 +149,26 @@ TbResult LbScreenSwap(void)
     int blresult;
     SYNCDBG(12,"Starting");
     TbResult ret = LbMouseOnBeginSwap();
+#ifndef _WIN32
+    // GPU present path: upload the 8-bit framebuffer and present via OpenGL.
+    // The mouse cursor was already drawn into lbDrawSurface by
+    // LbMouseOnBeginSwap above, so this keeps the same ordering.
+    if (lbUseGLPresent) {
+        if (ret == Lb_SUCCESS) {
+            // Sync the GPU palette from the draw surface every frame, so any
+            // palette change is reflected - including movies (bflib_fmvids)
+            // which call SDL_SetPaletteColors directly, bypassing LbPaletteSet.
+            if ((lbDrawSurface != NULL) && (lbDrawSurface->format->palette != NULL)) {
+                gl_present_set_palette(lbDrawSurface->format->palette->colors,
+                    lbDrawSurface->format->palette->ncolors);
+            }
+            gl_present_frame(lbDrawSurface->pixels, lbDrawSurface->w,
+                lbDrawSurface->h, lbDrawSurface->pitch);
+        }
+        LbMouseOnEndSwap();
+        return ret;
+    }
+#endif
     // Put the data from Draw Surface onto Screen Surface
     if ((ret == Lb_SUCCESS) && (lbHasSecondSurface)) {
         // Update pointer to window surface on every frame
@@ -531,9 +558,18 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     SDL_Surface* prevScreenSurf = lbScreenSurface;
     LbMouseChangeSprite(NULL);
 
+#ifndef _WIN32
+    if (lbUseGLPresent) {
+        // Tear down the old GL backend before re-creating it for the new mode.
+        gl_present_shutdown();
+        SDL_FreeSurface(lbDrawSurface);
+        lbUseGLPresent = false;
+    } else
+#endif
     if (lbHasSecondSurface) {
         SDL_FreeSurface(lbDrawSurface);
     }
+    lbHasSecondSurface = false;
     lbDrawSurface = NULL;
     lbScreenInitialised = false;
 
@@ -585,30 +621,64 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
             SDL_SetWindowPosition(lbWindow, mdinfo->window_pos_x, mdinfo->window_pos_y);
         }
     }
+    Uint32 createFlags = mdinfo->sdlFlags;
+#ifndef _WIN32
+    // Request a core OpenGL 3.3 context for the GPU present backend.
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    createFlags |= SDL_WINDOW_OPENGL;
+#endif
     // If the game window doesn't yet exists
     if (lbWindow == NULL) {
-        lbWindow = SDL_CreateWindow(lbDrawAreaTitle, mdinfo->window_pos_x, mdinfo->window_pos_y, mdinfo->Width, mdinfo->Height, mdinfo->sdlFlags);
+        lbWindow = SDL_CreateWindow(lbDrawAreaTitle, mdinfo->window_pos_x, mdinfo->window_pos_y, mdinfo->Width, mdinfo->Height, createFlags);
     }
     if (lbWindow == NULL) {
         ERRORLOG("SDL_CreateWindow failed for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
         return Lb_FAIL;
     }
-    lbScreenSurface = lbDrawSurface = SDL_GetWindowSurface( lbWindow );
-    if (lbScreenSurface == NULL) {
-        ERRORLOG("Failed to initialize mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
-        return Lb_FAIL;
-    }
 
-    // Create secondary surface if necessary, that is if BPP != lbEngineBPP.
-    if (mdinfo->BitsPerPixel != lbEngineBPP)
+#ifndef _WIN32
+    // GPU present path. The engine renders into an 8-bit indexed surface; with
+    // GL we create that surface directly (we must NOT call SDL_GetWindowSurface
+    // while a GL context exists - SDL forbids mixing the two). If GL init fails
+    // we fall back to the legacy CPU blit path below.
     {
-        lbDrawSurface = SDL_CreateRGBSurface(0, mdinfo->Width, mdinfo->Height, lbEngineBPP, 0, 0, 0, 0);
-        if (lbDrawSurface == NULL) {
-            ERRORLOG("Can't create secondary surface for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
-            LbScreenReset(false);
+        SDL_Surface* glDrawSurface = SDL_CreateRGBSurface(0, mdinfo->Width, mdinfo->Height, lbEngineBPP, 0, 0, 0, 0);
+        if (glDrawSurface == NULL) {
+            ERRORLOG("Can't create engine surface for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
+        } else if (gl_present_init(lbWindow, mdinfo->Width, mdinfo->Height)) {
+            lbScreenSurface = glDrawSurface;
+            lbDrawSurface = glDrawSurface;
+            lbHasSecondSurface = false;
+            lbUseGLPresent = true;
+        } else {
+            SYNCLOG("GL present init failed for mode %d (%s); using CPU blit fallback", (int)mode, mdinfo->Desc);
+            SDL_FreeSurface(glDrawSurface);
+        }
+    }
+#endif
+
+    if (!lbUseGLPresent)
+    {
+        lbScreenSurface = lbDrawSurface = SDL_GetWindowSurface( lbWindow );
+        if (lbScreenSurface == NULL) {
+            ERRORLOG("Failed to initialize mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
             return Lb_FAIL;
         }
-        lbHasSecondSurface = true;
+
+        // Create secondary surface if necessary, that is if BPP != lbEngineBPP.
+        if (mdinfo->BitsPerPixel != lbEngineBPP)
+        {
+            lbDrawSurface = SDL_CreateRGBSurface(0, mdinfo->Width, mdinfo->Height, lbEngineBPP, 0, 0, 0, 0);
+            if (lbDrawSurface == NULL) {
+                ERRORLOG("Can't create secondary surface for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
+                LbScreenReset(false);
+                return Lb_FAIL;
+            }
+            lbHasSecondSurface = true;
+        }
     }
 
     lbDisplay.DrawFlags = 0;
@@ -779,6 +849,14 @@ TbResult LbScreenReset(TbBool exiting_application)
     if (!lbScreenInitialised)
       return Lb_FAIL;
     LbMouseChangeSprite(NULL);
+#ifndef _WIN32
+    if (lbUseGLPresent) {
+        gl_present_shutdown();
+        // In GL mode lbDrawSurface is an allocated 8-bit surface we own.
+        SDL_FreeSurface(lbDrawSurface);
+        lbUseGLPresent = false;
+    } else
+#endif
     if (lbHasSecondSurface) {
         SDL_FreeSurface(lbDrawSurface);
     }

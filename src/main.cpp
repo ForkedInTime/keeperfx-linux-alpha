@@ -4455,6 +4455,16 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
     {
         api_init_server();
         game_loop();
+        // Clean shutdown on normal quit: hard-exit BEFORE the SDL window/GL
+        // teardown below. On Wayland via sdl2-compat (the SDL2 API over SDL3),
+        // destroying the window races SDL3's event-reader thread and segfaults
+        // at exit. The game has already saved; the OS/compositor reclaims the
+        // window, GL context and Wayland connection on process death.
+        SYNCDBG(0,"finished properly");
+        steam_api_shutdown();
+        LbErrorLogClose();
+        fflush(NULL);
+        _Exit(0);
     }
     reset_game();
     LbScreenReset(true);

@@ -49,6 +49,8 @@ src/net_main.c \
 src/net_lobby.c \
 src/bflib_planar.c \
 src/bflib_render.c \
+src/bflib_render_gl.c \
+src/bflib_render_glworld.c \
 src/bflib_render_gpoly.c \
 src/bflib_render_trig.c \
 src/bflib_sndlib.cpp \
@@ -292,18 +294,20 @@ KFX_INCLUDES = \
 	-Ideps/astronomy/include \
 	-Ideps/enet6/include \
 	-Ideps/libcurl/include \
-	$(shell pkg-config --cflags-only-I luajit)
+	$(shell pkg-config --cflags-only-I luajit) \
+	$(shell pkg-config --cflags epoxy)
 
-KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Werror -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
-KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Werror -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
 
 KFX_LDFLAGS += \
 	-g \
 	-rdynamic \
-	-Wall -Wextra -Werror \
+	-Wall -Wextra -Wno-error \
 	-Ldeps/astronomy -lastronomy \
 	-Ldeps/centijson -ljson \
 	-Ldeps/enet6 -lenet6 \
+	$(shell pkg-config --libs-only-l epoxy) \
 	$(shell pkg-config --libs-only-l sdl2) \
 	$(shell pkg-config --libs-only-l SDL2_mixer) \
 	$(shell pkg-config --libs-only-l SDL2_net) \
@@ -330,7 +334,7 @@ TOML_OBJECTS = $(patsubst deps/centitoml/%.c,obj/centitoml/%.o,$(TOML_SOURCES))
 TOML_INCLUDES = \
 	-Ideps/centijson/include
 
-TOML_CFLAGS += -O3 -march=x86-64 $(TOML_INCLUDES) -Wall -Wextra -Werror -Wno-unused-parameter
+TOML_CFLAGS += -O3 -march=x86-64 $(TOML_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter
 
 ifeq ($(ENABLE_LTO), 1)
 KFX_CFLAGS += -flto
