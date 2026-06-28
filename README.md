@@ -13,6 +13,8 @@
 
 ### **[⬇ KeeperFX-Linux-Alpha-x86_64.AppImage](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/KeeperFX-Linux-Alpha-x86_64.AppImage)** &nbsp;·&nbsp; ~500 MB &nbsp;·&nbsp; any current 64-bit Linux
 
+<sub>↳ The link above always grabs the newest build. To see every version, the changelogs, or an older build, browse **[all releases »](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)**.</sub>
+
 ```bash
 chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
 ./KeeperFX-Linux-Alpha-x86_64.AppImage
