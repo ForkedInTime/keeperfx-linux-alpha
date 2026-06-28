@@ -29,6 +29,10 @@ It opens the settings launcher, finds your *Dungeon Keeper* install, lets you se
 [EA](https://www.ea.com/games/dungeon-keeper/dungeon-keeper), or an old CD. The launcher copies them for you.
 (We never ship the original game — you must own it.)
 
+> 🐧 **No GOG Galaxy on Linux?** There's no native GOG client — so see
+> **[How do I install DK1 on Linux?](#how-do-i-install-dk1-on-linux)** for getting your GOG/Steam/EA
+> copy installed (via Lutris or Heroic) so the launcher can find it.
+
 Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam Deck, … &nbsp;
 *(not Ubuntu 22.04 or older — see [requirements](#system-requirements)).*
 
@@ -132,6 +136,41 @@ copies them from your own legally-owned install — an old CD, or a digital edit
 [Steam](https://store.steampowered.com/app/1996630/Dungeon_Keeper_Gold/).
 **This project never ships the original Dungeon Keeper data** — only our engine and the free KeeperFX assets.
 
+## How do I install DK1 on Linux?
+
+GOG, EA and Steam only sell *Dungeon Keeper* as a **Windows** program — there's no native Linux installer, and
+no GOG client for Linux. But you only need the game's **data files**, and getting them on Linux is easy. Pick
+whichever fits you; once DK is installed, just run the KeeperFX AppImage and the launcher finds it automatically.
+
+**Option A — Lutris (easiest, fully automatic).**
+[Lutris](https://lutris.net) has a one-click community installer that downloads and installs *Dungeon Keeper
+Gold* from GOG for you (it handles Wine behind the scenes — you don't deal with any of it).
+1. Install Lutris from your distro's software store.
+2. In Lutris, search **"Dungeon Keeper"**, pick the GOG install script, and log in with your GOG account.
+3. Let it install. The KeeperFX launcher then auto-detects it.
+
+**Option B — Heroic Games Launcher.**
+[Heroic](https://heroicgameslauncher.com) is a friendly Linux client for GOG and Epic. Log into GOG, install
+*Dungeon Keeper Gold*, done.
+
+**Option C — Extract the GOG offline installer directly (no Wine at all).**
+If you downloaded the GOG **offline installer** `.exe`, you don't even have to run it — just unpack it:
+```bash
+sudo apt install innoextract        # Debian/Ubuntu  (or 'innoextract' on your distro)
+innoextract setup_dungeon_keeper_gold_*.exe
+```
+This dumps the game into an `app/` folder. Point the launcher at it (or copy its `data/` and `sound/` files into
+the install). This is the lightest option — no GOG client, no Wine.
+
+**Option D — Steam + Proton.**
+Buy *Dungeon Keeper Gold* on [Steam](https://store.steampowered.com/app/1996630/Dungeon_Keeper_Gold/), enable
+**Proton** for it (Properties → Compatibility → *Force the use of a specific Steam Play compatibility tool*),
+and install. The launcher detects the Steam copy.
+
+> The launcher already looks in the usual places — Lutris, Steam, and `~/.wine` GOG/EA prefixes. If it can't
+> find your install, it simply asks you to browse to the folder. **This is the one and only thing you have to
+> provide — everything else is in the download.**
+
 ## System requirements
 
 - **A current 64-bit Linux distro: Ubuntu 24.04 / 26.04 or newer, Fedora, Arch, Steam Deck**, etc.
@@ -222,6 +261,44 @@ git log --oneline HEAD~N..upstream/master   # see what they changed
 ```
 The few local commits re-base cleanly onto their latest most of the time; occasionally a file we touch needs a
 quick manual merge. The CI then rebuilds the AppImage **and Flatpak** automatically on each new release.
+
+## ❓ FAQ
+
+### How do I install DK1 on Linux?
+
+KeeperFX needs your **own original *Dungeon Keeper* files** as proof of ownership — the launcher copies
+them out of a real install. On Windows you'd just run GOG Galaxy; **there is no GOG Galaxy for Linux**, so
+you install your GOG/Steam/EA copy with a Wine front-end first, then point the launcher at it.
+
+**Option A — Lutris (recommended for GOG)**
+1. Install Lutris: `sudo apt install lutris` (Ubuntu/Debian), `sudo pacman -S lutris` (Arch), or the Flatpak.
+2. Link your GOG account: **Preferences → Sources → GOG → Sign in**. This lets Lutris pull the installer
+   automatically.
+3. Search **Dungeon Keeper** on [lutris.net](https://lutris.net/games/dungeon-keeper/), click **Install**,
+   and follow the script.
+4. **If Lutris can't auto-download** (account not linked, offline installer, GOG API hiccup), it shows a
+   file picker. Point it at the GOG **setup `.exe`** you downloaded from gog.com (plus any `.bin` parts) —
+   *not* an existing install folder. Lutris installs the game fresh into its own Wine prefix.
+
+**Option B — Heroic Games Launcher**
+1. Install Heroic (`flatpak install flathub com.heroicgameslauncher.hgl`, or the AppImage).
+2. Log in to **GOG** in Heroic's sidebar.
+3. Select *Dungeon Keeper* from your GOG library and **Install** — Heroic downloads it and sets up the
+   Wine prefix for you.
+
+**Then connect it to KeeperFX**
+
+The KeeperFX launcher tries to **auto-detect** your install and copy the game files. If it can't find them,
+it asks you to point it at the folder yourself — so locate the install inside the Wine prefix, typically:
+
+- **Lutris:** `~/Games/dungeon-keeper/drive_c/GOG Games/Dungeon Keeper/` (or wherever you installed it)
+- **Heroic:** `~/Games/Heroic/Dungeon Keeper/drive_c/...`
+
+That folder (and its `data/` and `sound/` subfolders) is what the launcher copies from. You only do this
+once; after that KeeperFX runs natively with **no Wine**.
+
+> 💡 You don't keep using Lutris/Heroic to *play* — they're only there to install the original game so
+> KeeperFX can borrow its data files. Once copied, launch KeeperFX directly.
 
 ## License
 
