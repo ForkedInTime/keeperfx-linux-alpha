@@ -3,6 +3,12 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5205 — 2026-06-28
+- **Upstream alpha patches merged** (KeeperFX `master`, patches 5177–5179):
+  - Fix tooltip boxes being too big again (#4959)
+  - Fixed creatures not colliding with other things (#4955)
+  - Fixed swap creature on `map.creature` again (#4960)
+
 ## 1.3.2.5200 — 2026-06-28
 - **Self-updating launcher:** the launcher is now part of the update package, so
   in-launcher updates refresh the **launcher itself** — not just the engine and
