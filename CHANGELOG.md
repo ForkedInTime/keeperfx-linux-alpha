@@ -3,6 +3,11 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5206 — 2026-06-29
+- **Accessibility — "Launcher size":** a new Settings → Launcher dropdown scales
+  the whole launcher UI (Normal / Large / Larger / Huge / Largest, 100–200%) for
+  players with low vision. Persists, and applies on the next launch.
+
 ## 1.3.2.5205 — 2026-06-28
 - **Upstream alpha patches merged** (KeeperFX `master`, patches 5177–5179):
   - Fix tooltip boxes being too big again (#4959)
