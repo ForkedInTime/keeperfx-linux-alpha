@@ -3,6 +3,16 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5200 — 2026-06-28
+- **Self-updating launcher:** the launcher is now part of the update package, so
+  in-launcher updates refresh the **launcher itself** — not just the engine and
+  game data. Earlier builds only updated the engine, so launcher fixes (like the
+  hidden download-server picker) needed a fresh AppImage download. The AppImage no
+  longer overwrites a launcher that an update has upgraded.
+- **Update package is flat:** the `full.7z` now unpacks files at the install root
+  instead of a nested folder, fixing an update *loop* where the version never
+  "stuck" and the launcher re-downloaded the same release on every launch.
+
 ## 1.3.2.5199 — 2026-06-28
 - **Distribution:** one-file **AppImage** and **Flatpak** for any current 64-bit
   Linux distro (built on Ubuntu 24.04 via CI, runs everywhere — Ubuntu, Fedora,
