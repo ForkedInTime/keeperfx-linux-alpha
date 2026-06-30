@@ -3,6 +3,16 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5207 — 2026-06-30
+- **In-launcher Mod Manager:** the launcher now lists the mods in your install's
+  `mods/` folder with an Enabled toggle that reads and rewrites `load_order.cfg`,
+  so you can turn mods on/off without hand-editing the file. (Section grouping and
+  drag-to-reorder are planned next.)
+- **Launcher updates ship in `full.7z`:** the AppImage CI now packages the same
+  flat payload it builds — including the freshly-built launcher — as the update
+  archive, so launcher fixes reach existing installs through **Update**, not only
+  through a fresh AppImage download.
+
 ## 1.3.2.5206 — 2026-06-29
 - **Accessibility — "Launcher size":** a new Settings → Launcher dropdown scales
   the whole launcher UI (Normal / Large / Larger / Huge / Largest, 100–200%) for
