@@ -3,6 +3,16 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5213 — 2026-06-30
+- **Security/stability — hardened against crafted add-ons:** a multi-agent Linux audit
+  found several out-of-bounds writes a malicious or buggy workshop campaign/map/mod could
+  trigger. Fixed: `SET_BOX_TOOLTIP` and `SET_POWER_CONFIGURATION` script-index checks;
+  `.lif`/`.slx`/texture/palette file loads now bound the read to the buffer (RNC-unpacked
+  size); PNG sprite RLE buffer sizing; and the CPU movie path skips oversized frames.
+  Reported upstream (dkfans/keeperfx#4970).
+- **Launcher:** the Map Editor (Unearth) and the clickable workshop/news tiles now launch
+  with a clean environment, so they work from the AppImage like the other buttons.
+
 ## 1.3.2.5211 — 2026-06-30
 - **Fixed a campaign crash (segfault):** the `QUICK_MESSAGE` and `DISPLAY_MESSAGE`
   script commands corrupted the message index when given a chat-icon/player argument
