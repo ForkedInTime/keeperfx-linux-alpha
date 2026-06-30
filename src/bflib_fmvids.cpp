@@ -93,6 +93,14 @@ void copy_to_screen_pxdblw(unsigned char *srcbuf, unsigned char *dstbuf, long wi
 
 void copy_to_screen(const AVFrame & frame, const int flags)
 {
+	// A movie frame larger than the screen makes the centering offsets below go negative and
+	// the row loops write past the WScreen buffer. Refuse to blit a frame that doesn't fit.
+	const int eff_w = (flags & SMK_PixelDoubleWidth) ? 2 * frame.width : frame.width;
+	const int eff_h = (flags & (SMK_PixelDoubleLine | SMK_InterlaceLine)) ? 2 * frame.height : frame.height;
+	if ((frame.width <= 0) || (frame.height <= 0) || (eff_w > LbScreenWidth()) || (eff_h > LbScreenHeight())) {
+		ERRORLOG("Movie frame %dx%d does not fit the %dx%d screen; skipping frame", (int)frame.width, (int)frame.height, (int)LbScreenWidth(), (int)LbScreenHeight());
+		return;
+	}
 	const auto src_pitch = frame.linesize[0];
 	auto srcbuf = frame.data[0];
 	long screen_buffer_center_offset;

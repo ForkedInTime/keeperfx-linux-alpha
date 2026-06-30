@@ -3739,6 +3739,7 @@ static void set_box_tooltip_check(const struct ScriptLine* scline)
     {
         SCRPTERRLOG("Invalid CUSTOM_BOX number (%ld)", scline->np[0]);
         DEALLOCATE_SCRIPT_VALUE;
+        return;
     }
     value->shorts[0] = scline->np[0];
 
@@ -4898,7 +4899,16 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
         case 2: // Power
         case 3: // Cost
         {
-            value->bytes[3] = atoi(scline->tp[3]) - 1; //-1 because we want slot 1 to 9, not 0 to 8
+            // The overcharge slot indexes powerst->strength[]/cost[] in the process step;
+            // it MUST be validated here or an out-of-range slot is an out-of-bounds write.
+            long slot = atoi(scline->tp[3]);
+            if ((slot < 1) || (slot > MAGIC_OVERCHARGE_LEVELS))
+            {
+                SCRPTERRLOG("Invalid overcharge slot (%ld) for %s; must be 1..%d", slot, property, MAGIC_OVERCHARGE_LEVELS);
+                DEALLOCATE_SCRIPT_VALUE
+                return;
+            }
+            value->bytes[3] = slot - 1; //-1 because we want slot 1 to 9, not 0 to 8
             value->longs[2] = atoi(new_value);
             break;
         }

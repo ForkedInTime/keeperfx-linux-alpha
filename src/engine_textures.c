@@ -201,7 +201,7 @@ static char *prepare_letter_one_file_path(unsigned long tmapidx, char letter, Le
     return fname;
 }
 
-static TbBool load_letter_one_file(unsigned long tmapidx, char letter, void *dst, LevelNumber lvnum, short fgroup)
+static TbBool load_letter_one_file(unsigned long tmapidx, char letter, void *dst, long dst_size, LevelNumber lvnum, short fgroup)
 {
     SYNCDBG(9,"Starting");
 
@@ -209,6 +209,14 @@ static TbBool load_letter_one_file(unsigned long tmapidx, char letter, void *dst
     if (!LbFileExists(fname))
     {
         SYNCDBG(10, "Texture file \"%s\" doesn't exist.",fname);
+        return false;
+    }
+
+    // dst points into the fixed block_mem buffer; an oversized (or crafted-RNC) texture
+    // file would otherwise overflow it (and the following blocks). Reject before loading.
+    if (LbFileLengthRnc(fname) > dst_size)
+    {
+        WARNMSG("Texture file \"%s\" too large (max %ld bytes).", fname, dst_size);
         return false;
     }
 
@@ -225,22 +233,24 @@ TbBool load_texture_map_file(unsigned long tmapidx, LevelNumber lvnum, short fgr
 {
     SYNCDBG(7,"Starting");
     memset(block_mem, 130, sizeof(block_mem));
-    if (!load_letter_one_file(tmapidx,'a', block_mem,lvnum,fgroup))
+    const long size_a = TEXTURE_BLOCKS_STAT_COUNT_A * 32 * 32;
+    const long size_b = TEXTURE_BLOCKS_STAT_COUNT_B * 32 * 32;
+    if (!load_letter_one_file(tmapidx,'a', block_mem, size_a, lvnum,fgroup))
     {
         return false;
     }
-    unsigned char *dst = block_mem + (TEXTURE_BLOCKS_STAT_COUNT_A * 32 * 32);
-    load_letter_one_file(tmapidx,'b', dst, lvnum, fgroup);
-    dst += (TEXTURE_BLOCKS_STAT_COUNT_B * 32 * 32);
+    unsigned char *dst = block_mem + size_a;
+    load_letter_one_file(tmapidx,'b', dst, size_b, lvnum, fgroup);
+    dst += size_b;
 
     for (int i = 0; i < TEXTURE_VARIATIONS_COUNT-1; i++)
 
     {
-        load_letter_one_file(i,'a', dst, lvnum, fgroup);
+        load_letter_one_file(i,'a', dst, size_a, lvnum, fgroup);
 
-        dst += (TEXTURE_BLOCKS_STAT_COUNT_A * 32 * 32);
-        load_letter_one_file(i,'b', dst, lvnum, fgroup);
-        dst += (TEXTURE_BLOCKS_STAT_COUNT_B * 32 * 32);
+        dst += size_a;
+        load_letter_one_file(i,'b', dst, size_b, lvnum, fgroup);
+        dst += size_b;
 
     }
     return true;
