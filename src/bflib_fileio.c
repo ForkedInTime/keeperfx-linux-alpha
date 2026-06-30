@@ -54,64 +54,97 @@
  */
 static int find_case_insensitive_file(const char *fname, char *actual_fname, size_t buflen)
 {
-    // Split fname into directory and filename
-    const char *last_slash = strrchr(fname, '/');
-    const char *filename;
-    char dir_path[PATH_MAX];
-    size_t dir_len = 0;
-    
-    if (last_slash != NULL) {
-        dir_len = last_slash - fname;
-        if (dir_len >= sizeof(dir_path)) {
+    // Resolve EACH path component case-insensitively (not just the leaf), so a path whose
+    // directory segments differ in case from disk (e.g. "mods/MyMod/sound/Foo.wav" vs a real
+    // "mods/mymod/sound/foo.wav") still resolves. Each segment first tries an exact match
+    // (fast path: correctly-cased paths are unchanged), then a case-insensitive directory scan.
+    char resolved[PATH_MAX];
+    size_t rlen = 0;
+    const char *p = fname;
+
+    // Seed an absolute root if present.
+    if (p[0] == '/') {
+        resolved[rlen++] = '/';
+        p++;
+    }
+    resolved[rlen] = '\0';
+
+    while (*p != '\0') {
+        const char *seg_end = strchr(p, '/');
+        size_t seg_len = (seg_end != NULL) ? (size_t)(seg_end - p) : strlen(p);
+
+        if (seg_len == 0) {                 // collapse empty segments ("//")
+            if (seg_end == NULL) break;
+            p = seg_end + 1;
+            continue;
+        }
+        if (seg_len >= sizeof(resolved)) {
             return 0;
         }
-        if (dir_len > 0) {
-            memcpy(dir_path, fname, dir_len);
-            dir_path[dir_len] = '\0';
+        char seg[PATH_MAX];
+        memcpy(seg, p, seg_len);
+        seg[seg_len] = '\0';
+
+        // The directory to look inside: the path resolved so far ("." while still empty).
+        const char *search_dir = (rlen == 0) ? "." : resolved;
+
+        char matched[PATH_MAX];
+        if ((strcmp(seg, ".") == 0) || (strcmp(seg, "..") == 0)) {
+            snprintf(matched, sizeof(matched), "%s", seg);   // pass dot segments through
         } else {
-            strcpy(dir_path, "/");
+            char trial[PATH_MAX];
+            if (strcmp(search_dir, "/") == 0) {
+                snprintf(trial, sizeof(trial), "/%s", seg);
+            } else {
+                snprintf(trial, sizeof(trial), "%s/%s", search_dir, seg);
+            }
+            if (access(trial, F_OK) == 0) {
+                snprintf(matched, sizeof(matched), "%s", seg);   // exact case exists
+            } else {
+                DIR *dir = opendir(search_dir);
+                if (dir == NULL) {
+                    return 0;
+                }
+                int found_seg = 0;
+                struct dirent *entry;
+                while ((entry = readdir(dir)) != NULL) {
+                    if (strcasecmp(entry->d_name, seg) == 0) {
+                        snprintf(matched, sizeof(matched), "%s", entry->d_name);
+                        found_seg = 1;
+                        break;
+                    }
+                }
+                closedir(dir);
+                if (!found_seg) {
+                    return 0;
+                }
+            }
         }
-        filename = last_slash + 1;
-    } else {
-        strcpy(dir_path, ".");
-        filename = fname;
+
+        // Append the matched segment to the resolved path.
+        if ((rlen > 0) && (resolved[rlen - 1] != '/')) {
+            if (rlen + 1 >= sizeof(resolved)) {
+                return 0;
+            }
+            resolved[rlen++] = '/';
+        }
+        size_t mlen = strlen(matched);
+        if (rlen + mlen >= sizeof(resolved)) {
+            return 0;
+        }
+        memcpy(resolved + rlen, matched, mlen);
+        rlen += mlen;
+        resolved[rlen] = '\0';
+
+        if (seg_end == NULL) break;
+        p = seg_end + 1;
     }
-    
-    DIR *dir = opendir(dir_path);
-    if (dir == NULL) {
+
+    if ((rlen == 0) || (rlen + 1 > buflen)) {
         return 0;
     }
-    
-    struct dirent *entry;
-    int found = 0;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcasecmp(entry->d_name, filename) == 0) {
-            // Found a case-insensitive match
-            if (last_slash != NULL) {
-                size_t needed = dir_len + 1 + strlen(entry->d_name) + 1;
-                if (needed > buflen) {
-                    closedir(dir);
-                    return 0;
-                }
-                if (dir_len > 0) {
-                    snprintf(actual_fname, buflen, "%s/%s", dir_path, entry->d_name);
-                } else {
-                    snprintf(actual_fname, buflen, "/%s", entry->d_name);
-                }
-            } else {
-                if (strlen(entry->d_name) + 1 > buflen) {
-                    closedir(dir);
-                    return 0;
-                }
-                strcpy(actual_fname, entry->d_name);
-            }
-            found = 1;
-            break;
-        }
-    }
-    
-    closedir(dir);
-    return found;
+    snprintf(actual_fname, buflen, "%s", resolved);
+    return (access(actual_fname, F_OK) == 0) ? 1 : 0;
 }
 #endif
 
