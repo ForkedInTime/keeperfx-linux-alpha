@@ -3,6 +3,16 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5208 — 2026-06-30
+- **Install mods from the launcher:** the Mod Manager has an **Install mod…**
+  button — pick a `.7z`/`.zip` (e.g. a keeperfx.net workshop download) and it
+  extracts it into your `mods/` folder, generating a `mod.cfg` if the archive
+  lacks one, then refreshes the list. No more hand-extracting into the install dir.
+- **Launcher size — "Comfortable (110%)":** a smaller step between Normal (100%)
+  and Large (125%), so the UI scale jump isn't so big.
+- **Mod thumbnails:** mods without their own picture now show the KeeperFX icon as
+  a placeholder instead of an empty frame.
+
 ## 1.3.2.5207 — 2026-06-30
 - **In-launcher Mod Manager:** the launcher now lists the mods in your install's
   `mods/` folder with an Enabled toggle that reads and rewrites `load_order.cfg`,
