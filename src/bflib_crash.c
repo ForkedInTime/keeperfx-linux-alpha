@@ -529,7 +529,12 @@ static void ctrl_handler_posix(int sig_id, siginfo_t *info, void *context)
     log_posix_context(context);
     _backtrace_posix(16);
 
-    LbScreenReset(true);
+    // Do NOT reset the screen / tear down GL/SDL from inside a signal handler: that work is
+    // not async-signal-safe and can deadlock or re-fault when the crash happened inside the
+    // GL driver, SDL, or the allocator — which would suppress the crash report entirely. The
+    // async-signal-safe signal info and backtrace_symbols_fd output were already written to
+    // stderr above. The process is terminating, so the OS/compositor reclaims the video
+    // context anyway.
     LbErrorLogClose();
 
     signal(sig_id, SIG_DFL);

@@ -3,6 +3,14 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5216 — 2026-06-30
+- **Case-insensitive paths now resolve full directories,** not just the filename — so a
+  mod/campaign that references e.g. `mods/MyMod/sound/Foo.wav` still loads when the real
+  folders are lower-case. (Exact-case paths are unchanged — purely a fallback.)
+- **Crash handler is async-signal-safe:** it no longer tears down the screen/GL/SDL from
+  inside the signal handler (that could deadlock when the fault was in the GL driver or the
+  allocator and suppress the crash report); the signal info + backtrace are still written.
+
 ## 1.3.2.5215 — 2026-06-30
 - **More audit fixes (correctness & robustness).** Following the security pass: fixed
   several `ScriptValue` union-aliasing bugs (wrong objective/information popup location,
