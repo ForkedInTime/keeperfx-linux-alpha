@@ -47,6 +47,7 @@ struct TbFileEntry {
 /******************************************************************************/
 
 short LbFileExists(const char *fname);
+const char *LbFileCaseInsensitivePath(const char *fname, char *buf, unsigned long buflen);
 int LbFilePosition(TbFileHandle handle);
 TbFileHandle LbFileOpen(const char *fname, unsigned char accmode);
 TbBool LbFileEof(TbFileHandle handle);

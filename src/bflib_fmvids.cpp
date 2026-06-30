@@ -360,6 +360,8 @@ struct movie_t {
 	}
 
 	void open_input(const char * filename) {
+		char rp_movie[2048];
+		filename = LbFileCaseInsensitivePath(filename, rp_movie, sizeof(rp_movie));
 		if (avformat_open_input(&m_format_context, filename, nullptr, nullptr) != 0) {
 			throw std::runtime_error("Cannot open source file");
 		}

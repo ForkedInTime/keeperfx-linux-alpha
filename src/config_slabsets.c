@@ -189,7 +189,7 @@ static TbBool load_columns_config_file(const char *fname, unsigned short flags)
             VALUE *lintel_val = value_dict_get(section, "Lintel");
             if (value_type(lintel_val) == VALUE_INT32)
             {
-                char Lintel = value_int32(lintel_val);
+                int Lintel = value_int32(lintel_val);   // read full width; narrowing to char wrapped past the range check
                 if (Lintel > 7 || Lintel < 0)
                 {
                     ERRORLOG("invalid Lintel (%d) for column %d",Lintel,col_no);
@@ -202,7 +202,7 @@ static TbBool load_columns_config_file(const char *fname, unsigned short flags)
             VALUE *height_val = value_dict_get(section, "Height");
             if (value_type(height_val) == VALUE_INT32)
             {
-                char floorHeight = value_int32(height_val);
+                int floorHeight = value_int32(height_val);   // read full width; narrowing to char wrapped + overflowed on <<4
                 if (floorHeight > COLUMN_STACK_HEIGHT || floorHeight < 0)
                 {
                     ERRORLOG("invalid floorHeight (%d) for column %d",floorHeight,col_no);

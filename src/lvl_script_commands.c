@@ -827,7 +827,7 @@ static void display_objective_check(const struct ScriptLine *scline)
         y = scline->np[2];
     }
     value->shorts[0] = msg_num;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -837,7 +837,7 @@ static void display_objective_process(struct ScriptContext *context)
 {
     set_general_objective(context->value->shorts[0],
     context->player_idx,
-    context->value->ulongs[1],
+    context->value->ulongs[2],
     context->value->shorts[3],
     context->value->shorts[4]);
 }
@@ -869,7 +869,7 @@ static void display_player_objective_check(const struct ScriptLine* scline)
         y = scline->np[3];
     }
     value->shorts[0] = msg_num;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -920,7 +920,7 @@ static void quick_objective_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -928,7 +928,7 @@ static void quick_objective_check(const struct ScriptLine* scline)
 
 static void quick_objective_process(struct ScriptContext* context)
 {
-    process_objective(game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT],context->player_idx, context->value->ulongs[1], context->value->shorts[3], context->value->shorts[4]);
+    process_objective(game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT],context->player_idx, context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4]);
 }
 
 static void quick_player_objective_check(const struct ScriptLine* scline)
@@ -976,7 +976,7 @@ static void quick_player_objective_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -1027,7 +1027,7 @@ static void quick_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -1035,7 +1035,7 @@ static void quick_information_check(const struct ScriptLine* scline)
 
 static void quick_information_process(struct ScriptContext* context)
 {
-    set_quick_information(context->value->shorts[0], context->player_idx, context->value->ulongs[1], context->value->shorts[3], context->value->shorts[4]);
+    set_quick_information(context->value->shorts[0], context->player_idx, context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4]);
 }
 
 static void quick_player_information_check(const struct ScriptLine* scline)
@@ -1083,7 +1083,7 @@ static void quick_player_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -1125,7 +1125,7 @@ static void display_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = msg_num;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -1134,7 +1134,7 @@ static void display_information_check(const struct ScriptLine* scline)
 static void display_information_process(struct ScriptContext* context)
 {
     set_general_information(context->value->shorts[0], context->player_idx,
-        context->value->ulongs[1], context->value->shorts[3], context->value->shorts[4]);
+        context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4]);
 }
 
 static void display_player_information_check(const struct ScriptLine* scline)
@@ -1173,7 +1173,7 @@ static void display_player_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = msg_num;
-    value->ulongs[1] = location;
+    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
     PROCESS_SCRIPT_VALUE(scline->command);
@@ -1635,7 +1635,7 @@ static void move_creature_check(const struct ScriptLine* scline)
         effct_id = -1;
     }
     value->ulongs[0] = location;
-    value->longs[1] = select_id;
+    value->longs[2] = select_id;   // longs[2] (bytes 16-23): clear of effct_id/count/crmodel in bytes 8-11
     value->shorts[4] = effct_id;
     value->bytes[10] = count;
     value->bytes[11] = crmodel;
@@ -1833,7 +1833,7 @@ static void set_hand_rule_process(struct ScriptContext* context)
 static void move_creature_process(struct ScriptContext* context)
 {
     TbMapLocation location = context->value->ulongs[0];
-    long select_id = context->value->longs[1];
+    long select_id = context->value->longs[2];
     long effect_id = context->value->shorts[4];
     long count = context->value->bytes[10];
     long crmodel = context->value->bytes[11];
@@ -4146,11 +4146,13 @@ static void use_power_on_players_creatures_check(const struct ScriptLine* scline
     {
         SCRPTERRLOG("Unknown creature, '%s'", scline->tp[1]);
         DEALLOCATE_SCRIPT_VALUE
+        return;
     }
     if (pwr_id == -1)
     {
         SCRPTERRLOG("Invalid power: %s", pwr_name);
         DEALLOCATE_SCRIPT_VALUE
+        return;
     }
     switch (pwr_id)
     {
@@ -4174,6 +4176,7 @@ static void use_power_on_players_creatures_check(const struct ScriptLine* scline
         {
             SCRPTERRLOG("Power %s level %d out of range. Acceptible values are %d~%d", pwr_name, power_level, 1, MAGIC_OVERCHARGE_LEVELS);
             DEALLOCATE_SCRIPT_VALUE
+            return;
         }
         power_level--; // transform human 1~9 range into computer 0~8 range
         break;
@@ -4183,6 +4186,7 @@ static void use_power_on_players_creatures_check(const struct ScriptLine* scline
     default:
         SCRPTERRLOG("Power not supported for this command: %s", power_code_name(pwr_id));
         DEALLOCATE_SCRIPT_VALUE
+        return;
     }
     value->shorts[1] = crtr_id;
     value->shorts[2] = pwr_id;
@@ -5137,15 +5141,15 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
     {
         if ( (powervar == 5) && (value->chars[3] != -1) )
         {
-            SCRIPTDBG(7, "Toggling %s castability flag: %I64d", powername, number_value);
+            SCRIPTDBG(7, "Toggling %s castability flag: %lld", powername, number_value);
         }
         else if ( (powervar == 14) && (value->chars[3] != -1) )
         {
-            SCRIPTDBG(7, "Toggling %s property flag: %I64d", powername, number_value);
+            SCRIPTDBG(7, "Toggling %s property flag: %lld", powername, number_value);
         }
         else
         {
-            SCRIPTDBG(7, "Setting power %s property %s to %I64d", powername, property, number_value);
+            SCRIPTDBG(7, "Setting power %s property %s to %lld", powername, property, number_value);
         }
     }
     #endif
@@ -6108,7 +6112,7 @@ static void add_object_to_level_check(const struct ScriptLine* scline)
     }
 
     value->chars[2] = plyr_idx;
-    value->shorts[8] = angle;
+    value->shorts[2] = angle;   // shorts[2] (bytes 4-5): clear of longs[2]=np[2] (bytes 16-23)
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
@@ -6117,7 +6121,7 @@ static void add_object_to_level_process(struct ScriptContext* context)
     struct Coord3d pos;
     if (get_coords_at_location(&pos,context->value->ulongs[1],true))
     {
-        script_process_new_object(context->value->shorts[0], pos.x.stl.num, pos.y.stl.num, context->value->longs[2], context->value->chars[2], context->value->shorts[8]);
+        script_process_new_object(context->value->shorts[0], pos.x.stl.num, pos.y.stl.num, context->value->longs[2], context->value->chars[2], context->value->shorts[2]);
     }
 }
 
