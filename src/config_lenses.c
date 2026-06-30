@@ -123,7 +123,15 @@ static int64_t value_pallete(const struct NamedField* named_field, const char* v
     }
     lenses_conf.lenses[idx].flags |= LCF_HasPalette;
     char* fname = prepare_file_path(FGrp_StdData, value_text);
-    if (LbFileLoadAt(fname, (char*)named_fields_set->get_struct_base() + named_fields_set->struct_size * idx + (ptrdiff_t)named_field->field) != PALETTE_SIZE)
+    // The destination is a PALETTE_SIZE struct field; LbFileLoadAt writes the file's
+    // (RNC-unpacked) length there, so a larger file would overflow the field. Only load
+    // when the source is exactly a palette.
+    if (LbFileLengthRnc(fname) != PALETTE_SIZE)
+    {
+        CONFWRNLOG("Couldn't load \"%s\" file for \"%s\" parameter in [%s%d] block of lens.cfg file.",
+            value_text, named_field->name, named_fields_set->block_basename, idx);
+    }
+    else if (LbFileLoadAt(fname, (char*)named_fields_set->get_struct_base() + named_fields_set->struct_size * idx + (ptrdiff_t)named_field->field) != PALETTE_SIZE)
     {
         CONFWRNLOG("Couldn't load \"%s\" file for \"%s\" parameter in [%s%d] block of lens.cfg file.",
             value_text, named_field->name, named_fields_set->block_basename, idx);

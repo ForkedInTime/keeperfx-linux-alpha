@@ -819,7 +819,9 @@ static int read_png_icon(unzFile zip, const char *path, const char *subpath, int
         return 0;
     }
 
-    size_t sz = (sprite.SWidth + 2) * (sprite.SHeight + 3);
+    // Size for compress_raw's RLE worst case (alternating opaque/transparent per pixel:
+    // up to 2 bytes/pixel + per-row terminator) so a crafted PNG can't overflow it.
+    size_t sz = (size_t)(2 * sprite.SWidth + 2) * (sprite.SHeight + 1);
     sprite.Data = malloc(sz);
 
     compress_raw(&sprite, dst_buf, 0, 0, sprite.SWidth, sprite.SHeight);
@@ -920,7 +922,10 @@ static int read_png_data(unzFile zip, const char *path, struct SpriteContext *co
         *context->id_ptr = sprite_idx + KEEPERSPRITE_ADD_OFFSET;
     (*context->id_sz_ptr)++; // Add new sprite for current view (FP/TD)
 
-    size_t sz = (dst_w + 2) * (dst_h + 3);
+    // Worst case for compress_raw's RLE is a per-pixel alternating opaque/transparent
+    // ("checkerboard") row: up to 2 bytes per pixel plus a per-row terminator. Size for
+    // that so a crafted PNG can't overflow the buffer (dst_w/dst_h are < 255 here).
+    size_t sz = (size_t)(2 * dst_w + 2) * (dst_h + 1);
     keepersprite_add[sprite_idx] = malloc(sz);
     context->sprite.Data = keepersprite_add[sprite_idx];
     compress_raw(&context->sprite, dst_buf, context->x, context->y, dst_w, dst_h);

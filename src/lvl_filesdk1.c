@@ -317,7 +317,10 @@ TbBool find_and_load_lif_files(void)
   if (ff) {
     do {
       fname = prepare_file_path(FGrp_CmpgLvls, fe.Filename);
-      long i = LbFileLength(fname);
+      // Guard on the RNC-aware (unpacked) length: LbFileLoadAt writes that many bytes into
+      // buf, so an RNC-compressed .lif declaring a huge unpacked size would overflow the
+      // MAX_LIF_SIZE buffer if we only checked the physical file length here.
+      long i = LbFileLengthRnc(fname);
       if ((i < 0) || (i >= MAX_LIF_SIZE)) {
         WARNMSG("File \"%s\" too long (Max size %d)", fe.Filename, MAX_LIF_SIZE);
       } else if (LbFileLoadAt(fname, buf) != i) {
@@ -1310,7 +1313,15 @@ static void load_ext_slabs(LevelNumber lvnum)
     char* fname = prepare_file_fmtpath(fgroup, "map%05lu.slx", (unsigned long)lvnum);
     if (LbFileExists(fname))
     {
-        if (game.map_tiles_x * game.map_tiles_y != LbFileLoadAt(fname, game.slab_ext_data))
+        // Cap the read at the buffer size BEFORE loading: LbFileLoadAt writes the file's
+        // (RNC-unpacked) length straight into the fixed game.slab_ext_data, so an oversized
+        // or crafted-RNC .slx would overflow it. Reject anything larger than the buffer.
+        if (LbFileLengthRnc(fname) > (long)sizeof(game.slab_ext_data))
+        {
+            JUSTLOG("ExtSlab data too large in %s", fname);
+            memset(game.slab_ext_data, 0, sizeof(game.slab_ext_data));
+        }
+        else if (game.map_tiles_x * game.map_tiles_y != LbFileLoadAt(fname, game.slab_ext_data))
         {
             JUSTLOG("Invalid ExtSlab data from %s", fname);
             memset(game.slab_ext_data, 0, sizeof(game.slab_ext_data));
