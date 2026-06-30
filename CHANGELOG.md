@@ -3,6 +3,13 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5211 — 2026-06-30
+- **Fixed a campaign crash (segfault):** the `QUICK_MESSAGE` and `DISPLAY_MESSAGE`
+  script commands corrupted the message index when given a chat-icon/player argument
+  (a `ScriptValue` union overlap), causing an out-of-bounds read on level start. This
+  crashed workshop campaigns such as **Tempest Keeper** and **Another Dungeon** the
+  moment their level script ran. Reported upstream (dkfans/keeperfx #4969).
+
 ## 1.3.2.5209 — 2026-06-30
 - **Universal "Install…" in the Mod Manager:** one button now installs any KeeperFX
   add-on from a `.7z`/`.zip` — mods, **campaigns**, and map packs — putting each in
