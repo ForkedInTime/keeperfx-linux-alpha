@@ -106,14 +106,31 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 - **Built-in updates.** The launcher checks *this* repo's releases and shows **"Update available — vX"** when a
   newer build is out; one click downloads just the updated game package (no need to re-download the whole
   AppImage). It notifies — it never auto-overwrites.
+- **One-click mods, campaigns & map packs.** A Mod Manager with an **Install…** button takes a `.7z`/`.zip`
+  (e.g. a [keeperfx.net workshop](https://keeperfx.net/workshop) download) and drops it into the right place —
+  mods into `mods/`, campaigns into `campgns/`, map packs into `levels/` — generating a `mod.cfg` if the
+  archive lacks one. Mods get an Enabled toggle that writes the load order for you.
+- **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for
+  readability.
 
-**Stability fixes** *(genuine upstream bugs, fixed locally for modern Linux & ultrawide)*
+**Stability & security fixes** *(genuine upstream bugs, fixed locally; the security ones reported upstream)*
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
   using `sdl2-compat`.
 - **Ultrawide creature-possession crash** — the new C++ lens effect didn't size its buffer for large
   horizontal viewports; possessing a creature at 3440×1440 read past the buffer.
 - **UTF-8 font heap-crash** — the new UTF-8 font loader freed a pointer into a *static* buffer, aborting on
   glibc the moment the generated `.fxfont` files exist.
+- **Campaign crash on level start** — the `QUICK_MESSAGE`/`DISPLAY_MESSAGE` script commands corrupted the
+  message index when given a chat-icon argument (a `ScriptValue` union overlap on 64-bit), crashing workshop
+  campaigns like *Tempest Keeper* the moment their script ran. *(reported upstream:
+  [dkfans/keeperfx#4969](https://github.com/dkfans/keeperfx/issues/4969))*
+- **Hardened against crafted add-ons** — a multi-agent Linux audit found several out-of-bounds writes a
+  malicious or buggy campaign/map/mod could trigger (script index checks, `.lif`/`.slx`/texture/palette
+  file-load size bounds, PNG sprite & movie buffers) plus more union-aliasing and an unbounded WAV parse.
+  All fixed. *(reported upstream:
+  [#4970](https://github.com/dkfans/keeperfx/issues/4970))*
+- **Audio on case-sensitive filesystems** — sound banks, music and movies now resolve the real on-disk
+  filename case, so mixed-case files referenced by mods/campaigns actually play on Linux.
 
 **Tooling**
 - **`refresh-alpha.sh`** — re-bases these changes onto the team's latest `master`, builds with the correct

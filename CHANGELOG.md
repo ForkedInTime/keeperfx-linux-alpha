@@ -3,6 +3,19 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5215 — 2026-06-30
+- **More audit fixes (correctness & robustness).** Following the security pass: fixed
+  several `ScriptValue` union-aliasing bugs (wrong objective/information popup location,
+  wrong `move_creature` target, wrong `add_object` angle), added missing range-check
+  returns in `USE_POWER_ON_CREATURE`, corrected `%I64d` formats and a `(bpp = 32)`
+  assignment bug, hardened slabset config parsing, and stopped a malformed WAV from
+  hanging the loader.
+- **Audio works on case-sensitive filesystems.** Sound banks, music, streamed samples and
+  movies now resolve the real on-disk filename case, so mixed-case files referenced by
+  mods/campaigns play on Linux instead of silently failing.
+- **Launcher: Install… no longer overwrites stock files.** Installing a campaign/mod/map
+  pack keeps existing files (stock campaigns, other add-ons) instead of clobbering them.
+
 ## 1.3.2.5213 — 2026-06-30
 - **Security/stability — hardened against crafted add-ons:** a multi-agent Linux audit
   found several out-of-bounds writes a malicious or buggy workshop campaign/map/mod could
