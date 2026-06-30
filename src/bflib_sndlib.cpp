@@ -264,6 +264,10 @@ public:
 		riff_chunk_t chunk;
 		for (bool have_format = false, have_data = false; !(have_format && have_data);) {
 			stream.read(reinterpret_cast<char *>(&chunk), sizeof(chunk));
+			if (!stream) {
+				// EOF/short read: without this the loop spins forever on a truncated/malformed WAV
+				throw std::runtime_error("Unexpected EOF in WAV (missing fmt/data chunk)");
+			}
 			if (chunk.tag == make_fourcc("fmt ")) {
 				if (chunk.size < sizeof(WAVEFORMATEX)) {
 					throw std::runtime_error("Expected WAVEFORMATEX struct");
@@ -394,7 +398,8 @@ struct SoundBankEntry { // sizeof = 16
 
 std::vector<sound_sample> load_sound_bank(const char * filename) {
 	const int directory_index = 2; // a5 was always 1622
-	std::ifstream stream(filename, std::ios::in | std::ios::binary);
+	char rp_bank[2048];
+	std::ifstream stream(LbFileCaseInsensitivePath(filename, rp_bank, sizeof(rp_bank)), std::ios::in | std::ios::binary);
 	if (!stream.is_open()) {
 		throw std::runtime_error("Cannot open sound bank file");
 	}
@@ -606,7 +611,8 @@ extern "C" TbBool play_music(const char * fname) {
 	snprintf(game.music_fname, sizeof(game.music_fname), "%s", fname);
 	// Mix_PlayMusic will stop anything currently playing and eventually
 	// calls on_music_finished so theres no need to call Mix_FreeMusic first.
-	const auto music = Mix_LoadMUS(game.music_fname);
+	char rp_music[2048];
+	const auto music = Mix_LoadMUS(LbFileCaseInsensitivePath(game.music_fname, rp_music, sizeof(rp_music)));
 	if (!music) {
 		WARNLOG("Cannot load music from %s: %s", game.music_fname, Mix_GetError());
 		return false;
@@ -966,7 +972,8 @@ extern "C" TbBool play_streamed_sample(const char* fname, SoundVolume volume)
 	if (SoundDisabled || fname == nullptr || strlen(fname) == 0) {
 		return false;
 	}
-	const auto sample = Mix_LoadWAV(fname);
+	char rp_sample[2048];
+	const auto sample = Mix_LoadWAV(LbFileCaseInsensitivePath(fname, rp_sample, sizeof(rp_sample)));
 	if (sample == nullptr) {
 		ERRORLOG("Cannot load \"%s\": %s", fname, Mix_GetError());
 		return false;

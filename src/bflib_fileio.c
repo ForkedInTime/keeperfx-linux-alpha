@@ -129,6 +129,27 @@ short LbFileExists(const char *fname)
   return 0;
 }
 
+// Resolve a path to the real on-disk one, fixing leaf-name case on case-sensitive
+// filesystems. Always writes a usable path into buf and returns it: the original path
+// when it exists as-given (the normal case -> no behaviour change), otherwise a
+// case-insensitive match if one is found, otherwise the original unchanged. Use this
+// before handing a path to a backend that opens files directly (SDL_mixer, ffmpeg,
+// std::ifstream) and so bypasses LbFileOpen's case-insensitive fallback.
+const char *LbFileCaseInsensitivePath(const char *fname, char *buf, unsigned long buflen)
+{
+#if !defined(_WIN32)
+  if (access(fname, F_OK) != 0) {
+    char actual_fname[PATH_MAX];
+    if (find_case_insensitive_file(fname, actual_fname, sizeof(actual_fname))) {
+      snprintf(buf, buflen, "%s", actual_fname);
+      return buf;
+    }
+  }
+#endif
+  snprintf(buf, buflen, "%s", fname);
+  return buf;
+}
+
 int LbFilePosition(TbFileHandle handle)
 {
   int result = ftell(handle);
