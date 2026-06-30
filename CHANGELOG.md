@@ -3,6 +3,17 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5209 — 2026-06-30
+- **Universal "Install…" in the Mod Manager:** one button now installs any KeeperFX
+  add-on from a `.7z`/`.zip` — mods, **campaigns**, and map packs — putting each in
+  the right place (campaigns appear in the in-game Land selection). Replaces the old
+  mod-only "Install mod…", which mis-filed campaigns as mods.
+- **Fixed the Workshop / Discord / Website / Open-folder / Open-log buttons** doing
+  nothing under the AppImage: they now launch your browser/file manager with a clean
+  environment instead of the bundled one.
+- **Faster release CI:** AppImage builds are cached (ccache + Qt + deps); the Flatpak
+  moved to its own monthly/manual workflow.
+
 ## 1.3.2.5208 — 2026-06-30
 - **Install mods from the launcher:** the Mod Manager has an **Install mod…**
   button — pick a `.7z`/`.zip` (e.g. a keeperfx.net workshop download) and it
