@@ -5778,14 +5778,18 @@ static void quick_message_check(const struct ScriptLine* scline)
         SCRPTWRNLOG("Quick Message no %ld overwritten by different text", scline->np[0]);
     }
     snprintf(game.quick_messages[scline->np[0]], MESSAGE_TEXT_LEN, "%s", scline->tp[1]);
-    value->longs[0]= scline->np[0];
+    // Store the message index in shorts[0] (bytes 0-1), NOT longs[0] (bytes 0-7): the
+    // chat icon below is written into chars[4]/chars[5] (bytes 4-5), which alias longs[0]
+    // and would otherwise corrupt the index into a huge out-of-bounds value at process
+    // time (crashes e.g. the Tempest Keeper campaign's QUICK_MESSAGE(... PLAYER1)).
+    value->shorts[0] = scline->np[0];
     get_chat_icon_from_value(scline->tp[2], &value->chars[4], &value->chars[5]);
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void quick_message_process(struct ScriptContext* context)
 {
-    message_add_fmt(context->value->chars[5], context->value->chars[4], "%s", game.quick_messages[context->value->ulongs[0]]);
+    message_add_fmt(context->value->chars[5], context->value->chars[4], "%s", game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT]);
 }
 
 static void display_message_check(const struct ScriptLine* scline)
@@ -5799,14 +5803,17 @@ static void display_message_check(const struct ScriptLine* scline)
         DEALLOCATE_SCRIPT_VALUE;
         return;
     }
-    value->ulongs[0] = msg_num;
+    // Store the string id in ulongs[1] (bytes 8-15), NOT ulongs[0] (bytes 0-7): the chat
+    // icon below is written into chars[4]/chars[5] (bytes 4-5), which alias ulongs[0] and
+    // would otherwise corrupt the id into an out-of-bounds value passed to get_string().
+    value->ulongs[1] = msg_num;
     get_chat_icon_from_value(scline->tp[1], &value->chars[4], &value->chars[5]);
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void display_message_process(struct ScriptContext* context)
 {
-    message_add_fmt(context->value->chars[5], context->value->chars[4], "%s", get_string(context->value->ulongs[0]));
+    message_add_fmt(context->value->chars[5], context->value->chars[4], "%s", get_string(context->value->ulongs[1]));
 }
 
 static void clear_message_check(const struct ScriptLine* scline)
