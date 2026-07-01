@@ -3,6 +3,14 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`1.3.2.<build> alpha`).
 
+## 1.3.2.5224 — 2026-07-01
+- **Merged the KeeperFX team's latest alpha patches:**
+  - Native Linux build works on modern GCC (#4962)
+  - Fix lobby chat (#4967) and disable unsynced multiplayer lua date/time functions (#4958)
+  - Legacy Disease hurt time 400→144 (#4968)
+  - Actionable things flash under the cursor again when using cheats (#4977)
+  - Fix modded creatures refusing to train (#4975)
+
 ## 1.3.2.5216 — 2026-06-30
 - **Case-insensitive paths now resolve full directories,** not just the filename — so a
   mod/campaign that references e.g. `mods/MyMod/sound/Foo.wav` still loads when the real
