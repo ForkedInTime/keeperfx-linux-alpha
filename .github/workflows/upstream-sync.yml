@@ -1,0 +1,163 @@
+# Weekly upstream sync bot (PR/notify — never auto-ships).
+#
+# Every Monday it checks the KeeperFX team's master for new commits and:
+#   - nothing new                 -> exits quietly
+#   - a sync PR is already open   -> skips (won't stack PRs)
+#   - merges CLEANLY and BUILDS   -> opens a Pull Request into `alpha` (you click Merge)
+#   - merge CONFLICTS             -> opens an issue "needs manual merge", stops
+#   - merges clean but build FAILS-> opens an issue "builds red", stops
+#
+# It never cuts a release. After you merge the PR, run the release as usual.
+# Runs on GitHub's servers, so it works while your computer is off.
+name: Weekly upstream sync
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'      # Mondays 06:00 UTC
+  workflow_dispatch:          # run on demand from the Actions tab
+
+permissions:
+  contents: write             # push the sync branch
+  pull-requests: write        # open the PR
+  issues: write               # open an issue on conflict/build failure
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout alpha (full history)
+        uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+
+      - name: Ensure the 'upstream-sync' label exists
+        run: gh label create upstream-sync --color 1D76DB --description "Weekly upstream merge bot" --force || true
+
+      - name: Configure git + fetch upstream
+        run: |
+          git config user.name "kfx-upstream-sync[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/dkfans/keeperfx.git
+          git fetch --quiet upstream master
+
+      - name: Any new upstream commits?
+        id: check
+        run: |
+          if [ -z "$(git log --oneline HEAD..upstream/master)" ]; then
+            echo "Up to date with upstream — nothing to do."
+            echo "has_new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_new=true" >> "$GITHUB_OUTPUT"
+            git log --pretty=format:'- %s (`%h`)' HEAD..upstream/master > new_commits.md
+            echo "New upstream commits:"; cat new_commits.md
+          fi
+
+      - name: Skip if a sync PR is already open
+        id: guard
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          OPEN=$(gh pr list --label upstream-sync --state open --json number --jq 'length')
+          if [ "$OPEN" != "0" ]; then
+            echo "A sync PR is already open — skipping so PRs don't stack."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Attempt the merge (on a throwaway branch)
+        id: merge
+        if: steps.check.outputs.has_new == 'true' && steps.guard.outputs.skip != 'true'
+        run: |
+          BRANCH="upstream-sync/run-${{ github.run_id }}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          git checkout -b "$BRANCH"
+          if git merge --no-ff --no-commit upstream/master; then
+            git commit -m "merge upstream master (weekly auto-sync)"
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+            echo "Merge is clean."
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+            git diff --name-only --diff-filter=U > conflicts.txt
+            git merge --abort
+            echo "Merge has conflicts:"; cat conflicts.txt
+          fi
+
+      - name: Open issue — merge conflicts
+        if: steps.merge.outputs.clean == 'false'
+        run: |
+          {
+            echo "The weekly upstream sync hit **merge conflicts** — it needs a human to resolve them."
+            echo
+            echo "### New upstream commits"
+            cat new_commits.md
+            echo; echo
+            echo "### Conflicting files"
+            sed 's/^/- /' conflicts.txt
+            echo
+            echo "Resolve locally: \`git fetch upstream && git merge upstream/master\`, fix, build, release."
+          } > issue_body.md
+          gh issue create --label upstream-sync \
+            --title "Upstream sync needs a manual merge ($(date +%Y-%m-%d))" \
+            --body-file issue_body.md
+
+      - name: Install build deps (clean merge)
+        if: steps.merge.outputs.clean == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git python3 pkg-config \
+            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
+            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+
+      - name: Build engine (compile check)
+        id: build
+        if: steps.merge.outputs.clean == 'true'
+        continue-on-error: true
+        run: |
+          make -f linux.mk \
+            deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
+            deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
+          rm -f src/ver_defs.h
+          make -f linux.mk BUILD_NUMBER="$(git rev-list --count HEAD)" VER_SUFFIX=alpha -j"$(nproc)"
+
+      - name: Open issue — merged clean but build failed
+        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'failure'
+        run: |
+          {
+            echo "The weekly upstream sync **merged cleanly but failed to build** — needs a look."
+            echo
+            echo "### New upstream commits"
+            cat new_commits.md
+            echo; echo
+            echo "Failed run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > issue_body.md
+          gh issue create --label upstream-sync \
+            --title "Upstream sync builds red ($(date +%Y-%m-%d))" \
+            --body-file issue_body.md
+
+      - name: Push branch + open PR (clean + green)
+        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
+        run: |
+          git push origin "${{ steps.merge.outputs.branch }}"
+          {
+            echo "🔄 **Weekly upstream sync** — merged \`dkfans/keeperfx@master\` cleanly and it **builds** ✅"
+            echo "_(compile-checked in CI; not playtested — merge ships it to users, so give it a glance.)_"
+            echo
+            echo "### New upstream commits"
+            cat new_commits.md
+            echo; echo
+            echo "**To ship:** merge this PR into \`alpha\`, then cut the release (build the AppImage + full.7z and attach, as usual)."
+          } > pr_body.md
+          gh pr create --base alpha --head "${{ steps.merge.outputs.branch }}" \
+            --label upstream-sync \
+            --title "Weekly upstream sync ($(date +%Y-%m-%d))" \
+            --body-file pr_body.md
