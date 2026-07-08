@@ -1,7 +1,22 @@
 # Changelog — KeeperFX Linux Alpha
 
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
-Version numbers follow the engine build (`1.3.2.<build> alpha`).
+Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
+
+## 1.4.0.5246 — 2026-07-08
+- **Merged the KeeperFX team's latest alpha patches** (first pull request from the weekly
+  upstream-sync bot). Upstream bumped the base version to **1.4.0**. Highlights:
+  - Improved frame interpolation (#4919) and fixed/improved fast-forward frame skip (#4989)
+  - Multiplayer: keep lobbies alive after going to the landview screen (#4981), close
+    lobbies faster (#4982), fixed network crash 449 (#4992), fixed workshop-item bounding
+    boxes turning invisible (#4991)
+  - Two new 2v2 multiplayer maps (#4987)
+  - Slappable objects (#4894)
+  - Lua: creature transform function (#4985) and max level for new creatures (#4978)
+  - Music loading for mods (#4952)
+  - Fixed SDL compile race / library targets (#4983, #4976), missing return in
+    SET_BOX_TOOLTIP (#4979), removed unused Name fields in configs (#4980), in-game error
+    message for misplaced zip files (#4995)
 
 ## 1.3.2.5224 — 2026-07-01
 - **Merged the KeeperFX team's latest alpha patches:**
