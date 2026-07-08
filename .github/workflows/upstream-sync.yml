@@ -30,6 +30,10 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
+      # Pin gh to THIS fork. Once the `upstream` remote is added, gh would
+      # otherwise resolve to the parent repo (dkfans/keeperfx) and open
+      # PRs/issues there — that's what broke the 2026-07-06 run.
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Checkout alpha (full history)
         uses: actions/checkout@v4
