@@ -586,7 +586,7 @@ void process_players_dungeon_control_packet_control(long plyr_idx)
         update_box_lag_compensation(player);
     }
     process_dungeon_control_packet_clicks(plyr_idx);
-    set_mouse_light(player);
+    update_mouse_light(player);
 }
 
 TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
@@ -1040,7 +1040,7 @@ void process_players_map_packet_control(long plyr_idx)
     process_map_packet_clicks(plyr_idx);
     player->cameras[CamIV_Parchment].mappos.x.val = pckt->pos_x;
     player->cameras[CamIV_Parchment].mappos.y.val = pckt->pos_y;
-    set_mouse_light(player);
+    update_mouse_light(player);
     SYNCDBG(8,"Finished");
 }
 
@@ -1358,7 +1358,6 @@ void process_players_creature_control_packet_control(long idx)
             // Button is held down - check whether the instance has auto-repeat
             i = ccctrl->active_instance_id;
             inst_inf = creature_instance_info_get(i);
-            target_idx = get_human_controlled_creature_target(cctng, i, pckt);
             if ((inst_inf->instance_property_flags & InstPF_RepeatTrigger) != 0)
             {
                 if (ccctrl->instance_id == CrInst_NULL)
@@ -1540,11 +1539,10 @@ void set_local_packet_turn(void) {
 
 
 /**
- * Exchange packets if MP game, then process all packets influencing local game state.
+ * Exchange packets if MP game
  */
-void process_packets(void)
+void exchange_packets(void)
 {
-    int i;
     struct PlayerInfo* player = get_my_player();
     SYNCDBG(5, "Starting");
 
@@ -1588,7 +1586,13 @@ void process_packets(void)
         clear_flag(game.system_flags, GSF_NetGameNoSync);
         clear_flag(game.system_flags, GSF_NetSeedNoSync);
     }
+}
 
+/**
+ * Process all packets influencing local game state.
+ */
+void process_packets(void)
+{
     // Write packets into file, if requested
     if ((game.packet_save_enable) && (game.packet_fopened)) {
         save_packets();
@@ -1598,7 +1602,7 @@ void process_packets(void)
     write_debug_packets();
     #endif
     // Process the packets
-    for (i=0; i<PACKETS_COUNT; i++)
+    for (int i=0; i<PACKETS_COUNT; i++)
     {
         struct PlayerInfo* packet_player = get_player(i);
         if (player_exists(packet_player) && ((packet_player->allocflags & PlaF_CompCtrl) == 0)) {
