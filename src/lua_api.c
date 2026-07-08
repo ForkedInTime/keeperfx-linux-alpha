@@ -395,7 +395,7 @@ static int lua_Set_next_level(lua_State *L)
 static int lua_Add_creature_to_level(lua_State *L)
 {
     PlayerNumber plr_idx   = luaL_checkPlayerSingle(L, 1);
-    long crtr_id           = luaL_checkNamedCommand(L,2,creature_desc);
+    ThingModel crtr_id     = luaL_checkNamedCommand(L,2,creature_desc);
     TbMapLocation location = luaL_checkLocation(L,  3);
     long crtr_level        = luaL_checkinteger(L, 4);
     long carried_gold      = luaL_checkinteger(L, 5);
@@ -1199,6 +1199,13 @@ static void set_configuration(lua_State *L, const struct NamedFieldSet* named_fi
 static int lua_New_creature_type(lua_State* L)
 {
     script_new_creature_type(luaL_checkstring(L, 1));
+    for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
+    {
+        struct Dungeon* dungeon = get_dungeon(plyr_idx);
+        if (dungeon_invalid(dungeon))
+            continue;
+        dungeon->creature_max_level[game.conf.crtr_conf.model_count-1] = CREATURE_MAX_LEVEL + 1;
+    }
     return 0;
 }
 
@@ -1751,7 +1758,7 @@ static int lua_Set_music(lua_State *L)
         }
     } else {
         const char *track_name = luaL_checkstring(L, 1);
-        play_music(prepare_file_fmtpath(FGrp_CmpgMedia, "%s", track_name));
+        play_music_fgroup(FGrp_CmpgMedia, track_name);
     }
     return 0;
 }
