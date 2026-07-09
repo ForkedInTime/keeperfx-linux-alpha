@@ -59,6 +59,8 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 >   use the AppImage. Grab `KeeperFX-Linux-Alpha-x86_64.flatpak` from
 >   [Releases](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases) and:
 >   `flatpak install --user ./KeeperFX-Linux-Alpha-x86_64.flatpak`
+>   *(The Flatpak is rebuilt monthly, so it may sit on a slightly older release than the AppImage —
+>   no matter: it self-updates the game package on launch.)*
 >
 > **Short version: use the AppImage unless you specifically want Flatpak.**
 </details>
@@ -77,7 +79,7 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 complete decompilation-and-rewrite of *Dungeon Keeper* into modern code, the gameplay, the tooling — **and the
 native Linux support that this alpha stands on.** The overwhelming majority of everything you run here is
 theirs. This repository is a thin layer of personal tweaks on top of their `master`, re-synced with their
-latest every few months. All the real progress comes from them.
+latest **weekly** (see [how](#how-this-alpha-stays-current-with-upstream)). All the real progress comes from them.
 
 - **Upstream / source of truth:** https://github.com/dkfans/keeperfx
 - **Website:** https://keeperfx.net
@@ -133,8 +135,10 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   filename case, so mixed-case files referenced by mods/campaigns actually play on Linux.
 
 **Tooling**
-- **`refresh-alpha.sh`** — re-bases these changes onto the team's latest `master`, builds with the correct
-  version number, generates the UTF-8 fonts, and deploys. Keeps the alpha current with upstream.
+- **Weekly upstream-sync bot** — a GitHub Action merges the team's latest `master`, compile-checks it, and
+  opens a pull request for review (details [below](#how-this-alpha-stays-current-with-upstream)).
+- **`refresh-alpha.sh`** — pulls upstream, builds with the correct version number, generates the UTF-8
+  fonts, and deploys locally.
 
 ## 🚧 Work in progress
 
@@ -227,13 +231,26 @@ The native launcher is its own repo:
 
 ## How this alpha stays current with upstream
 
+**A weekly sync bot does it automatically.** Every Monday a GitHub Action checks the KeeperFX team's
+`master` for new commits and:
+
+- **nothing new** → exits quietly;
+- **merges cleanly and compiles** → opens a pull request into `alpha` listing every upstream change —
+  a human reviews and clicks **Merge** (it never ships anything by itself);
+- **merge conflicts, or the build breaks** → opens an issue for manual attention instead.
+
+After the sync PR is merged, a release is cut: the launcher repo's CI builds the AppImage and the game
+package (`full.7z`), and publishing the release attaches the portable tarball automatically. The Flatpak is
+rebuilt on a monthly schedule (it self-updates its game package on launch, so it catches up in between).
+Existing installs are offered the new build by the launcher's built-in updater.
+
+The same sync can still be done by hand:
 ```bash
 git fetch upstream                          # the KeeperFX team's master
-git log --oneline HEAD~N..upstream/master   # see what they changed
-./refresh-alpha.sh                          # rebase our changes, rebuild, redeploy
+git log --oneline HEAD..upstream/master     # see what they changed
+git merge upstream/master                   # merge (resolve any conflicts)
+./refresh-alpha.sh                          # rebuild and redeploy locally
 ```
-The few local commits re-base cleanly onto their latest most of the time; occasionally a file we touch needs a
-quick manual merge. The CI then rebuilds the AppImage **and Flatpak** automatically on each new release.
 
 ## ❓ FAQ
 
