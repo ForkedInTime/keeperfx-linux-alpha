@@ -334,7 +334,7 @@ void set_power_hand_graphic(unsigned char plyr_idx, long HandAnimationID)
     }
     if (player->hand_busy_until_turn < get_gameturn())
     {
-        if (player->hand_animationId != HandAnimationID)
+        if ((player->hand_animationId != HandAnimationID) || (HandAnimationID == HndA_Pickup))
         {
             player->hand_animationId = HandAnimationID;
             struct Thing *thing = thing_get(player->hand_thing_idx);
@@ -608,9 +608,8 @@ void draw_power_hand(void)
     if (player->work_state != PSt_HoldInHand)
     {
       TbBool draw_hand = (local_thing_under_hand > 0);
-      if ((player->work_state == PSt_CtrlDungeon) && !power_hand_is_empty(player))
-      {
-        draw_hand = (player->secondary_cursor_state == CSt_PowerHand) || ((player->secondary_cursor_state == CSt_DefaultArrow) && (player->primary_cursor_state == CSt_PowerHand));
+      if ((player->work_state == PSt_CtrlDungeon) && !power_hand_is_empty(player)) {
+        draw_hand = (player->primary_cursor_state != CSt_DoorKey) && (player->secondary_cursor_state != CSt_DoorKey);
       }
       if ((player->work_state != PSt_CtrlDungeon) || !draw_hand)
       {

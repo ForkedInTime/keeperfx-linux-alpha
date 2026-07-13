@@ -1,10 +1,10 @@
 /******************************************************************************/
 // Free implementation of Bullfrog's Dungeon Keeper strategy game.
 /******************************************************************************/
-/** @file lua_base.h
- *     Header file for lua_base.c.
+/** @file ariadne_update.h
+ *     Header file for ariadne_update.c.
  * @par Purpose:
- *     Console commands
+ *     map updates for Ariadne system support.
  * @par Comment:
  *     Just a header file - #defines, typedefs, function prototypes etc.
  * @par  Copying and copyrights:
@@ -14,40 +14,25 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
-#ifndef LUABASE_H
-#define LUABASE_H
+#ifndef DK_ARIADNE_UPDATE_H
+#define DK_ARIADNE_UPDATE_H
 
+#include "bflib_basics.h"
 #include "globals.h"
-#include "bflib_basics.h"
-#include "bflib_basics.h"
-#include <lua.h>
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-TbBool CheckLua(lua_State *L, int result,const char* func);
-TbBool open_lua_script(LevelNumber lvnum);
-void close_lua_script();
+/******************************************************************************/
 
-const char* get_lua_serialized_data(size_t *len);
-void set_lua_serialized_data(const char* data, size_t len);
+/******************************************************************************/
+long update_navigation_triangulation(long start_x, long start_y, long end_x, long end_y);
+long init_navigation(void);
 
-TbBool execute_lua_code_from_console(const char* code);
-TbBool execute_lua_code_from_script(const char* code);
-
-const char* lua_get_serialised_data(size_t *len);
-TbBool lua_set_serialised_data(const char *data, size_t len);
-void cleanup_serialized_data();
-
-void lua_set_random_seed(unsigned int seed);
-
-void generate_lua_types_file();
-
-extern struct lua_State *Lvl_script;
-
+/******************************************************************************/
 #ifdef __cplusplus
 }
 #endif
-
 #endif
