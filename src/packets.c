@@ -200,7 +200,7 @@ TbBool process_dungeon_control_packet_spell_overcharge(long plyr_idx)
     SYNCDBG(6,"Starting for player %d state %s",(int)plyr_idx,player_state_code_name(player->work_state));
     struct Packet* pckt = get_packet_direct(player->packet_num);
 
-    while (game.conf.rules[plyr_idx].magic.allow_instant_charge_up && is_game_key_pressed(Gkey_SpeedMod, false, true))
+    while (game.conf.rules[plyr_idx].magic.allow_instant_charge_up && (pckt->additional_packet_values & PCAdV_SpeedupPressed))
     {
         struct PowerConfigStats *powerst = get_power_model_stats(player->chosen_power_kind);
 
@@ -445,14 +445,17 @@ void process_camera_controls(struct Camera* cam, struct Packet* pckt, struct Pla
         }
     }
 
-
+    const TbBool use_rotate_pos = (pckt->control_flags & PCtr_MapCoordsValid) != 0
+                               && (pckt->control_flags & PCtr_ViewRotatePos) != 0;
+    const MapCoord rot_x = use_rotate_pos ? pckt->pos_x : -1;
+    const MapCoord rot_y = use_rotate_pos ? pckt->pos_y : -1;
     if ((pckt->control_flags & PCtr_ViewRotateCCW) != 0)
     {
         switch (cam->view_mode)
         {
         case PVM_IsoWibbleView:
         case PVM_IsoStraightView:
-             view_set_camera_rotation_inertia(cam, 16, 64);
+             view_set_camera_rotation_inertia_around(cam, 16, 64, rot_x, rot_y);
             break;
         case PVM_FrontView:
             cam->rotation_angle_x = (cam->rotation_angle_x + DEGREES_90) & ANGLE_MASK;
@@ -465,7 +468,7 @@ void process_camera_controls(struct Camera* cam, struct Packet* pckt, struct Pla
         {
         case PVM_IsoWibbleView:
         case PVM_IsoStraightView:
-            view_set_camera_rotation_inertia(cam, -16, -64);
+            view_set_camera_rotation_inertia_around(cam, -16, -64, rot_x, rot_y);
             break;
         case PVM_FrontView:
             cam->rotation_angle_x = (cam->rotation_angle_x - DEGREES_90) & ANGLE_MASK;
@@ -504,10 +507,10 @@ void process_camera_controls(struct Camera* cam, struct Packet* pckt, struct Pla
     }
     const int32_t zoom_min = max(CAMERA_ZOOM_MIN, zoom_distance_setting);
     const int32_t zoom_max = CAMERA_ZOOM_MAX;
-    const TbBool with_pos = (pckt->control_flags & PCtr_MapCoordsValid) != 0
-                         && (pckt->control_flags & PCtr_ViewZoomPos) != 0;
-    const MapCoord zoom_x = with_pos ? pckt->pos_x : -1;
-    const MapCoord zoom_y = with_pos ? pckt->pos_y : -1;
+    const TbBool use_zoom_pos = (pckt->control_flags & PCtr_MapCoordsValid) != 0
+                             && (pckt->control_flags & PCtr_ViewZoomPos) != 0;
+    const MapCoord zoom_x = use_zoom_pos ? pckt->pos_x : -1;
+    const MapCoord zoom_y = use_zoom_pos ? pckt->pos_y : -1;
     if (pckt->control_flags & PCtr_ViewZoomIn)
     {
         switch (cam->view_mode)
@@ -851,7 +854,11 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
       return 0;
   case PckA_UsePwrHandPick:
       thing = thing_get(pckt->actn_par1);
-      magic_use_available_power_on_thing(plyr_idx, PwrK_HAND, 0,thing->mappos.x.stl.num, thing->mappos.y.stl.num, thing, PwMod_Default);
+      if ((pckt->control_flags & PCtr_Gui) != 0) {
+          magic_use_available_power_on_thing(plyr_idx, PwrK_HAND, 0, thing->mappos.x.stl.num, thing->mappos.y.stl.num, thing, PwMod_Default);
+      } else {
+          use_power_hand(plyr_idx, thing->mappos.x.stl.num, thing->mappos.y.stl.num, pckt->actn_par1);
+      }
       return 0;
   case PckA_UsePwrHandDrop:
       dump_first_held_thing_on_map(plyr_idx, pckt->actn_par1, pckt->actn_par2, 1);
@@ -982,6 +989,7 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
         }
     }
     // fall through
+    case PckA_ApplyRoomspaceDigTag:
     case PckA_SetRoomspaceHighlight:
     {
         player->roomspace_mode = pckt->actn_par1;
@@ -1006,6 +1014,11 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
             {
                 reset_dungeon_build_room_ui_variables(plyr_idx);
                 player->roomspace_width = player->roomspace_height = pckt->actn_par2;
+                break;
+            }
+            case roomspace_detection_mode:
+            {
+                set_player_roomspace_size(player, pckt->actn_par2);
                 break;
             }
             case drag_placement_mode: // drag
@@ -1549,8 +1562,8 @@ void exchange_packets(void)
     MULTIPLAYER_LOG("process_packets: === BEGIN turn=%lu ===", (unsigned long)get_gameturn());
     set_local_packet_turn();
     update_turn_checksums();
-    store_packet_history(player->packet_num, get_packet_direct(player->packet_num));
     update_local_dig_tag_prediction();
+    store_packet_history(player->packet_num, get_packet_direct(player->packet_num));
     if (game.game_kind != GKind_LocalGame)
     {
         if (!game.packet_load_enable || game.packet_load_initialized)
@@ -1623,7 +1636,7 @@ void process_packets(void)
             resync_game();
         }
     }
-    get_current_stutter_percentage();
+    get_current_stutter_milliseconds();
     MULTIPLAYER_LOG("process_packets: === END turn=%lu ===", (unsigned long)get_gameturn());
     SYNCDBG(7,"Finished");
 }
