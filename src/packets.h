@@ -193,7 +193,7 @@ enum TbPacketAction {
         PckA_PlyrQueryCreature,
         PckA_CheatGiveDoorTrap,
         PckA_RoomspaceHighlightToggle,
-        PckA_UnusedSlot157,
+        PckA_ApplyRoomspaceDigTag,
 		PckA_CheatWinLevel,
 		PckA_CheatLoseLevel,
 		PckA_CheatLevelUp,
@@ -226,7 +226,8 @@ enum TbPacketControl {
         PCtr_ViewTiltReset  = 0x40000,
         PCtr_Ascend         = 0x80000,
         PCtr_Descend        = 0x100000,
-        PCtr_ViewZoomPos    = 0x200000
+        PCtr_ViewZoomPos    = 0x200000,
+        PCtr_ViewRotatePos  = 0x400000
 };
 
 /**
