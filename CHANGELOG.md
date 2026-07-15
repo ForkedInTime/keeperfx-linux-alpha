@@ -3,6 +3,25 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5272 — 2026-07-15
+- **Merged the KeeperFX team's latest alpha patches** (weekly upstream-sync bot, 22 commits).
+  Highlights:
+  - Engine performance: path-finding map generation optimized and split out into
+    `ariadne_update.c` (#5012), the ariadne navigation module refactored (#5004), and room
+    recalculations optimized (#5002)
+  - Camera/input: rotate the camera around the mouse position (#4898), Delete/PageDown default
+    to rotate/zoom again (#5010), fixed hand-of-evil animation issues (#5011)
+  - Gameplay fixes: magic boxes no longer unclickable (#5001), GUI pickup no longer slightly
+    slow (#5009), fixed double sound fade-out on the landview ensign (#4993), campaign creature
+    lists now replace rather than append (#4999)
+  - Lua: new OnPickup and OnSlap triggers (#4805), fixed ACTIVATIONLUAFUNC (#5015)
+  - Continues are now compatible between future versions (#5014)
+  - Translated error messages across all languages (#4997)
+  - Multiplayer: local-camera tagging (#5018), resync console command (#5005) + lua-data resync
+    (#4966), reliable creature clicking (#5000), stutter tracking (#5006), hand-of-evil fixes
+    (#5003), clean disconnect after failed startup (#5008), FRAMES_PER_SECOND limit re-enabled
+    (#4994)
+
 ## 1.4.0.5246 — 2026-07-08
 - **Merged the KeeperFX team's latest alpha patches** (first pull request from the weekly
   upstream-sync bot). Upstream bumped the base version to **1.4.0**. Highlights:
