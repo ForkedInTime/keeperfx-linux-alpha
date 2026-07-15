@@ -3,6 +3,17 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5273 — 2026-07-15
+- **Fixed: game config was frozen in the update payload.** The release pipeline built the
+  `full.7z`/AppImage payload from the previous release and only refreshed the engine binary,
+  fonts, and launcher — never the game config (`fxdata`/`creatrs`/`mods`). So config changes
+  never reached players even as the engine advanced. This shipped a stale `objects.cfg` in
+  5272 that **broke slapping chickens** (the new engine gates object-slapping on a `SLAPPABLE`
+  flag the frozen config lacked) and, via the mismatched hand/object code, caused a
+  **heap-corruption crash on the level-victory transition**. The packaging now overlays the
+  freshly-built engine config onto the payload, matching the portable-tarball build. Restores
+  chicken-slapping and fixes the crash; no engine code change.
+
 ## 1.4.0.5272 — 2026-07-15
 - **Merged the KeeperFX team's latest alpha patches** (weekly upstream-sync bot, 22 commits).
   Highlights:
