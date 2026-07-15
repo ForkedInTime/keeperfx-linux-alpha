@@ -542,6 +542,37 @@ TbResult LbScreenInitialize(void)
     return Lb_SUCCESS;
 }
 
+/** Release the draw/second surface (and the GL present backend, if active) and
+ *  clear all associated screen-surface state. Shared by LbScreenSetup (before
+ *  re-creating the surfaces for a new mode) and LbScreenReset (on teardown), so
+ *  the two paths cannot drift apart.
+ *
+ *  In GL-present mode lbScreenSurface and lbDrawSurface alias the SAME surface
+ *  we own, so BOTH pointers must be cleared here — otherwise lbScreenSurface is
+ *  left dangling at the just-freed surface. In the CPU path lbScreenSurface is
+ *  the SDL-owned window surface, which we must NOT free; dropping our reference
+ *  is correct (SDL frees it on the next mode set or on SDL_Quit). */
+static void lb_release_screen_surfaces(void)
+{
+    TbBool freed_draw_surface = false;
+#ifndef _WIN32
+    if (lbUseGLPresent) {
+        gl_present_shutdown();
+        // In GL mode lbDrawSurface is an allocated 8-bit surface we own.
+        SDL_FreeSurface(lbDrawSurface);
+        lbUseGLPresent = false;
+        freed_draw_surface = true;
+    }
+#endif
+    if (!freed_draw_surface && lbHasSecondSurface) {
+        SDL_FreeSurface(lbDrawSurface);
+    }
+    lbHasSecondSurface = false;
+    lbDrawSurface = NULL;
+    lbScreenSurface = NULL;
+    lbScreenInitialised = false;
+}
+
 /** Set up the window, render surface, etc. Called when we want to change the screen setup. Uses SDL2. */
 TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord height,
     unsigned char *palette, short buffers_count, TbBool wscreen_vid)
@@ -555,26 +586,9 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
         msspr = lbDisplay.MouseSprite;
         GetPointerHotspot(&hot_x,&hot_y);
     }
-    SDL_Surface* prevScreenSurf = lbScreenSurface;
     LbMouseChangeSprite(NULL);
-
-#ifndef _WIN32
-    if (lbUseGLPresent) {
-        // Tear down the old GL backend before re-creating it for the new mode.
-        gl_present_shutdown();
-        SDL_FreeSurface(lbDrawSurface);
-        lbUseGLPresent = false;
-    } else
-#endif
-    if (lbHasSecondSurface) {
-        SDL_FreeSurface(lbDrawSurface);
-    }
-    lbHasSecondSurface = false;
-    lbDrawSurface = NULL;
-    lbScreenInitialised = false;
-
-    if (prevScreenSurf != NULL) {
-    }
+    // Tear down the old surfaces / GL backend before re-creating them for the new mode.
+    lb_release_screen_surfaces();
 
     TbScreenModeInfo* mdinfo = LbScreenGetModeInfo(mode); // The desired mode has already been checked
     // Note:
@@ -849,23 +863,7 @@ TbResult LbScreenReset(TbBool exiting_application)
     if (!lbScreenInitialised)
       return Lb_FAIL;
     LbMouseChangeSprite(NULL);
-#ifndef _WIN32
-    if (lbUseGLPresent) {
-        gl_present_shutdown();
-        // In GL mode lbDrawSurface is an allocated 8-bit surface we own.
-        SDL_FreeSurface(lbDrawSurface);
-        lbUseGLPresent = false;
-    } else
-#endif
-    if (lbHasSecondSurface) {
-        SDL_FreeSurface(lbDrawSurface);
-    }
-    //do not free screen surface, it is freed automatically on SDL_Quit or next call to set video mode
-    lbHasSecondSurface = false;
-    lbDrawSurface = NULL;
-    lbScreenSurface = NULL;
-    // Mark as not initialized
-    lbScreenInitialised = false;
+    lb_release_screen_surfaces();
     if (exiting_application)
     {
         // we get here when we are actually closing the application
