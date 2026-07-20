@@ -3,6 +3,25 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5296 — 2026-07-20
+- **Merged the KeeperFX team's latest alpha patches** (weekly upstream-sync bot, 19 commits,
+  #5019–#5049). Verified to build clean on Linux before release. Highlights:
+  - Engine performance: `gpoly` polygon rasterizer optimized for ~10% faster rendering (#5043)
+    and map-parchment (minimap) redraw performance fixed (#5041) — both benefit single-player
+  - New feature: **map-specific sounds and speeches** — maps can ship custom sounds/speech in
+    their `.zip` bundle (#5019), backed by a new shared `custom_zip` reader factored out of the
+    sprite loader
+  - Gameplay/engine fixes: menu-sound gating fixed (#5028), mouse-light flicker on GUI menus
+    fixed (#5040), highscore input caret scaled/shaded/framed correctly (#5044), computer
+    players no longer sell enemy traps when building rooms (#5034), `pngpal2raw` tool build
+    error fixed (#5035)
+  - Maps: **Fortress** added, Bash neutered, Dread Mountain fixed (#5032)
+  - Controller rumble now only fires when a controller was the last input used (#5049)
+  - Multiplayer: reliable slap/power-click (#5026), version-mismatch message on start (#5025),
+    client clock synced to host packet-receive time (#5031), dynamic input-lag adjustment
+    (#5033, #5036), desync fixes + logging (#5042), possible ghost-tagging fix (#5030), fixed
+    picking up and casting at the same time (#5038), client-side info buttons (#5045)
+
 ## 1.4.0.5273 — 2026-07-15
 - **Fixed: game config was frozen in the update payload.** The release pipeline built the
   `full.7z`/AppImage payload from the previous release and only refreshed the engine binary,
