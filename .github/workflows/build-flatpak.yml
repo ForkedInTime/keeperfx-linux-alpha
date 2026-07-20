@@ -1,0 +1,194 @@
+# Builds the KeeperFX Linux Alpha Flatpak and attaches it to the latest release.
+#
+# Decoupled from the per-release AppImage build on purpose: the Flatpak is slow to
+# build (~12 min) and currently sees little use, while the AppImage + in-launcher
+# self-update is the main delivery path. This runs MONTHLY (and on demand) so a
+# reasonably fresh .flatpak always sits on the latest release without slowing every
+# release down. Like the AppImage, a slightly-old Flatpak self-updates to the latest
+# engine/launcher on first launch, so it never needs to be cut every release.
+#
+# This workflow lives in the ENGINE repo (not the launcher repo, where it started)
+# purely so the default GITHUB_TOKEN can attach the bundle to this repo's releases.
+# A workflow in the launcher repo cannot write to another repo's releases without a
+# PAT: the cross-repo upload failed with "HTTP 403: Resource not accessible by
+# integration". The build itself still needs both repos, so the launcher is cloned
+# below — the two repos simply swapped checkout/clone roles.
+name: Build Flatpak (monthly / manual)
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'   # 06:00 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to attach the bundle to the release
+
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+  LAUNCHER_REPO: https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git
+  LAUNCHER_BRANCH: alpha
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the engine
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # full history, so the build number (git commit count) is correct
+
+      # Cloned before the cache steps below, which hash files from inside it.
+      - name: Clone the launcher (its packaging/ drives the Flatpak manifest)
+        run: git clone --branch "$LAUNCHER_BRANCH" --depth 1 "$LAUNCHER_REPO" launcher
+
+      - name: Install dependencies (launcher build + engine runtime libs + flatpak)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache cmake ninja-build git pkg-config file wget desktop-file-utils python3 python3-pip p7zip-full \
+            flatpak flatpak-builder elfutils \
+            libgl1-mesa-dev zlib1g-dev \
+            libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 \
+            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev libepoxy-dev \
+            libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+
+      - name: Cache compiled objects (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-flatpak-${{ github.run_id }}
+          restore-keys: ccache-flatpak-
+
+      - name: Cache CPM dependency sources (LIEF, etc.)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ hashFiles('launcher/CMakeLists.txt', 'launcher/cmake/**', 'launcher/cpm-package-lock.cmake') }}
+          restore-keys: cpm-
+
+      - name: Cache Qt 6.8
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-6.8.3-linux-gcc64
+
+      - name: Install Qt 6.8 (the launcher needs Qt >=6.7; 24.04 only has 6.4)
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          pip install --break-system-packages aqtinstall
+          python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 -O "$RUNNER_TEMP/Qt"
+
+      - name: Set up Qt + ccache environment
+        run: |
+          QT="$RUNNER_TEMP/Qt/6.8.3/gcc_64"
+          echo "$QT/bin" >> "$GITHUB_PATH"
+          echo "CMAKE_PREFIX_PATH=$QT" >> "$GITHUB_ENV"
+          echo "QMAKE=$QT/bin/qmake" >> "$GITHUB_ENV"
+          ccache --max-size=1G --zero-stats
+
+      - name: Build the launcher
+        run: |
+          cmake -S launcher -B launcher/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build launcher/build -j"$(nproc)"
+
+      - name: Build the engine on 24.04 (the released Arch engine won't run on Ubuntu)
+        run: |
+          make -f linux.mk deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
+                           deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
+          BN="$(git rev-list --count HEAD)"
+          echo "Build number: $BN"
+          rm -f src/ver_defs.h
+          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
+          cd tools/fxfontmaker
+          python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
+          python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
+          python3 merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
+          python3 unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
+          python3 unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
+          python3 unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
+          python3 unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+
+      # The AppDir MUST be assembled inside launcher/, because the Flatpak manifest
+      # resolves its sources relative to its own folder (launcher/packaging/) and
+      # refers to "../AppDir". Building it anywhere else silently breaks the manifest.
+      - name: Assemble the AppDir (launcher + engine + payload data)
+        working-directory: launcher
+        run: |
+          APPDIR="$PWD/AppDir"
+          mkdir -p "$APPDIR/usr/bin"
+          cp build/keeperfx-launcher-qt "$APPDIR/usr/bin/"
+          cp ext/7z.so "$APPDIR/usr/bin/"
+          install -Dm644 packaging/keeperfx-launcher-qt.png \
+            "$APPDIR/usr/share/icons/hicolor/256x256/apps/keeperfx-launcher-qt.png"
+          install -Dm644 packaging/keeperfx-launcher-qt.desktop \
+            "$APPDIR/usr/share/applications/keeperfx-launcher-qt.desktop"
+          wget -q https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/keeperfx-linux-alpha-x86_64-full.7z
+          7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
+          P="$APPDIR/payload"
+          mkdir -p "$P"
+          cp -rf pkg/. "$P/"
+          cp -f ../bin/keeperfx "$P/keeperfx"
+          cp -f ../tools/fxfontmaker/*.fxfont "$P/fxdata/"
+          sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
+          echo "Stamped version: $(cat "$P/version.txt")"
+          cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"
+          cp -f ext/7z.so "$P/7z.so"
+          cp -f ../bin/keeperfx "$APPDIR/usr/bin/keeperfx"   # for linuxdeploy lib scan
+
+      - name: Get linuxdeploy + Qt plugin
+        working-directory: launcher
+        run: |
+          base=https://github.com/linuxdeploy
+          wget -q "$base/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          wget -q "$base/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Bundle ALL libraries (launcher Qt + engine SDL2/ffmpeg/OpenAL/…)
+        working-directory: launcher
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            -d packaging/keeperfx-launcher-qt.desktop \
+            -i packaging/keeperfx-launcher-qt.png \
+            --plugin qt
+          # the engine runs from the payload, not usr/bin — drop the duplicate
+          rm -f AppDir/usr/bin/keeperfx
+
+      - name: Install Flatpak runtime + builder
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+
+      - name: Build the Flatpak bundle
+        working-directory: launcher
+        run: |
+          flatpak-builder --user --force-clean --repo=fp-repo fp-build \
+            packaging/io.github.forkedintime.KeeperFXLinuxAlpha.yml
+          flatpak build-bundle fp-repo "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.flatpak" \
+            io.github.forkedintime.KeeperFXLinuxAlpha \
+            --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+          ls -la "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.flatpak"
+
+      - name: Upload the Flatpak (downloadable from this CI run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeeperFX-Linux-Alpha-Flatpak
+          path: KeeperFX-Linux-Alpha-x86_64.flatpak
+
+      # Same-repo upload: the default GITHUB_TOKEN is scoped to this repo, so this
+      # needs no PAT. This is the whole reason the workflow lives here.
+      - name: Attach the Flatpak to the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$(gh release view --json tagName --jq .tagName)"
+          echo "Attaching Flatpak to release $TAG"
+          gh release upload "$TAG" KeeperFX-Linux-Alpha-x86_64.flatpak --clobber
