@@ -225,6 +225,7 @@ static long double process_frame_time = 0;
 static long double time_since_last_draw = 0;
 static long double average_frame_draw_time = 1;
 static long double multiplayer_clock_adjust = 1;
+long double host_packet_received = 1;
 float interpolate_time = 0;
 /******************************************************************************/
 
@@ -1204,7 +1205,7 @@ TbBool players_cursor_is_at_top_of_view(struct PlayerInfo *player)
         return (player->controlled_thing_idx > 0);
 
     case PSt_CtrlDungeon:
-        switch(player->primary_cursor_state)
+        switch (player->primary_cursor_state)
         {
             case CSt_DefaultArrow:
                 return false;
@@ -3554,13 +3555,12 @@ static void gameplay_loop_logic()
     {
         if (game.input_lag_turns == 0)
         {
-            // The logic here is: if we are late (process_turn_time > 1.0), we
-            // spent too long waiting for a packet from the host.  Assuming
-            // network lag remains constant, this means we entered
-            // exchange_packet() too early.  So, the scaling factor must reduce
-            // (< 1.0) so that the next turn takes a little longer in real time.
-            // Vice-versa if we are early.
-            multiplayer_clock_adjust = 1 + (1 - game.process_turn_time) / 20;
+            // Adjust the clock rate so that the host packet is received at
+            // process_turn_time == 1.0 (on average).  If it is received later,
+            // reduce the scaling factor (< 1.0) so that the next turn takes a
+            // little longer in real time.  Vice-versa if it is early.
+
+            multiplayer_clock_adjust = 1 + (1 - host_packet_received) / 20;
         }
         else
         {
@@ -3570,7 +3570,8 @@ static void gameplay_loop_logic()
             multiplayer_clock_adjust = tick_ns_one_turn / tick_ns_adjusted_turn;
         }
     }
-    else multiplayer_clock_adjust = 1;
+    else multiplayer_clock_adjust = 1.0;
+    host_packet_received = 1.0;
 
     while (game.process_turn_time < 1.0)
     {

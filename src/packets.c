@@ -36,6 +36,7 @@
 #include "bflib_planar.h"
 #include "bflib_dernc.h"
 #include "net_exchange_gameplay.h"
+#include "net_input_lag.h"
 #include "bflib_sound.h"
 #include "config_sounds.h"
 #include "bflib_sndlib.h"
@@ -145,7 +146,8 @@ TbBool is_packet_empty(const struct Packet *pckt) {
         pckt->control_flags != 0 ||
         pckt->additional_packet_values != 0 ||
         pckt->actn_par3 != 0 ||
-        pckt->actn_par4 != 0) {
+        pckt->actn_par4 != 0 ||
+        pckt->input_lag_turns != 0) {
         return false;
     }
     return true;
@@ -864,14 +866,13 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
       dump_first_held_thing_on_map(plyr_idx, pckt->actn_par1, pckt->actn_par2, 1);
       return 0;
   case PckA_EventBoxTurnOff:
-      if (game.event[pckt->actn_par1].kind == 3)
-      {
-        turn_off_event_box_if_necessary(plyr_idx, pckt->actn_par1);
-      } else
-      {
-        event_delete_event(plyr_idx, pckt->actn_par1);
+      if (game.event[pckt->actn_par1].kind != EvKind_Objective) {
+          event_delete_event(plyr_idx, pckt->actn_par1);
       }
       return 0;
+  case PckA_EventBoxActivate:
+  case PckA_EventBoxClose:
+      return false;
   case PckA_GenericLevelPower:
       magic_use_available_power_on_level(plyr_idx, pckt->actn_par2, 0, PwMod_Default);
       return 0;
@@ -930,14 +931,6 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
       return false;
   case PckA_PwrSOEDis:
       turn_off_power_sight_of_evil(plyr_idx);
-      return false;
-  case PckA_EventBoxActivate:
-      go_on_then_activate_the_event_box(plyr_idx, pckt->actn_par1);
-      return false;
-  case PckA_EventBoxClose:
-      dungeon = get_players_num_dungeon(plyr_idx);
-      turn_off_event_box_if_necessary(plyr_idx, dungeon->visible_event_idx);
-      dungeon->visible_event_idx = 0;
       return false;
   case PckA_UsePwrOnThing:
       i = get_power_overcharge_level(player);
@@ -1542,6 +1535,7 @@ static void load_old_packets(void)
             MULTIPLAYER_LOG("load_input_lag_packets: cleared packet[%s] (no stored packet)", player_name);
         }
     }
+    input_lag_observe_host_packet(&game.packets[get_host_player_id()]);
 }
 
 void set_local_packet_turn(void) {
@@ -1560,6 +1554,7 @@ void exchange_packets(void)
     SYNCDBG(5, "Starting");
 
     MULTIPLAYER_LOG("process_packets: === BEGIN turn=%lu ===", (unsigned long)get_gameturn());
+    input_lag_update(get_packet_direct(player->packet_num));
     set_local_packet_turn();
     update_turn_checksums();
     update_local_dig_tag_prediction();
@@ -1582,7 +1577,7 @@ void exchange_packets(void)
             return;
         }
     }
-    if (input_lag_skips_initial_processing()) {
+    if (input_lag_skips_processing()) {
         clear_packets();
         return;
     }
