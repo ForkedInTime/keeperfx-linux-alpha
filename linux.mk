@@ -300,8 +300,8 @@ KFX_INCLUDES = \
 	$(shell pkg-config --cflags epoxy) \
 	$(shell pkg-config --cflags-only-I libavformat)
 
-KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64-v2 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
-KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64-v2 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
 
 KFX_LDFLAGS += \
 	-g \
@@ -338,7 +338,7 @@ TOML_OBJECTS = $(patsubst deps/centitoml/%.c,obj/centitoml/%.o,$(TOML_SOURCES))
 TOML_INCLUDES = \
 	-Ideps/centijson/include
 
-TOML_CFLAGS += -O3 -march=x86-64-v2 $(TOML_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter
+TOML_CFLAGS += -O3 -march=x86-64 $(TOML_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter
 
 ifeq ($(ENABLE_LTO), 1)
 KFX_CFLAGS += -flto
