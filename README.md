@@ -125,16 +125,16 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 - **No per-turn CPU busy-spin.** The turn pacer busy-spun the tail of *every* game turn (a leftover Windows
   timer workaround), continuously burning a few percent of a CPU core and hurting laptop battery and
   thermals. The Linux path now sleeps precisely with a high-resolution monotonic timer — zero spin.
-- **SSE4.2 build (`-march=x86-64-v2`).** The engine has no runtime SIMD dispatch, so every hot software loop
-  relies on compiler auto-vectorization. The Linux build now targets x86-64-v2 (every 2009+ CPU) instead of
-  the 2003 SSE2 baseline, letting GCC vectorize the software blitters and renderer.
-- **Vectorized sprite/text blit.** The core sprite- and glyph-drawing copy is now a wide SIMD `memcpy` on its
-  hot path instead of a byte-at-a-time loop through a double pointer.
+- **Faster sprite/text blit.** The core sprite- and glyph-drawing copy is now a single `memcpy` on its hot
+  path (which the C library vectorizes with SIMD at runtime) instead of a byte-at-a-time loop through a
+  double pointer.
 
 These were found by a multi-agent Linux performance audit, are output-identical to the original, and are
-verified to build clean and boot. (Deeper wins that would change save/multiplayer/replay compatibility — the
-oversized core sim structs, combat target-search scaling — are deliberately held back until they can be
-proven safe under multiplayer replay testing; correctness first.)
+verified in-game. (Two classes of change are deliberately held back: ones that would break
+save/multiplayer/replay compatibility — the oversized core sim structs, combat target-search scaling — until
+they can be proven safe under replay testing; and a wider `-march=x86-64-v2` build, which was tried and
+reverted because GCC's auto-vectorizer miscompiles a loop in the 25-year-old pathfinding code. Correctness
+first.)
 
 **Stability & security fixes** *(genuine upstream bugs, fixed locally; the security ones reported upstream)*
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
