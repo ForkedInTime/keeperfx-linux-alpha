@@ -159,8 +159,24 @@ TbResult LbScreenSwap(void)
             // palette change is reflected - including movies (bflib_fmvids)
             // which call SDL_SetPaletteColors directly, bypassing LbPaletteSet.
             if ((lbDrawSurface != NULL) && (lbDrawSurface->format->palette != NULL)) {
-                gl_present_set_palette(lbDrawSurface->format->palette->colors,
-                    lbDrawSurface->format->palette->ncolors);
+                // Only re-upload the GPU palette when it actually changed. The palette
+                // is identical on almost every frame (it changes only on fades, flashes
+                // and movies), so the per-frame 256-entry CPU expansion + glTexSubImage2D
+                // upload was redundant work on the Linux GL present path. A memcmp still
+                // catches movie palette writes (which bypass LbPaletteSet by calling
+                // SDL_SetPaletteColors directly), so on-screen behaviour is unchanged.
+                const SDL_Palette *pal = lbDrawSurface->format->palette;
+                int ncol = pal->ncolors;
+                if (ncol > PALETTE_COLORS)
+                    ncol = PALETTE_COLORS;
+                static SDL_Color last_gl_palette[PALETTE_COLORS];
+                static int last_gl_palette_count = -1;
+                if ((ncol != last_gl_palette_count)
+                 || (memcmp(last_gl_palette, pal->colors, ncol * sizeof(SDL_Color)) != 0)) {
+                    gl_present_set_palette(pal->colors, ncol);
+                    memcpy(last_gl_palette, pal->colors, ncol * sizeof(SDL_Color));
+                    last_gl_palette_count = ncol;
+                }
             }
             gl_present_frame(lbDrawSurface->pixels, lbDrawSurface->w,
                 lbDrawSurface->h, lbDrawSurface->pitch);
