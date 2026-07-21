@@ -607,23 +607,27 @@ static inline void LbDrawBufferTranspr(unsigned char **buf_out,const char *buf_i
 static inline void LbDrawBufferSolid(unsigned char **buf_out,const char *buf_inp,
         const int buf_len, const TbBool mirror)
 {
-    int i;
     if ( mirror )
     {
-        for (i=0; i < buf_len; i++)
+        // Reverse copy — hoist the destination pointer into a local so the
+        // compiler isn't forced to reload/store it through the double pointer
+        // every byte (it can't assume **buf_out doesn't alias buf_out).
+        unsigned char *dst = *buf_out;
+        for (int i=0; i < buf_len; i++)
         {
-            **buf_out = *(const unsigned char *)buf_inp;
+            *dst = *(const unsigned char *)buf_inp;
             buf_inp++;
-            (*buf_out)--;
+            dst--;
         }
+        *buf_out = dst;
     } else
     {
-        for (i=0; i < buf_len; i++)
-        {
-            **buf_out = *(const unsigned char *)buf_inp;
-            buf_inp++;
-            (*buf_out)++;
-        }
+        // Forward, non-overlapping byte copy (source sprite line -> screen
+        // buffer). memcpy lets libc/the compiler use a wide SIMD copy — with
+        // -march=x86-64-v2 this becomes vectorized. This path draws every
+        // non-mirrored sprite line and text glyph, so it is very hot.
+        memcpy(*buf_out, buf_inp, buf_len);
+        *buf_out += buf_len;
     }
 }
 
