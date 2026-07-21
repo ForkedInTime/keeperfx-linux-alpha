@@ -3,6 +3,23 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5305 — 2026-07-20
+- **Linux engine performance pass.** Four output-identical optimizations to the native Linux build,
+  found by a multi-agent performance audit and verified in-game across multiple levels:
+  - **Renderer no longer zeroes a 16 MB buffer every frame.** The isometric view cleared its entire
+    polygon pool each frame regardless of use; it now clears only the region actually touched.
+  - **The GPU no longer re-uploads the palette every frame.** The OpenGL present path re-sent the
+    256-colour palette (CPU expand + texture upload + driver sync) every frame; it's now guarded to
+    upload only when the palette actually changes (fades/flashes/movies still work).
+  - **No per-turn CPU busy-spin.** The turn pacer busy-spun the tail of every game turn (a leftover
+    Windows timer workaround); the Linux path now sleeps precisely with a high-resolution timer,
+    lowering idle CPU and helping laptop battery/thermals.
+  - **Faster sprite/text blit.** The core sprite/glyph copy is now a single (SIMD-vectorized) `memcpy`
+    instead of a byte-at-a-time loop.
+- *A wider `-march=x86-64-v2` build was tried and reverted:* GCC's auto-vectorizer miscompiled a loop in
+  the 25-year-old pathfinding code, crashing on level start. Correctness first — the four wins above are
+  independent of it.
+
 ## 1.4.0.5296 — 2026-07-20
 - **Merged the KeeperFX team's latest alpha patches** (weekly upstream-sync bot, 19 commits,
   #5019–#5049). Verified to build clean on Linux before release. Highlights:
