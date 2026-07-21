@@ -398,6 +398,10 @@ struct MinMax minmaxs[MINMAX_LENGTH];
 unsigned char *getpoly;
 unsigned char poly_pool[POLY_POOL_SIZE];
 unsigned char *poly_pool_end;
+// High-water mark: the most bytes of poly_pool the bump allocator (getpoly) has ever
+// consumed in a single frame. Used to clear only the region that's actually in use
+// instead of the whole 16 MB pool every frame (see draw_view).
+static size_t poly_pool_hwm = 0;
 struct BasicQ *buckets[BUCKETS_COUNT];
 long cells_away;
 long max_i_can_see;
@@ -6867,7 +6871,13 @@ void draw_view(struct Camera *cam, unsigned char a2)
 
     getpoly = poly_pool;
     memset(buckets, 0, sizeof(buckets));
-    memset(poly_pool, 0, sizeof(poly_pool));
+    // Clear only the region recent frames actually touched, not the full 16 MB pool.
+    // display_drawlist() walks only the linked bucket nodes, every one of which is fully
+    // written by its allocator before use — the front-view path (clear_fast_bucket_list)
+    // clears nothing here and renders correctly — so zeroing the unused tail every frame
+    // was pure write-bandwidth and cache-eviction waste. The high-water mark is updated
+    // after display_drawlist() below.
+    memset(poly_pool, 0, poly_pool_hwm);
     if (map_volume_box.visible)
     {
         poly_pool_end_reserve(14);
@@ -6927,6 +6937,12 @@ void draw_view(struct Camera *cam, unsigned char a2)
     }
 
     display_drawlist();
+    // Record how far the bump allocator got this frame, so next frame's clear covers it.
+    {
+        size_t used_this_frame = (size_t)(getpoly - poly_pool);
+        if (used_this_frame > poly_pool_hwm)
+            poly_pool_hwm = used_this_frame;
+    }
     cam->zoom = zoom_mem;//TODO [zoom] remove when all cam->zoom will be changed to camera_zoom
     SYNCDBG(9,"Finished");
 }

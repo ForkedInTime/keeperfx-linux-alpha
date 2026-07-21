@@ -115,6 +115,27 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 - **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for
   readability.
 
+**Linux performance** *(engine-level optimizations specific to this native build — upstream is Windows-first and does not tune the GCC/Linux path, so these are ours)*
+- **No dead 16 MB clear every frame.** The isometric renderer zeroed its *entire* 16 MB polygon pool every
+  rendered frame regardless of how little it used; it now clears only the region a frame actually touches,
+  saving memory bandwidth and a cache flush on every frame.
+- **No redundant GPU palette re-upload.** The OpenGL present path re-uploaded the 256-colour palette every
+  frame — a CPU expansion, a texture upload, and a driver sync — even though it changes only on fades,
+  flashes and movies. It's now guarded so it uploads only when the palette actually changes.
+- **No per-turn CPU busy-spin.** The turn pacer busy-spun the tail of *every* game turn (a leftover Windows
+  timer workaround), continuously burning a few percent of a CPU core and hurting laptop battery and
+  thermals. The Linux path now sleeps precisely with a high-resolution monotonic timer — zero spin.
+- **Faster sprite/text blit.** The core sprite- and glyph-drawing copy is now a single `memcpy` on its hot
+  path (which the C library vectorizes with SIMD at runtime) instead of a byte-at-a-time loop through a
+  double pointer.
+
+These were found by a multi-agent Linux performance audit, are output-identical to the original, and are
+verified in-game. (Two classes of change are deliberately held back: ones that would break
+save/multiplayer/replay compatibility — the oversized core sim structs, combat target-search scaling — until
+they can be proven safe under replay testing; and a wider `-march=x86-64-v2` build, which was tried and
+reverted because GCC's auto-vectorizer miscompiles a loop in the 25-year-old pathfinding code. Correctness
+first.)
+
 **Stability & security fixes** *(genuine upstream bugs, fixed locally; the security ones reported upstream)*
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
   using `sdl2-compat`.
