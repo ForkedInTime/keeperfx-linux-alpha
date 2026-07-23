@@ -46,6 +46,7 @@ struct GameSettings {
     unsigned char music_volume;
     unsigned char roomflags_on;
     unsigned short gamma_correction;
+    unsigned char render_scale;   /**< In-game world render downscale as an integer pixel_size: 1=native (default), 2=half, 3=third. */
     int switching_vidmodes_index; /**< The current position in the list of video modes to switch between with Alt+R (-1 means the index is unset). */
     struct GameKey kbkeys[GAME_KEYS_COUNT];
     TbBool tooltips_on;

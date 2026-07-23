@@ -374,6 +374,7 @@ void setup_default_settings(void)
     settings.music_volume                  = 90;
     settings.roomflags_on                  = 1;
     settings.gamma_correction              = 0;
+    settings.render_scale                  = 1;
     settings.switching_vidmodes_index      = Lb_SCREEN_MODE_INVALID;
     settings.tooltips_on                   = true;
     settings.first_person_move_invert      = 0;
@@ -428,6 +429,8 @@ TbBool load_settings(void)
         if (val && value_type(val) == VALUE_INT32) settings.video_cluedo_mode = (unsigned char)value_int32(val);
         val = value_dict_get(vsec, "gamma_correction");
         if (val && value_type(val) == VALUE_INT32) settings.gamma_correction = (unsigned short)value_int32(val);
+        val = value_dict_get(vsec, "render_scale");
+        if (val && value_type(val) == VALUE_INT32) settings.render_scale = (unsigned char)value_int32(val);
         val = value_dict_get(vsec, "roomflags_on");
         if (val && value_type(val) == VALUE_INT32) settings.roomflags_on = (unsigned char)value_int32(val);
         val = value_dict_get(vsec, "switching_vidmodes_index");
@@ -513,6 +516,7 @@ TbBool load_settings(void)
     settings.music_volume = clamp(settings.music_volume, 0, FULL_LOUDNESS);
     settings.mentor_volume = clamp(settings.mentor_volume, 0, FULL_LOUDNESS);
     settings.gamma_correction = clamp(settings.gamma_correction, 0, GAMMA_LEVELS_COUNT);
+    settings.render_scale = clamp(settings.render_scale, 1, 3);
     settings.switching_vidmodes_index = clamp(settings.switching_vidmodes_index, 0, MAX_GAME_VIDMODE_COUNT);
     settings.first_person_move_sensitivity = clamp(settings.first_person_move_sensitivity, 0, 1000);
     settings.minimap_zoom = clamp(settings.minimap_zoom, 256, 2048);
@@ -547,6 +551,7 @@ short save_settings(void)
     TOSAVE("textures = %d\n", (int)settings.video_textures);
     TOSAVE("cluedo_mode = %d\n", (int)settings.video_cluedo_mode);
     TOSAVE("gamma_correction = %d\n", (int)settings.gamma_correction);
+    TOSAVE("render_scale = %d\n", (int)settings.render_scale);
     TOSAVE("roomflags_on = %d\n", (int)settings.roomflags_on);
     TOSAVE("switching_vidmodes_index = %d\n", settings.switching_vidmodes_index);
     TOSAVE("\n[audio]\n");

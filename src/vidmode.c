@@ -88,6 +88,10 @@ unsigned long landview_frame_movement_scale_y;
 long base_mouse_sensitivity = 256;
 
 static TbBool force_video_mode_reset = true;
+// Render-scale: the pixel_size world-downscale is applied only while the in-game
+// screen is active. The frontend/menu/movies keep pixel_size 1 (unchanged).
+// Set by the game vs frontend screen-setup entry points.
+static TbBool game_screen_active = false;
 struct TbSpriteSheet * pointer_sprites = NULL;
 struct MapLevelInfo map_info;
 
@@ -591,6 +595,7 @@ char *get_vidmode_name(TbScreenMode mode)
 TbScreenMode setup_screen_mode(TbScreenMode nmode, TbBool failsafe)
 {
   SYNCDBG(4,"Setting up mode %d",(int)nmode);
+  game_screen_active = true;  // in-game screen: applies render_scale (pixel_size)
   TbScreenModeInfo* new_mdinfo = LbScreenGetModeInfo(nmode);
   TbScreenMode old_mode = LbScreenActiveMode();
   TbScreenModeInfo* old_mdinfo = LbScreenGetModeInfo(old_mode);
@@ -710,21 +715,28 @@ TbScreenMode setup_screen_mode(TbScreenMode nmode, TbBool failsafe)
   return nmode;
 }
 
+static long active_game_pixel_size(void)
+{
+    long ps = game_screen_active ? (long)settings.render_scale : 1;
+    if (ps < 1) ps = 1;
+    if (ps > 3) ps = 3;
+    return ps;
+}
+
 TbBool update_screen_mode_data(long width, long height)
 {
-  // if ((width >= 640) && (height >= 400))
-  // {
-    pixel_size = 1;
-    /*
-  } else
-  {
-    pixel_size = 2;
-  }
-  */
+    pixel_size = active_game_pixel_size();
   long psize = pixel_size;
 
-  MyScreenWidth = width * psize;
-  MyScreenHeight = height * psize;
+  // MyScreenWidth/Height are the PHYSICAL surface (native). The world + in-game
+  // GUI render at the LOGICAL resolution (physical/pixel_size) and are drawn as
+  // pixel_size*pixel_size blocks to fill the physical surface. All GUI scaling
+  // below derives from the logical dims so it stays consistent with the render.
+  // At pixel_size==1 (frontend and default): lw==width, lh==height -> identical.
+  MyScreenWidth = width;
+  MyScreenHeight = height;
+  long lw = width / psize;
+  long lh = height / psize;
   pixels_per_block = 16 * psize;
 
 
@@ -732,27 +744,27 @@ TbBool update_screen_mode_data(long width, long height)
   // low-res - units per pixel = 8, low-res - units per pixel = 16 (or upp min is low-res = 4, high-res = 10)
 
   // In-game scaling (DK original: low-res - 320x200, high-res - 640x400)
-  units_per_pixel = (width>height?width:height)/40;// originally was 16 for hires, 8 for lores
-  units_per_pixel_min = (width>height?height:width)/40;// originally 10 for hires
-  units_per_pixel_width = width/40; // 8 for low res, 16 is "kfx default"
-  units_per_pixel_height = height/25; // 8 for low res, 16 is "kfx default"
-  units_per_pixel_best = ((is_ar_wider_than_original(width, height)) ? units_per_pixel_height : units_per_pixel_width); // If the screen is wider than 16:10 the height is used; if the screen is narrower than 16:10 the width is used.
+  units_per_pixel = (lw>lh?lw:lh)/40;// originally was 16 for hires, 8 for lores
+  units_per_pixel_min = (lw>lh?lh:lw)/40;// originally 10 for hires
+  units_per_pixel_width = lw/40; // 8 for low res, 16 is "kfx default"
+  units_per_pixel_height = lh/25; // 8 for low res, 16 is "kfx default"
+  units_per_pixel_best = ((is_ar_wider_than_original(lw, lh)) ? units_per_pixel_height : units_per_pixel_width); // If the screen is wider than 16:10 the height is used; if the screen is narrower than 16:10 the width is used.
 
   // In-game scaling: UI (for the side bar menu and escape menu)
   long ui_scale = UI_NORMAL_SIZE; // UI_NORMAL_SIZE, UI_HALF_SIZE, or UI_DOUBLE_SIZE (not fully implemented yet)
   units_per_pixel_ui = resize_ui(units_per_pixel_best, ui_scale);
 
   // In-game scaling: Posession Mode (a 3D 1st person perspective camera)
-  calculate_aspect_ratio_factor(width, height);
+  calculate_aspect_ratio_factor(lw, lh);
   first_person_vertical_fov = DEFAULT_FIRST_PERSON_VERTICAL_FOV;
   first_person_horizontal_fov = FOV_based_on_aspect_ratio();
 
   // Main menu scaling (DK original: 640x480)
-  units_per_pixel_menu_height = height/30; // 16 is "kfx default" (640x480)
-  units_per_pixel_menu = ((is_menu_ar_wider_than_original(width, height)) ? units_per_pixel_menu_height : units_per_pixel_width); // If the screen is wider than 4:3 the height is used; if the screen is narrower than 4:3 the width is used.
+  units_per_pixel_menu_height = lh/30; // 16 is "kfx default" (640x480)
+  units_per_pixel_menu = ((is_menu_ar_wider_than_original(lw, lh)) ? units_per_pixel_menu_height : units_per_pixel_width); // If the screen is wider than 4:3 the height is used; if the screen is narrower than 4:3 the width is used.
 
   // Main menu scaling: Campaign map "land view" screen (including the window frame)
-  calculate_landview_upp(width, height, LANDVIEW_MAP_WIDTH, LANDVIEW_MAP_HEIGHT); // 16 is "kfx default" for 640x480 game window (1x), a 960x720 frame (1.5x), and a 1280x960 landview (2x)
+  calculate_landview_upp(lw, lh, LANDVIEW_MAP_WIDTH, LANDVIEW_MAP_HEIGHT); // 16 is "kfx default" for 640x480 game window (1x), a 960x720 frame (1.5x), and a 1280x960 landview (2x)
 
   LbMouseChangeMoveRatio(base_mouse_sensitivity, base_mouse_sensitivity);
   LbMouseSetPointerHotspot(0, 0);
@@ -771,6 +783,7 @@ TbBool update_screen_mode_data(long width, long height)
 TbScreenMode setup_screen_mode_minimal(TbScreenMode nmode)
 {
   SYNCDBG(4,"Setting up mode %d",(int)nmode);
+  game_screen_active = false;  // frontend/minimal/movie screen: pixel_size stays 1
   TbScreenModeInfo* new_mdinfo = LbScreenGetModeInfo(nmode);
   // we don't want to get the current display when using the "fill all" mode, we want to keep the old version
   TbScreenMode old_mode = LbScreenActiveMode();
@@ -878,6 +891,7 @@ TbScreenMode setup_screen_mode_minimal(TbScreenMode nmode)
 TbScreenMode setup_screen_mode_zero(TbScreenMode nmode)
 {
   SYNCDBG(4,"Setting up mode %d",(int)nmode);
+  game_screen_active = false;  // frontend/minimal/movie screen: pixel_size stays 1
   TbScreenModeInfo* new_mdinfo = LbScreenGetModeInfo(nmode);
   // we don't want to get the current display when using the "fill all" mode, we want to keep the old version
   TbScreenMode old_mode = LbScreenActiveMode();

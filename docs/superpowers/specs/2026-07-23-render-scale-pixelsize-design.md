@@ -73,3 +73,19 @@ keeperfx.cfg render_scale (1/2/3)
 
 ## Non-goals (v1)
 Non-integer scales; GL sharp-bilinear upscaling of a smaller surface; launcher UI; heavy `pixel_size=3` polish if `2` suffices; the world-only-separate-parameter approach (B).
+
+---
+
+## ⛔ PARKED 2026-07-23 — camera-zoom vs GUI unit-scaling conflict
+
+Shelved at validation point #1 (the make-or-break in-game check). **Real progress over both prior attempts:** with the self-consistent *logical*-dims setup, the **HUD, side panel, minimap, and menu render correctly** at `render_scale=2`, and the level is reachable/clickable (the GUI problem that broke the arbitrary-surface attempt *and* the crude pixel_size test is SOLVED). But the **3D world renders black**.
+
+**Root cause (deeper than before):** an inherent conflict in Approach A. `draw_view` divides the camera zoom by `pixel_size` (`engine_render.c` ~6918 `setup_rotate_stuff(..., camera_zoom/pixel_size, ...)`, and ~1185 `zoom = camera_zoom/pixel_size`). The camera zoom comes from `scale_fixed_DK_value`, which uses `units_per_pixel_best`.
+- With **logical** units (`lw = width/pixel_size`): GUI renders correctly, but `camera_zoom` is ~half, then `/pixel_size` → ~quarter of native → the view-range projection (`compute_cells_away`/`get_floor_pointed_at`) collapses → **black world**.
+- With **native** units (the crude test): `camera_zoom` native, `/pixel_size` → half → **world renders** (472 KB geometry, `cells_away=42`) — but the GUI breaks (menu top-left).
+
+The GUI and the 3D camera want **opposite** unit-scalings, and both derive from the **same** `units_per_pixel_*` globals. Splitting them means untangling `units_per_pixel_best`'s dual role (camera zoom vs GUI scaling) — the deep, fragile projection coupling. NOT a bounded fix.
+
+**Conclusion:** BOTH render-scale routes (arbitrary-surface scaling AND the engine's `pixel_size`) hit the same wall — the 25-year-old isometric projection's resolution/units coupling. Also learned: `pixel_size=2` shipped working only at SMALL physical resolutions, not as a downscale of a large native surface, so the "it shipped working" premise is weaker than assumed. The real path to "render at native cheaply" is **#4 (GPU truecolor world renderer)**, where resolution is free — it sidesteps this entirely. Do not re-attempt software render-scale.
+
+Branch `feature/render-scale-pixelsize` keeps the partial impl (setting + scoped `pixel_size` + logical-dims GUI, which WORKS). Resume only as part of #4, or if someone untangles the camera/GUI unit split.
