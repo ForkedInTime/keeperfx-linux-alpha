@@ -699,7 +699,14 @@ TbScreenMode setup_screen_mode(TbScreenMode nmode, TbBool failsafe)
   }
   LbScreenClear(0);
   LbScreenSwap();
-  update_screen_mode_data(new_mdinfo->Width, new_mdinfo->Height);
+  // Lay the GUI/world out for the ACTUAL (possibly render-scaled) surface, not
+  // the native mode size — otherwise at render_scale<100% the GUI is positioned
+  // for a larger screen than we render into (off-centre menu, world drawn off
+  // the visible surface). lbRenderSurfaceW/H is the scaled surface LbScreenSetup
+  // just created; == native at 100%, so this is a no-op there.
+  update_screen_mode_data(
+      (lbRenderSurfaceW > 0) ? lbRenderSurfaceW : new_mdinfo->Width,
+      (lbRenderSurfaceH > 0) ? lbRenderSurfaceH : new_mdinfo->Height);
   if (parchment_loaded)
     reload_parchment_file(hi_res);
   reinitialise_eye_lens(lens_mem);
@@ -863,7 +870,14 @@ TbScreenMode setup_screen_mode_minimal(TbScreenMode nmode)
   }
   LbScreenClear(0);
   LbScreenSwap();
-  update_screen_mode_data(new_mdinfo->Width, new_mdinfo->Height);
+  // Lay the GUI/world out for the ACTUAL (possibly render-scaled) surface, not
+  // the native mode size — otherwise at render_scale<100% the GUI is positioned
+  // for a larger screen than we render into (off-centre menu, world drawn off
+  // the visible surface). lbRenderSurfaceW/H is the scaled surface LbScreenSetup
+  // just created; == native at 100%, so this is a no-op there.
+  update_screen_mode_data(
+      (lbRenderSurfaceW > 0) ? lbRenderSurfaceW : new_mdinfo->Width,
+      (lbRenderSurfaceH > 0) ? lbRenderSurfaceH : new_mdinfo->Height);
   lbDisplay.DrawFlags = flg_mem;
   force_video_mode_reset = false;
   return nmode;
@@ -903,7 +917,14 @@ TbScreenMode setup_screen_mode_zero(TbScreenMode nmode)
       ERRORLOG("Unable to setup screen resolution %s (mode %d)", new_mdinfo->Desc,(int)nmode);
       return Lb_SCREEN_MODE_INVALID;
   }
-  update_screen_mode_data(new_mdinfo->Width, new_mdinfo->Height);
+  // Lay the GUI/world out for the ACTUAL (possibly render-scaled) surface, not
+  // the native mode size — otherwise at render_scale<100% the GUI is positioned
+  // for a larger screen than we render into (off-centre menu, world drawn off
+  // the visible surface). lbRenderSurfaceW/H is the scaled surface LbScreenSetup
+  // just created; == native at 100%, so this is a no-op there.
+  update_screen_mode_data(
+      (lbRenderSurfaceW > 0) ? lbRenderSurfaceW : new_mdinfo->Width,
+      (lbRenderSurfaceH > 0) ? lbRenderSurfaceH : new_mdinfo->Height);
   force_video_mode_reset = true;
   return nmode;
 }

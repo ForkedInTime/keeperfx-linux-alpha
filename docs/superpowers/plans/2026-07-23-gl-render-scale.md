@@ -372,3 +372,19 @@ git commit -m "docs(readme): document adjustable render scale"
 - **Spec coverage:** setting (T1), surface sizing + GUI auto-scale (T2), mouse mapping (T3), sharp-bilinear filter (T4), perf check + docs (T5), 100%-identity preserved in T2/T4, non-GL forced 100 in T2. All spec sections mapped.
 - **Byte-identity at 100%:** T2 dims collapse to native (`w&~1` at 100% of an even native res == native; if native is odd, the `&~1` would shift by 1 — **flagged**: at 100% skip the `&~1` and use mode dims exactly. Add to T2 Step 1: `if (pct >= 100) { *out_w = mode_w; *out_h = mode_h; return; }`). T4 shader collapses to NEAREST at 1:1. T3 transform is identity when surf==win.
 - **Risk isolation:** mouse (T3) and shader (T4) each have their own playtest gate; nothing after depends on an unverified prior task.
+
+---
+
+## ⛔ PARKED 2026-07-23 — blocked on isometric-renderer view culling
+
+Shelved after the playtest gate. **Done & verified-correct:** setting (T1), surface+framebuffer sizing (T2), mouse window↔surface mapping (T3), and GUI/engine dimension propagation (`update_screen_mode_data` fed scaled dims — the vidmode fix). Menu, HUD, and mouse all lay out correctly at 75%.
+
+**Blocker (unresolved):** the 3D isometric world renders **black** at `render_scale<100`. Live diagnostics on the real GL path PROVED it is NOT a dimension or blit bug:
+- `MyScreen(2580,1080)` ✓ scaled; `setup_engine_window: pos(376,0) size(2204,1080)` ✓ valid full viewport; `scale_fixed_DK_value`/`camera_zoom=32242` ✓ valid.
+- Geometry probe (`getpoly - poly_pool` at end of `draw_view`): **`geometry_bytes=0`** every steady-state frame → **the isometric renderer culls the entire world** (empty draw-list) despite a correct viewport and valid zoom.
+
+**Root-cause area for a future attempt:** the view-range / cell-iteration in `draw_view` (`engine_render.c` ~6860+): `find_gamut()`, `fiddle_gamut()`, `cells_away`, `draw_view_map_plane()`. Something there computes an empty visible-cell range at the scaled resolution. This is deep 25-year-old isometric code — treat as a real project, not a patch.
+
+**Also unfixed:** persistence bug — `save_settings` writes `render_scale = 0` on **graceful** exit (SIGKILL masks it). Root cause never found; the setting doesn't survive a normal quit. A defensive guard (clamp `<50 → 100` at save) would band-aid it.
+
+**Verdict:** render-scale fights the software renderer's deep surface==display coupling; not worth the cost for a stability-focused fork. Branch `feature/gl-render-scale` retains all work. Resume only if the isometric view-range bug proves tractable.
