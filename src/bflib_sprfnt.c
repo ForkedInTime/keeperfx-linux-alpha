@@ -860,15 +860,14 @@ TbBool LbTextDraw(int posx, int posy, const char *text)
  */
 TbBool LbTextDrawResizedFmt(int posx, int posy, int units_per_px, const char *fmt, ...)
 {
-    char * text = (char *)malloc(8192);
-    if (text == NULL) return false;
+    // Stack buffer instead of a per-call malloc/free — the vsnprintf already
+    // caps output to TEXT_DRAW_MAX_LEN, so the buffer only needs that size.
+    char text[TEXT_DRAW_MAX_LEN];
     va_list val;
     va_start(val, fmt);
     vsnprintf(text, TEXT_DRAW_MAX_LEN, fmt, val);
     va_end(val);
-    TbBool result = LbTextDrawResized(posx, posy, units_per_px, text);
-    free(text);
-    return result;
+    return LbTextDrawResized(posx, posy, units_per_px, text);
 }
 
 /** Returns standard height of a line of text, in currently active font.
