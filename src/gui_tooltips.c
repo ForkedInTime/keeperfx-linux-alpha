@@ -614,9 +614,24 @@ void draw_tooltip_at(long ttpos_x,long ttpos_y,char *tttext)
     return;
   unsigned int flg_mem = lbDisplay.DrawFlags;
   lbDisplay.DrawFlags &= ~Lb_TEXT_ONE_COLOR;
-  long hdwidth = find_and_pad_string_width_to_first_character(tttext, ':');
-  long ttwidth = LbTextStringWidth(tttext);
-  long ttheight = LbTextStringHeight(tttext);
+  // These three measurements are font-context dependent, so they must be taken
+  // here in the draw path (not at set time) — but the string, font and units
+  // don't change while the same tooltip stays hovered, so recompute only when
+  // the text actually changes instead of 3x every frame the tooltip is visible.
+  // (find_and_pad... mutates and pads the string, but is idempotent once padded,
+  // so the cached, already-padded text compares equal on subsequent frames.)
+  static char last_text[TOOLTIP_MAX_LEN] = "";
+  static long c_hdwidth = 0, c_ttwidth = 0, c_ttheight = 0;
+  if (strncmp(last_text, tttext, TOOLTIP_MAX_LEN) != 0)
+  {
+      c_hdwidth = find_and_pad_string_width_to_first_character(tttext, ':');
+      c_ttwidth = LbTextStringWidth(tttext);
+      c_ttheight = LbTextStringHeight(tttext);
+      snprintf(last_text, TOOLTIP_MAX_LEN, "%s", tttext);
+  }
+  long hdwidth = c_hdwidth;
+  long ttwidth = c_ttwidth;
+  long ttheight = c_ttheight;
   lbDisplay.DrawFlags = flg_mem;
   struct PlayerInfo* player = get_my_player();
   long pos_x = ttpos_x;
