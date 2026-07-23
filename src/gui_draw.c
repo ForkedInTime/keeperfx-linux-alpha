@@ -441,9 +441,14 @@ void draw_button_string(struct GuiButton *gbtn, int base_width, const char *text
     unsigned long flgmem = lbDisplay.DrawFlags;
     long cursor_pos = -1;
     static char dtext[TEXT_BUFFER_LENGTH];
-    snprintf(dtext, TEXT_BUFFER_LENGTH, "%s", text);
+    // Common case: draw the label directly. Only the edit box needs a mutable
+    // working copy (to append a blinking cursor + insert cursor markers), so the
+    // per-frame string copy is done only there instead of for every button.
+    const char *draw_text = text;
     if ((gbtn->gbtype == LbBtnT_EditBox) && (gbtn == input_button))
     {
+        snprintf(dtext, TEXT_BUFFER_LENGTH, "%s", text);
+        draw_text = dtext;
         // Time-based blink; original DK toggled every 2 frames at 20 fps, so 100ms on/off
         if ((LbTimerClock() / 100 & 1) == 0)
           cursor_pos = input_field_pos;
@@ -502,7 +507,7 @@ void draw_button_string(struct GuiButton *gbtn, int base_width, const char *text
             tx_units_per_px += (units_per_px / 2);
         }
     }
-    unsigned long h = (gbtn->height - text_string_height(tx_units_per_px, dtext)) / 2 - 3 * units_per_px / 16;
+    unsigned long h = (gbtn->height - text_string_height(tx_units_per_px, draw_text)) / 2 - 3 * units_per_px / 16;
     if (dbc_initialized && dbc_enabled)
     {
         if (gbtn->id_num == BID_QUERY_INFO)
@@ -531,7 +536,7 @@ void draw_button_string(struct GuiButton *gbtn, int base_width, const char *text
             }
         }
     }
-    LbTextDrawResized(w, h, tx_units_per_px, dtext);
+    LbTextDrawResized(w, h, tx_units_per_px, draw_text);
     LbTextSetJustifyWindow(0, 0, LbGraphicsScreenWidth());
     LbTextSetClipWindow(0/pixel_size, 0/pixel_size, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
     LbTextSetWindow(0/pixel_size, 0/pixel_size, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
