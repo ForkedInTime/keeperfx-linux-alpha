@@ -98,6 +98,24 @@ TbResult LbMouseSetPointerHotspot(long hot_x, long hot_y)
   return Lb_SUCCESS;
 }
 
+static void host_to_surface(int host_x, int host_y, int *sx, int *sy)
+{
+    int win_w = 0, win_h = 0;
+    SDL_GL_GetDrawableSize(lbWindow, &win_w, &win_h);
+    int surf_w = lbRenderSurfaceW > 0 ? lbRenderSurfaceW : win_w;
+    int surf_h = lbRenderSurfaceH > 0 ? lbRenderSurfaceH : win_h;
+    if (win_w <= 0 || win_h <= 0) { *sx = host_x; *sy = host_y; return; }
+    /* Letterbox the surface into the window the same way gl_present_frame does. */
+    int vp_w = win_w, vp_h = (int)((long long)win_w * surf_h / surf_w);
+    if (vp_h > win_h) { vp_h = win_h; vp_w = (int)((long long)win_h * surf_w / surf_h); }
+    int vp_x = (win_w - vp_w) / 2, vp_y = (win_h - vp_h) / 2;
+    int rx = host_x - vp_x, ry = host_y - vp_y;
+    if (rx < 0) { rx = 0; } if (rx >= vp_w) { rx = vp_w - 1; }
+    if (ry < 0) { ry = 0; } if (ry >= vp_h) { ry = vp_h - 1; }
+    *sx = (int)((long long)rx * surf_w / vp_w);
+    *sy = (int)((long long)ry * surf_h / vp_h);
+}
+
 TbResult LbMouseSetPositionInitial(long x, long y)
 {
   if (!lbMouseInstalled)
@@ -116,6 +134,16 @@ TbResult LbMouseSetPosition(long x, long y)
     return Lb_FAIL;
   }
   SDL_Window *window = lbWindow;
+  int win_w = 0, win_h = 0;
+  SDL_GL_GetDrawableSize(window, &win_w, &win_h);
+  int surf_w = lbRenderSurfaceW > 0 ? lbRenderSurfaceW : win_w;
+  int surf_h = lbRenderSurfaceH > 0 ? lbRenderSurfaceH : win_h;
+  if (surf_w > 0 && surf_h > 0) {
+      int vp_w = win_w, vp_h = (int)((long long)win_w * surf_h / surf_w);
+      if (vp_h > win_h) { vp_h = win_h; vp_w = (int)((long long)win_h * surf_w / surf_h); }
+      x = (win_w - vp_w) / 2 + (int)((long long)x * vp_w / surf_w);
+      y = (win_h - vp_h) / 2 + (int)((long long)y * vp_h / surf_h);
+  }
   SDL_WarpMouseInWindow(window, x, y);
   return Lb_SUCCESS;
 }
@@ -138,9 +166,11 @@ TbResult LbMoveGameCursorToHostCursor(void)
     int game_cursor_y = lbDisplay.MMouseY;
     int host_cursor_x, host_cursor_y;
     SDL_GetMouseState(&host_cursor_x, &host_cursor_y);
-    if (((host_cursor_x != game_cursor_x) || (host_cursor_y != game_cursor_y)) && LbIsActive())
+    int surf_x, surf_y;
+    host_to_surface(host_cursor_x, host_cursor_y, &surf_x, &surf_y);
+    if (((surf_x != game_cursor_x) || (surf_y != game_cursor_y)) && LbIsActive())
     {
-        if (!pointerHandler.SetMousePosition(host_cursor_x, host_cursor_y))
+        if (!pointerHandler.SetMousePosition(surf_x, surf_y))
         {
             return Lb_FAIL;
         }
