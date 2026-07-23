@@ -25,6 +25,7 @@
 #include "bflib_render.h"
 #include "bflib_sprfnt.h"
 #include "bflib_vidsurface.h"
+#include "config_settings.h"
 #ifndef _WIN32
 #include "bflib_render_gl.h"
 #include "bflib_render_glworld.h"
@@ -44,6 +45,25 @@ extern "C" {
 #endif
 /******************************************************************************/
 // Global variables
+int lbRenderSurfaceW = 0;  /* scaled 8-bit surface width  (== window width  at 100%) */
+int lbRenderSurfaceH = 0;  /* scaled 8-bit surface height (== window height at 100%) */
+
+void lb_render_scale_dims(int mode_w, int mode_h, int *out_w, int *out_h)
+{
+    int pct = 100;
+#ifndef _WIN32
+    extern struct GameSettings settings;
+    pct = (int)settings.render_scale;
+    if (pct < 50 || pct > 100) pct = 100;
+#endif
+    /* 100% must be EXACTLY native — no rounding — to stay byte-identical. */
+    if (pct >= 100) { *out_w = mode_w; *out_h = mode_h; return; }
+    /* Round to even to avoid half-texel chroma seams; never below a sane floor. */
+    int w = (mode_w * pct + 50) / 100; w &= ~1; if (w < 320) w = mode_w;
+    int h = (mode_h * pct + 50) / 100; h &= ~1; if (h < 200) h = mode_h;
+    *out_w = w; *out_h = h;
+}
+
 /** List of registered video modes. */
 TbScreenModeInfo lbScreenModeInfo[SCREEN_MODES_COUNT];
 /** Count of used entries in registered video modes list. */
@@ -661,10 +681,13 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     // while a GL context exists - SDL forbids mixing the two). If GL init fails
     // we fall back to the legacy CPU blit path below.
     {
-        SDL_Surface* glDrawSurface = SDL_CreateRGBSurface(0, mdinfo->Width, mdinfo->Height, lbEngineBPP, 0, 0, 0, 0);
+        int rs_w, rs_h;
+        lb_render_scale_dims(mdinfo->Width, mdinfo->Height, &rs_w, &rs_h);
+        SDL_Surface* glDrawSurface = SDL_CreateRGBSurface(0, rs_w, rs_h, lbEngineBPP, 0, 0, 0, 0);
         if (glDrawSurface == NULL) {
             ERRORLOG("Can't create engine surface for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
-        } else if (gl_present_init(lbWindow, mdinfo->Width, mdinfo->Height)) {
+        } else if (gl_present_init(lbWindow, rs_w, rs_h)) {
+            lbRenderSurfaceW = rs_w; lbRenderSurfaceH = rs_h;
             lbScreenSurface = glDrawSurface;
             lbDrawSurface = glDrawSurface;
             lbHasSecondSurface = false;
@@ -695,18 +718,19 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
             }
             lbHasSecondSurface = true;
         }
+        lbRenderSurfaceW = lbDrawSurface->w; lbRenderSurfaceH = lbDrawSurface->h;
     }
 
     lbDisplay.DrawFlags = 0;
     lbDisplay.DrawColour = 0;
     lbDisplayEx.ShadowColour = 0;
-    lbDisplay.PhysicalScreenWidth = mdinfo->Width;
-    lbDisplay.PhysicalScreenHeight = mdinfo->Height;
+    lbDisplay.PhysicalScreenWidth = lbDrawSurface->w;
+    lbDisplay.PhysicalScreenHeight = lbDrawSurface->h;
     lbDisplay.ScreenMode = mode;
     lbDisplay.PhysicalScreen = NULL;
     // The graphics screen size should be really taken after screen is locked, but it seem just getting in now will work too
     lbDisplay.GraphicsScreenWidth = lbDrawSurface->pitch;
-    lbDisplay.GraphicsScreenHeight = mdinfo->Height;
+    lbDisplay.GraphicsScreenHeight = lbDrawSurface->h;
     lbDisplay.WScreen = NULL;
     lbDisplay.GraphicsWindowPtr = NULL;
     lbScreenInitialised = true;
@@ -715,8 +739,8 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     {
         LbPaletteSet(palette);
     }
-    LbScreenSetGraphicsWindow(0, 0, mdinfo->Width, mdinfo->Height);
-    LbTextSetWindow(0, 0, mdinfo->Width, mdinfo->Height);
+    LbScreenSetGraphicsWindow(0, 0, lbDrawSurface->w, lbDrawSurface->h);
+    LbTextSetWindow(0, 0, lbDrawSurface->w, lbDrawSurface->h);
     SYNCDBG(8,"Done filling display properties struct");
     if ( LbMouseIsInstalled() )
     {

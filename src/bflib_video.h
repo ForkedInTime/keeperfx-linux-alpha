@@ -285,6 +285,9 @@ extern unsigned short display_id;
 
 extern TbDisplayStruct lbDisplay;
 extern SDL_Window *lbWindow;
+
+extern int lbRenderSurfaceW, lbRenderSurfaceH;
+void lb_render_scale_dims(int mode_w, int mode_h, int *out_w, int *out_h);
 /******************************************************************************/
 TbResult LbScreenInitialize(void);
 TbResult LbScreenSetDoubleBuffering(TbBool state);
