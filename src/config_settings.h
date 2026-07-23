@@ -46,6 +46,7 @@ struct GameSettings {
     unsigned char music_volume;
     unsigned char roomflags_on;
     unsigned short gamma_correction;
+    unsigned char render_scale;   /**< Internal render resolution as a percent of native (67/75/85/100). GL present path only. */
     int switching_vidmodes_index; /**< The current position in the list of video modes to switch between with Alt+R (-1 means the index is unset). */
     struct GameKey kbkeys[GAME_KEYS_COUNT];
     TbBool tooltips_on;
@@ -64,6 +65,7 @@ extern struct GameSettings settings; // KFX settings
 /******************************************************************************/
 TbBool load_settings(void);
 short save_settings(void);
+int render_scale_snap(int pct); /**< Snap an arbitrary percent to the nearest allowed render_scale (67/75/85/100). */
 
 int get_max_i_can_see_from_settings(void);
 /******************************************************************************/
