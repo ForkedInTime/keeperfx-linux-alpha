@@ -116,9 +116,6 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   readability.
 
 **Linux performance** *(engine-level optimizations specific to this native build — upstream is Windows-first and does not tune the GCC/Linux path, so these are ours)*
-- **No dead 16 MB clear every frame.** The isometric renderer zeroed its *entire* 16 MB polygon pool every
-  rendered frame regardless of how little it used; it now clears only the region a frame actually touches,
-  saving memory bandwidth and a cache flush on every frame.
 - **No redundant GPU palette re-upload.** The OpenGL present path re-uploaded the 256-colour palette every
   frame — a CPU expansion, a texture upload, and a driver sync — even though it changes only on fades,
   flashes and movies. It's now guarded so it uploads only when the palette actually changes.
@@ -259,6 +256,14 @@ The native launcher is its own repo:
 - **merges cleanly and compiles** → opens a pull request into `alpha` listing every upstream change —
   a human reviews and clicks **Merge** (it never ships anything by itself);
 - **merge conflicts, or the build breaks** → opens an issue for manual attention instead.
+
+**We track upstream, but on our terms — we curate, we don't blindly fast-forward.** The bot automates the
+routine merges; anything that conflicts (usually where our Linux-specific changes overlap a hot engine file)
+is resolved by hand, at our discretion. We take upstream's improvements — *including when they supersede our
+own*: e.g. their #5047 "Memset optimization" removed a wasteful per-frame buffer clear that we'd already
+trimmed independently, so we adopted theirs and dropped ours — and we keep our Linux layer where it's the
+better fit. The result is a fork that stays current with the team's work while remaining a deliberate,
+reviewed selection rather than an automatic mirror.
 
 After the sync PR is merged, a release is cut: the launcher repo's CI builds the AppImage and the game
 package (`full.7z`), and publishing the release attaches the portable tarball automatically. The Flatpak is

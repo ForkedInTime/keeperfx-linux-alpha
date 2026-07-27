@@ -3,6 +3,24 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5319 — 2026-07-27
+- **Weekly upstream sync (manual merge).** Folded in the KeeperFX team's latest 9 patches (#5039–#5062).
+  The auto-sync bot correctly flagged a merge conflict in `engine_render.c` for human resolution rather than
+  forcing a bad merge; resolved by hand and build-verified on Linux. Highlights:
+  - **Rendering fixes** — big sprites no longer clipped by floor tiles in straight view (#5062); the Dungeon
+    Heart no longer clips when zoomed in straight view (#5060); the landview (map) overlay no longer drops an
+    edge pixel at high resolution (#5058). All three benefit our high-res Linux setups.
+  - **UTF-8 text input** (#5039): accented characters (ñ, ç, é, ¿¡ …) can now be typed in save names, chat,
+    and other text fields.
+  - **Mapmaker/modding:** new `COPY_CREATURE_TYPE` script command (#5050); maps can load string subtypes in
+    `.tngfx` files (#5052).
+- **Converged with upstream on the poly-pool clear.** Our 5305 Linux perf pass had trimmed the renderer's
+  per-frame 16 MB poly-pool `memset` down to just the high-water-mark region; upstream's #5047 ("Memset
+  optimization") then removed it **entirely** — the fuller form of the very insight our own analysis reached
+  (the bucket-heads clear is what guarantees correctness; the pool clear was always redundant). We adopted
+  upstream's version and dropped our now-superseded code. Same result, one source of truth, and this hot file
+  no longer re-conflicts on every sync.
+
 ## 1.4.0.5305 — 2026-07-20
 - **Linux engine performance pass.** Four output-identical optimizations to the native Linux build,
   found by a multi-agent performance audit and verified in-game across multiple levels:
