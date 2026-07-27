@@ -398,10 +398,6 @@ struct MinMax minmaxs[MINMAX_LENGTH];
 unsigned char *getpoly;
 unsigned char poly_pool[POLY_POOL_SIZE];
 unsigned char *poly_pool_end;
-// High-water mark: the most bytes of poly_pool the bump allocator (getpoly) has ever
-// consumed in a single frame. Used to clear only the region that's actually in use
-// instead of the whole 16 MB pool every frame (see draw_view).
-static size_t poly_pool_hwm = 0;
 struct BasicQ *buckets[BUCKETS_COUNT];
 long cells_away;
 long max_i_can_see;
@@ -6871,13 +6867,6 @@ void draw_view(struct Camera *cam, unsigned char a2)
 
     getpoly = poly_pool;
     memset(buckets, 0, sizeof(buckets));
-    // Clear only the region recent frames actually touched, not the full 16 MB pool.
-    // display_drawlist() walks only the linked bucket nodes, every one of which is fully
-    // written by its allocator before use — the front-view path (clear_fast_bucket_list)
-    // clears nothing here and renders correctly — so zeroing the unused tail every frame
-    // was pure write-bandwidth and cache-eviction waste. The high-water mark is updated
-    // after display_drawlist() below.
-    memset(poly_pool, 0, poly_pool_hwm);
     if (map_volume_box.visible)
     {
         poly_pool_end_reserve(14);
@@ -6937,12 +6926,6 @@ void draw_view(struct Camera *cam, unsigned char a2)
     }
 
     display_drawlist();
-    // Record how far the bump allocator got this frame, so next frame's clear covers it.
-    {
-        size_t used_this_frame = (size_t)(getpoly - poly_pool);
-        if (used_this_frame > poly_pool_hwm)
-            poly_pool_hwm = used_this_frame;
-    }
     cam->zoom = zoom_mem;//TODO [zoom] remove when all cam->zoom will be changed to camera_zoom
     SYNCDBG(9,"Finished");
 }
@@ -7092,16 +7075,16 @@ static TbBool project_point_helper(struct PlayerInfo *player, int zoom, MapCoord
 {
     int vertical_shift;
     int64_t new_zoom;
-    uint8_t offset;
     short window_width = player->engine_window_width;
     short window_height = player->engine_window_height;
 
     *x_out = (zoom * horizontal_delta >> 16) + (*(uint16_t *)&window_width / 2);
     vertical_shift = zoom * vertical_delta >> 8;
     *z_out = window_height - ((vertical_shift + ((uint16_t)(window_height & PPH_EVEN_ALIGN_MASK) << 7)) >> 8) + 64;
-    new_zoom = (zoom * ((int16_t) pos_z)) << 7;
-    offset = *((uint8_t *)&new_zoom + 4);
-    *y_out = (vertical_shift + ((uint16_t)(window_height & PPH_EVEN_ALIGN_MASK) << 7) - ((offset + (signed int)new_zoom) >> 16)) >> 8;
+    // prevent 32bit int overflow for the big sprites.
+    new_zoom = ((int64_t)zoom * (int16_t)pos_z) << 7;
+    *y_out = (int32_t)((vertical_shift + ((uint16_t)(window_height & PPH_EVEN_ALIGN_MASK) << 7)
+                        - (int32_t)(new_zoom >> 16)) >> 8);
 
     return (*x_out >= 0 && *x_out < window_width && *y_out >= 0 && *y_out < window_height);
 }
@@ -8913,7 +8896,8 @@ static void draw_frontview_thing_on_element(struct Thing *thing, struct Map *map
         convert_world_coord_to_front_view_screen_coord(&interp.mappos, cam, &cx, &cy, &cz);
         if (is_free_space_in_poly_pool(1))
         {
-            add_thing_sprite_to_polypool(thing, cx, cy, cy, cz-3);
+            int size_on_screen = thing->sprite_size * ((camera_zoom << 13) / 0x10000 / pixel_size) / 0x10000;
+            add_thing_sprite_to_polypool(thing, cx, cy, cy, cz - 3 - (size_on_screen >> 1));
             if ((thing->class_id == TCls_Creature) && is_free_space_in_poly_pool(1))
             {
                 create_status_box_element(thing, cx, cy, cy, 1);
