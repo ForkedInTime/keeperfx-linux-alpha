@@ -91,6 +91,21 @@ If you enjoy this, support **the upstream project** — that's where the game is
 
 Everything below is the only delta from the team's `master`; the rest is 100% theirs.
 
+> **At a glance — a full native Linux port plus 45+ Linux-specific fixes and improvements**, every one
+> traceable to a commit in this repo. We don't chase upstream's headline count; the team ships the *game*, and
+> our job is the curated Linux layer they don't. That layer is real, and it's verifiable:
+>
+> | | What we added | Roughly |
+> |---|---|---|
+> | 🐧 | **Native Linux port** — engine + Qt launcher + one-file AppImage / Flatpak installer (upstream ships none of this) | the whole platform |
+> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit: out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs | ~29 fixes |
+> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio paths | ~5 fixes |
+> | ⚡ | **Performance** — GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths | 6 wins |
+> | 🎨 | **Graphics** — GPU OpenGL 3.3 present layer, truecolor movie playback | 2 features |
+> | 🧰 | **Launcher & tooling** — Mod Manager, Play ▾ menu, built-in updater, weekly upstream-sync bot | 7+ items |
+>
+> <sub>Count it yourself: `git log --oneline upstream/master..HEAD`. The sections below are the line items.</sub>
+
 **Display & media**
 - **GPU-accelerated display (OpenGL 3.3).** The game's 8-bit paletted frame is uploaded to the GPU and
   palette-mapped in a shader instead of being blitted on the CPU, then hardware-scaled to your screen
