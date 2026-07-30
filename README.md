@@ -127,6 +127,14 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   (e.g. a [keeperfx.net workshop](https://keeperfx.net/workshop) download) and drops it into the right place —
   mods into `mods/`, campaigns into `campgns/`, map packs into `levels/` — generating a `mod.cfg` if the
   archive lacks one. Mods get an Enabled toggle that writes the load order for you.
+- **Browse & install from the Workshop, in the launcher.** A **Browse Workshop** button opens the full
+  [keeperfx.net workshop](https://keeperfx.net/workshop) catalogue *inside* the launcher — search, filter by
+  category, sort by rating / downloads, thumbnails, and a **Details** link to each item's page — and **install
+  with one click** (maps, campaigns, map packs and mods each land in the right place). An **Installed** tab
+  scans what you have, labels each add-on as KeeperFX-stock or Workshop/user, and lets you **uninstall
+  reversibly** — removed items go to a backup you can **Restore** in one click.
+- **One launcher at a time.** The launcher won't open a second copy of itself (that would let two games fight
+  over the same saves).
 - **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for
   readability.
 
