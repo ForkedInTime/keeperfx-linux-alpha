@@ -11,6 +11,7 @@
 #include "player_data.h"
 #include "lvl_script_lib.h"
 #include "player_utils.h"
+#include "thing_list.h"
 
 
 #include "post_inc.h"
@@ -82,7 +83,9 @@ static void push_room_workers(lua_State *L, struct Room* room) {
     int i = 1; // Lua tables are 1-indexed
 
     while (1) {
+        if (worker_idx == 0) break;
         struct Thing* worker = thing_get(worker_idx);
+        if (!creature_list_index_valid(worker_idx, __func__)) break;
         lua_pushThing(L, worker);
         lua_rawseti(L, -2, i); // Insert at index i
         i++;

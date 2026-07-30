@@ -36,6 +36,7 @@
 #include "config_creature.h"
 #include "config_terrain.h"
 #include "creature_states.h"
+#include "thing_list.h"
 #include "creature_jobs.h"
 #include "creature_states_lair.h"
 #include "creature_states_combt.h"
@@ -2841,6 +2842,7 @@ struct Thing *find_creature_for_defend_pickup(struct Computer2 *comp)
         struct CreatureControl *cctrl;
         struct Thing *thing;
         thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");
@@ -3045,6 +3047,7 @@ long task_slap_imps(struct Computer2 *comp, struct ComputerTask *ctask)
         while (i > 0)
         {
             thing = thing_get(i);
+            if (!creature_list_index_valid(i, __func__)) break;
             if (thing_is_invalid(thing))
                 break;
             cctrl = creature_control_get_from_thing(thing);

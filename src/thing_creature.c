@@ -44,6 +44,7 @@
 #include "creature_jobs.h"
 #include "creature_senses.h"
 #include "creature_states.h"
+#include "thing_list.h"
 #include "creature_states_combt.h"
 #include "creature_states_gardn.h"
 #include "creature_states_hero.h"
@@ -6580,6 +6581,7 @@ int claim_neutral_creatures_in_sight(struct Thing *creatng, int can_see_slabs)
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
         i = cctrl->players_next_creature_idx;
         // Per thing code starts

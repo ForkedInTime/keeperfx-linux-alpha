@@ -105,6 +105,7 @@ struct Thing *get_first_follower_creature_in_group(const struct Thing *grptng)
     }
     {
         struct Thing* ctng = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) return INVALID_THING;
         cctrl = creature_control_get_from_thing(ctng);
         i = cctrl->next_in_group;
     }
@@ -325,6 +326,7 @@ static short creatures_group_has_special_digger_to_lead(struct Thing* grptng)
     while (i > 0)
     {
         ctng = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (!thing_is_creature(ctng))
         {
             ERRORLOG("Invalid creature in group %s index %d", thing_model_name(grptng), (int)grptng->index);
@@ -371,6 +373,7 @@ struct Thing* get_best_creature_to_lead_group(struct Thing* grptng)
     while (i > 0)
     {
         struct Thing* ctng = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         TRACE_THING(ctng);
         if (has_digger > 0)
         {
