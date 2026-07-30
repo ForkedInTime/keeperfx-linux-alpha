@@ -32,6 +32,7 @@
 #include "config_creature.h"
 #include "config_terrain.h"
 #include "creature_states.h"
+#include "thing_list.h"
 #include "game_legacy.h"
 #include "game_merge.h"
 #include "globals.h"
@@ -854,6 +855,7 @@ long computer_pick_training_or_scavenging_creatures_and_place_on_room(struct Com
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");

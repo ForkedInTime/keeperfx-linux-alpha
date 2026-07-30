@@ -9,6 +9,7 @@
 #include "bflib_basics.h"
 #include "config_rules.h"
 #include "creature_states.h"
+#include "thing_list.h"
 #include "custom_sprites.h"
 #include "game_legacy.h"
 #include "globals.h"
@@ -661,6 +662,7 @@ void lua_pushPartyTable(lua_State *L, struct Thing* thing) {
     while (i != 0)
     {
         thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");

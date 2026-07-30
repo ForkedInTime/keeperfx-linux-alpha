@@ -2288,6 +2288,30 @@ long count_player_creatures_of_model_in_action_point(PlayerNumber plyr_idx, int 
     return count;
 }
 
+// KeeperFX-Linux-alpha hardening: validate a creature-list link before it is
+// dereferenced. A creature list must contain only live creatures; a link to
+// anything else is corruption that has historically crashed the game with a
+// SIGABRT. Logs rich diagnostics (for root-cause tracing) and returns false so
+// the caller can stop the walk safely. Costs nothing on healthy lists.
+TbBool creature_list_index_valid(long crtidx, const char *caller)
+{
+    struct Thing *thing = thing_get(crtidx);
+    if (thing_is_invalid(thing) || !thing_is_creature(thing)) {
+        ERRORLOG("%s: creature-list corruption (turn %lu): index %ld is not a creature (class %d, model %d)",
+                 caller, (unsigned long)game.play_gameturn, crtidx,
+                 (int)(thing_is_invalid(thing) ? -1 : thing->class_id),
+                 (int)(thing_is_invalid(thing) ? -1 : thing->model));
+        return false;
+    }
+    struct CreatureControl *cctrl = creature_control_get_from_thing(thing);
+    if (!creature_control_exists(cctrl)) {
+        ERRORLOG("%s: creature-list anomaly (turn %lu): creature index %ld has no live control",
+                 caller, (unsigned long)game.play_gameturn, crtidx);
+        return false;
+    }
+    return true;
+}
+
 long count_player_list_creatures_of_model(long thing_idx, ThingModel crmodel)
 {
     int count = 0;
@@ -2296,6 +2320,7 @@ long count_player_list_creatures_of_model(long thing_idx, ThingModel crmodel)
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
         if (thing_is_invalid(thing))
         {
@@ -2327,6 +2352,7 @@ long count_player_list_creatures_of_model_on_territory(long thing_idx, ThingMode
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
         if (thing_is_invalid(thing))
         {
@@ -2368,6 +2394,7 @@ struct Thing *get_player_list_nth_creature_of_model(long thing_idx, ThingModel c
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");
@@ -2399,6 +2426,7 @@ struct Thing* get_player_list_nth_creature_with_property(long thing_idx, unsigne
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");
@@ -2431,6 +2459,7 @@ struct Thing *get_player_list_nth_creature_of_model_on_territory(long thing_idx,
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");
@@ -2615,6 +2644,7 @@ long count_player_list_creatures_with_filter(long thing_idx, Thing_Maximizer_Fil
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");
@@ -2693,6 +2723,7 @@ struct Thing *get_player_list_creature_with_filter(ThingIndex thing_idx, Thing_M
     while (i != 0)
     {
         struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
             ERRORLOG("Jump to invalid thing detected");
@@ -2751,6 +2782,7 @@ struct Thing *get_player_list_random_creature_with_filter(ThingIndex thing_idx, 
         if (i == 0)
             i = thing_idx;
         thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
         {
           ERRORLOG("Jump to invalid thing detected");

@@ -3,6 +3,17 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5322 — 2026-07-29
+- **Crash hardening — creature-list corruption is now survivable.** A corrupted creature-list link (a
+  "next" pointer aimed at a slot that isn't a creature) could crash the whole game with an abort — e.g.
+  when advancing between campaign levels after the creature list got tangled mid-level (visible symptom:
+  a creature resting away from its lair; log shows *"Jump to invalid creature N detected"*). The engine
+  now validates each creature in a list before using it, in the ~18 walks that previously lacked that
+  check; on a bad link it logs rich diagnostics (turn, list, slot, thing type) and safely stops that walk
+  instead of aborting — the game keeps playing (at worst one glitched creature is skipped that frame).
+  Purely additive guards, mirroring the ~50 the engine already had. This is a genuine engine bug present
+  upstream too; the added logging is the path to a permanent root-cause fix if it recurs.
+
 ## 1.4.0.5321 — 2026-07-29
 - **In-launcher Workshop browser (new).** A **Browse Workshop** button opens the full
   [keeperfx.net workshop](https://keeperfx.net/workshop) catalogue *inside* the launcher — search, filter by

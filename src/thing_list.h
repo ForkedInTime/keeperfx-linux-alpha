@@ -287,6 +287,7 @@ struct Thing *creature_of_model_in_prison_or_tortured(ThingModel crmodel);
 long count_player_creatures_of_model(PlayerNumber plyr_idx, int crmodel);
 long count_player_creatures_for_transfer(PlayerNumber plyr_idx);
 long count_player_creatures_of_model_in_action_point(PlayerNumber plyr_idx, int crmodel, long apt_index);
+TbBool creature_list_index_valid(long crtidx, const char *caller);
 long count_player_list_creatures_of_model(long thing_idx, ThingModel crmodel);
 long count_player_list_creatures_of_model_on_territory(long thing_idx, ThingModel crmodel, int friendly);
 GoldAmount compute_player_payday_total(const struct Dungeon *dungeon);

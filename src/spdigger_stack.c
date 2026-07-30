@@ -26,6 +26,7 @@
 
 #include "creature_jobs.h"
 #include "creature_states.h"
+#include "thing_list.h"
 #include "creature_states_combt.h"
 #include "creature_states_train.h"
 #include "creature_states_lair.h"
@@ -324,6 +325,7 @@ TbBool imp_will_soon_be_arming_trap(struct Thing *traptng)
     while (i > 0)
     {
         thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__)) break;
         if (thing_is_invalid(thing))
             break;
         cctrl = creature_control_get_from_thing(thing);
