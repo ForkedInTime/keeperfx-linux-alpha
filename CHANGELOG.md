@@ -3,6 +3,22 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5321 — 2026-07-29
+- **In-launcher Workshop browser (new).** A **Browse Workshop** button opens the full
+  [keeperfx.net workshop](https://keeperfx.net/workshop) catalogue *inside* the launcher — search, filter by
+  category, sort by rating / downloads / newest, thumbnails, and a **Details** link to each item's page — with
+  **one-click install** for maps, campaigns, map packs and mods. A new **Installed** tab scans your add-ons,
+  labels each as 🏰 KeeperFX-stock or 🌐 Workshop/user (filterable by category + name), and offers a
+  **reversible Uninstall → Restore**: removed items move to a local backup you can Restore in one click or purge.
+- **Standalone maps + cleaner installs.** Single workshop maps now install correctly (into `levels/personal`),
+  and version-control / OS junk (`.git`, `__MACOSX`, `.DS_Store`) is no longer copied out of archives.
+- **Single-instance launcher.** The launcher refuses to open a second copy (two launchers could start two
+  games fighting over the same saves); a hidden `--allow-multiple` flag overrides it for development.
+- **Clearer update errors + window focus.** When a release has no Linux package yet, the updater explains that
+  instead of a bare "Archive download failed"; the launcher window now raises/activates itself on show.
+
+_Engine is unchanged from 5320 — this is a launcher-focused release._
+
 ## 1.4.0.5319 — 2026-07-27
 - **Weekly upstream sync (manual merge).** Folded in the KeeperFX team's latest 9 patches (#5039–#5062).
   The auto-sync bot correctly flagged a merge conflict in `engine_render.c` for human resolution rather than
