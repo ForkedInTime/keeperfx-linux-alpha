@@ -99,10 +99,10 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 > |---|---|---|
 > | 🐧 | **Native Linux port** — engine + Qt launcher + one-file AppImage / Flatpak installer (upstream ships none of this) | the whole platform |
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit: out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs | ~29 fixes |
-> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio paths | ~5 fixes |
-> | ⚡ | **Performance** — GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths | 6 wins |
+> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, creature-list corruption guard | ~6 fixes |
+> | ⚡ | **Performance** — GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 7 wins |
 > | 🎨 | **Graphics** — GPU OpenGL 3.3 present layer, truecolor movie playback | 2 features |
-> | 🧰 | **Launcher & tooling** — Mod Manager, Play ▾ menu, built-in updater, weekly upstream-sync bot | 7+ items |
+> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, single-instance lock, weekly sync bot | 9+ items |
 >
 > <sub>Count it yourself: `git log --oneline upstream/master..HEAD`. The sections below are the line items.</sub>
 
@@ -130,9 +130,12 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 - **Browse & install from the Workshop, in the launcher.** A **Browse Workshop** button opens the full
   [keeperfx.net workshop](https://keeperfx.net/workshop) catalogue *inside* the launcher — search, filter by
   category, sort by rating / downloads, thumbnails, and a **Details** link to each item's page — and **install
-  with one click** (maps, campaigns, map packs and mods each land in the right place). An **Installed** tab
-  scans what you have, labels each add-on as KeeperFX-stock or Workshop/user, and lets you **uninstall
-  reversibly** — removed items go to a backup you can **Restore** in one click.
+  with one click** (maps, campaigns, map packs and mods each land in the right place — including standalone
+  single maps, and VCS/OS junk like `.git` is stripped from archives). It sorts by rating / downloads /
+  newest and marks what you already have. An **Installed** tab scans what you have, labels each add-on as
+  KeeperFX-stock or Workshop/user, and lets you **uninstall reversibly** — removed items go to a backup you
+  can **Restore** in one click. And it **loads instantly on re-open**: thumbnails and the catalogue are
+  cached to disk and refreshed in the background, so there's no "is it stuck?" wait after the first visit.
 - **One launcher at a time.** The launcher won't open a second copy of itself (that would let two games fight
   over the same saves).
 - **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for
@@ -157,6 +160,11 @@ reverted because GCC's auto-vectorizer miscompiles a loop in the 25-year-old pat
 first.)
 
 **Stability & security fixes** *(genuine upstream bugs, fixed locally; the security ones reported upstream)*
+- **Creature-list corruption guard** — a corrupted creature-list link (a "next" pointer aimed at a slot
+  that isn't a creature) could abort the whole game when advancing between campaign levels. The engine now
+  validates each creature in a list before using it across ~18 walks that previously lacked the check,
+  logging rich diagnostics and **safely skipping instead of crashing** — the game keeps playing. This bug
+  exists upstream too; ours degrades gracefully and leaves a breadcrumb toward a permanent root fix.
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
   using `sdl2-compat`.
 - **Ultrawide creature-possession crash** — the new C++ lens effect didn't size its buffer for large
