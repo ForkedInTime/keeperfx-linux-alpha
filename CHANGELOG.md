@@ -3,6 +3,15 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5335 — 2026-08-01
+- **Named: "KeeperFX — Tux Edition."** The native Linux build now has an identity — the game's main-menu
+  stamp, the launcher window title, and the GNOME menu entry all read **KeeperFX Tux Edition**. (The repo
+  slug, asset filenames and version string are intentionally unchanged for update-pipeline stability.)
+- **Cleaner in-game menu.** The menu version stamp drops the volatile build number (it climbed every build);
+  the exact version still lives in the launcher, `keeperfx.log`, and crash reports.
+- **Cleaner README.** The three heaviest sections (full feature breakdown, upstream-sync explainer, DK1
+  install guide) are now collapsible so newcomers aren't overwhelmed.
+
 ## 1.4.0.5332 — 2026-08-01
 - **Weekly upstream sync (run early, by hand).** Pulled the KeeperFX team's latest **7 patches**
   (#5066–#5075) — a rendering-heavy batch that clean-merged with our fork:
