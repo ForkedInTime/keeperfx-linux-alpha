@@ -3,6 +3,19 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5332 — 2026-08-01
+- **Weekly upstream sync (run early, by hand).** Pulled the KeeperFX team's latest **7 patches**
+  (#5066–#5075) — a rendering-heavy batch that clean-merged with our fork:
+  - **High-res / "straight view" rendering fixes** — a great batch for our ultrawide + 4K Linux setups:
+    sprites no longer vanish at max zoom in 4K (#5066), units no longer show through walls (#5068), and
+    door keys are no longer invisible (#5073), all in straight view; plus a rewrite of the polygon
+    rasteriser `bflib_render_gpoly.c` (#5071).
+  - **Smoother camera** — local camera controls are processed before the logic update (#5067) and
+    catch-up packets handled after it (#5075).
+  - **GUI** — message-button drop-animation fix (#5069).
+- Also carries the launcher **Workshop instant-load caching** (thumbnails + catalogue cached to disk,
+  refreshed in the background) that had been staged since 5322.
+
 ## 1.4.0.5322 — 2026-07-29
 - **Crash hardening — creature-list corruption is now survivable.** A corrupted creature-list link (a
   "next" pointer aimed at a slot that isn't a creature) could crash the whole game with an abort — e.g.
