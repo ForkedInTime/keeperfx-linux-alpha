@@ -3831,7 +3831,10 @@ void frontend_draw_product_version(struct GuiButton *gbtn)
     int h = LbTextLineHeight() * units_per_px / 16;
     LbTextSetWindow(0, gbtn->scr_pos_y, gbtn->width, h);
     char text[128];
-    snprintf(text, sizeof(text), "%s %s", PRODUCT_NAME, PRODUCT_VERSION);
+    // Tux Edition: keep the game menu clean — brand only, no version. The volatile
+    // build number (…​.5332) churns every build; the exact version lives in the launcher
+    // (by the Play button + title bar), keeperfx.log, and crash reports instead.
+    snprintf(text, sizeof(text), "KeeperFX Tux Edition");
     LbTextDrawResized(0, 0, units_per_px, text);
 }
 
