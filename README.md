@@ -1,6 +1,8 @@
-# KeeperFX — Linux Alpha
+# KeeperFX — Tux Edition
 
-![KeeperFX Linux Alpha](docs/assets/readme-banner.png)
+*The native Linux build of KeeperFX — built for penguins. 🐧 &nbsp;Unofficial, community-maintained, and continuously re-synced with the upstream team's work. (Alpha.)*
+
+![KeeperFX Tux Edition](docs/assets/readme-banner.png)
 
 [![Upstream](https://img.shields.io/badge/upstream-dkfans%2Fkeeperfx-blue?style=flat-square)](https://github.com/dkfans/keeperfx)
 ![Platform](https://img.shields.io/badge/platform-Linux%20x86__64-1793D1?style=flat-square)
