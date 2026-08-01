@@ -108,6 +108,10 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 >
 > <sub>Count it yourself: `git log --oneline upstream/master..HEAD`. The sections below are the line items.</sub>
 
+<details>
+<summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
+<br>
+
 **Display & media**
 - **GPU-accelerated display (OpenGL 3.3).** The game's 8-bit paletted frame is uploaded to the GPU and
   palette-mapped in a shader instead of being blitted on the CPU, then hardware-scaled to your screen
@@ -190,6 +194,8 @@ first.)
   opens a pull request for review (details [below](#how-this-alpha-stays-current-with-upstream)).
 - **`refresh-alpha.sh`** — pulls upstream, builds with the correct version number, generates the UTF-8
   fonts, and deploys locally.
+
+</details>
 
 ## 🚧 Work in progress
 
@@ -290,6 +296,10 @@ The native launcher is its own repo:
   a human reviews and clicks **Merge** (it never ships anything by itself);
 - **merge conflicts, or the build breaks** → opens an issue for manual attention instead.
 
+<details>
+<summary><b>More — curation policy, how releases are cut, and manual syncing</b></summary>
+<br>
+
 **We track upstream, but on our terms — we curate, we don't blindly fast-forward.** The bot automates the
 routine merges; anything that conflicts (usually where our Linux-specific changes overlap a hot engine file)
 is resolved by hand, at our discretion. We take upstream's improvements — *including when they supersede our
@@ -311,6 +321,8 @@ git merge upstream/master                   # merge (resolve any conflicts)
 ./refresh-alpha.sh                          # rebuild and redeploy locally
 ```
 
+</details>
+
 ## ❓ FAQ
 
 ### How do I install DK1 on Linux?
@@ -318,6 +330,10 @@ git merge upstream/master                   # merge (resolve any conflicts)
 KeeperFX needs your **own original *Dungeon Keeper* files** as proof of ownership — the launcher copies
 them out of a real install. On Windows you'd just run GOG Galaxy; **there is no GOG Galaxy for Linux**, so
 you install your GOG/Steam/EA copy with a Wine front-end first, then point the launcher at it.
+
+<details>
+<summary><b>Step-by-step — Lutris / Heroic / innoextract / Steam + Proton</b></summary>
+<br>
 
 **Option A — Lutris (recommended for GOG)**
 1. Install Lutris: `sudo apt install lutris` (Ubuntu/Debian), `sudo pacman -S lutris` (Arch), or the Flatpak.
@@ -362,6 +378,8 @@ once; after that KeeperFX runs natively with **no Wine**.
 
 > 💡 You don't keep using Lutris/Heroic to *play* — they're only there to install the original game so
 > KeeperFX can borrow its data files. Once copied, launch KeeperFX directly.
+
+</details>
 
 ## License
 
