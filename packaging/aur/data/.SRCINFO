@@ -1,4 +1,4 @@
-pkgbase = keeperfx-linux-alpha-data
+pkgbase = keeperfx-tux-data
 	pkgdesc = Game data for KeeperFX Tux Edition (campaigns, graphics, sounds) — you still supply your own Dungeon Keeper files
 	pkgver = 1.4.0.5366
 	pkgrel = 1
@@ -6,11 +6,11 @@ pkgbase = keeperfx-linux-alpha-data
 	arch = any
 	license = GPL-2.0-or-later
 	makedepends = p7zip
-	optdepends = keeperfx-linux-alpha: the engine that reads this data
+	optdepends = keeperfx-tux: the engine that reads this data
 	noextract = keeperfx-linux-alpha-1.4.0.5366-full.7z
 	options = !strip
 	options = !debug
 	source = keeperfx-linux-alpha-1.4.0.5366-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5366-alpha/keeperfx-linux-alpha-x86_64-full.7z
 	sha256sums = 788adcacbc86451a1d5d45026f3d79196e5f25ef7f85be12b8df73fa20d2ca98
 
-pkgname = keeperfx-linux-alpha-data
+pkgname = keeperfx-tux-data

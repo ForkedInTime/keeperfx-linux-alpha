@@ -1,6 +1,6 @@
 # AUR packaging
 
-Source for the `keeperfx-linux-alpha` AUR package. This directory is the
+Source for the `keeperfx-tux` AUR package. This directory is the
 canonical copy; the AUR repository is a mirror of these three files plus a
 generated `.SRCINFO`.
 
@@ -13,8 +13,8 @@ package instead of requiring `--devel`. The cost is one bump per release, which
 
 | Package | Source | Size | Contents |
 |---|---|---|---|
-| `keeperfx-linux-alpha` | this repo at `_tag` | 16 MB | engine compiled from source, text config, wrapper, desktop entry, icons |
-| `keeperfx-linux-alpha-data` (`data/`) | the release's `full.7z` | 412 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` |
+| `keeperfx-tux` | this repo at `_tag` | 16 MB | engine compiled from source, text config, wrapper, desktop entry, icons |
+| `keeperfx-tux-data` (`data/`) | the release's `full.7z` | 412 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` |
 
 Both carry the same `_tag`/`pkgver` and are bumped together, deliberately: the data
 package holds the config the engine reads, and a version mismatch between them is
@@ -40,12 +40,12 @@ files are absent, and the wrapper names them individually when they are missing.
 
 Ships: the engine built from source against system libraries, the generated
 UTF-8 fonts, and the text/config data that tracks the engine version
-(`fxdata`, `creatrs`, `mods`, `campgns`, `levels`, `lang`).
+(`fxdata`, `creatrs`, `mods`, `campgns`, `levels`, `lang`) — enough to run
+against a data tree the user already has.
 
-Does not ship: `data/` and `sound/`. Those are Dungeon Keeper's own files and
-are not redistributable, so the user supplies them — via the Qt launcher, the
-`full.7z` release archive, or a symlink into an existing installation. The
-wrapper detects their absence and prints all three routes.
+Does not ship: the bulk game data, which is what `keeperfx-tux-data` is for, nor
+the 14 files listed in `docs/files_required_from_original_dk.txt`, which come
+from the user's own copy of Dungeon Keeper and are in no package at all.
 
 ## Why there is a wrapper instead of a plain binary
 
@@ -56,19 +56,25 @@ games (`FGrp_Save`), screenshots, `keeperfx.cfg` and `keeperfx.log` all resolve
 against that directory, so a read-only `/usr` prefix cannot serve as the
 runtime directory.
 
-`/usr/bin/keeperfx-alpha` therefore assembles a per-user game directory at
+`/usr/bin/keeperfx-tux` therefore assembles a per-user game directory at
 `$XDG_DATA_HOME/keeperfx-alpha` (override with `KEEPERFX_HOME`) and execs the
 engine through a path inside it. Because the engine reads `argv[0]` rather than
 `/proc/self/exe`, the symlink is not resolved and the engine roots itself in the
 writable directory.
 
-Layout the wrapper maintains:
+The game directory stays `keeperfx-alpha` rather than following the package
+rename: that is the path `refresh-alpha.sh` and the Qt launcher already use, and
+changing it would strand existing installs and stop the launcher from finding
+data it had fetched.
+
+Layout the wrapper maintains, resolving each tree against the data package first
+and the engine package second:
 
 | Kind | Directories | Behaviour |
 |---|---|---|
-| Read-only | `fxdata` `creatrs` `campgns` `levels` `lang` | Symlinked to `/usr/share`, refreshed each launch so pacman upgrades take effect |
+| Read-only | `campgns` `levels` `lang` `fxdata` `creatrs` `ldata` | Symlinked whole, refreshed each launch so a pacman upgrade takes effect |
+| Merged | `data` `sound` | Real directories; packaged files linked in **individually** so the user's own Dungeon Keeper files sit beside them. A real file already in place always wins |
 | User-owned | `mods` `music` | Seeded once with `cp -rn`, never clobbered |
-| User-supplied | `data` `sound` | Required; the wrapper refuses to launch without them |
 | Writable state | `save` `scrshots` | Created if absent |
 
 If the user replaces a symlinked directory with a real one, the wrapper leaves
@@ -95,8 +101,8 @@ makepkg --printsrcinfo > .SRCINFO
 a package repo on first push):
 
 ```bash
-git clone ssh://aur@aur.archlinux.org/keeperfx-linux-alpha.git aur-pkg
-cp PKGBUILD .SRCINFO keeperfx-alpha.sh keeperfx-alpha.desktop aur-pkg/
+git clone ssh://aur@aur.archlinux.org/keeperfx-tux.git aur-pkg
+cp PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop aur-pkg/
 cd aur-pkg && git add -A && git commit -m "Initial import" && git push
 ```
 

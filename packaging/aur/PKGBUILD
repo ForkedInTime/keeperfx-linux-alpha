@@ -4,7 +4,7 @@
 # release is published. Keep _tag and pkgver in step: _tag is the release tag,
 # pkgver is that tag without the leading "v" or the "-alpha" suffix.
 _tag=v1.4.0.5366-alpha
-pkgname=keeperfx-linux-alpha
+pkgname=keeperfx-tux
 pkgver=1.4.0.5366
 pkgrel=1
 pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)"
@@ -18,12 +18,12 @@ depends=(
 )
 makedepends=('git' 'python' 'curl')
 optdepends=(
-  'keeperfx-linux-alpha-data: the game data KeeperFX provides (campaigns, graphics, sounds)'
+  'keeperfx-tux-data: the game data KeeperFX provides (campaigns, graphics, sounds)'
   'p7zip: extract the upstream full.7z game-data archive'
   'keeperfx-launcher-qt-linux: native Qt launcher, mod manager and data installer'
 )
-conflicts=('keeperfx-linux-alpha-git')
-provides=("keeperfx-linux-alpha=${pkgver}")
+conflicts=('keeperfx-linux-alpha' 'keeperfx-linux-alpha-git')
+provides=("keeperfx-tux=${pkgver}")
 # !strip: this is an alpha -- usable backtraces in bug reports beat the saved MBs.
 # !debug: without it, !strip leaves the debug sources in the main package.
 # !lto:   linux.mk manages its own optimisation flags and LTO is unvalidated here;
@@ -31,14 +31,14 @@ provides=("keeperfx-linux-alpha=${pkgver}")
 #         forced a -march revert.
 options=('!strip' '!debug' '!lto')
 source=(
-  "${pkgname}::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=${_tag}"
-  'keeperfx-alpha.sh'
-  'keeperfx-alpha.desktop'
+  "keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=${_tag}"
+  'keeperfx-tux.sh'
+  'keeperfx-tux.desktop'
 )
 sha256sums=(
   'SKIP'
-  '463788979a242dcc5c2fa72462b8642b07cf308403d7ee13fad50434ce4ebe5a'
-  '09fee03b712bf75e4bd343e3f1560fd97ddd2c86f8f366cc60f3ef30949a5fa1'
+  '1a4478f3b48063cbb92a2a094a4b9edb29b89a6e718901feb840a8b49748b6f4'
+  '36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd'
 )
 
 prepare() {
@@ -105,20 +105,20 @@ package() {
   # Generated fonts live alongside the text config, as the engine expects.
   install -m644 tools/fxfontmaker/*.fxfont "${_share}/fxdata/"
 
-  install -Dm755 "${srcdir}/keeperfx-alpha.sh" "${pkgdir}/usr/bin/keeperfx-alpha"
-  install -Dm644 "${srcdir}/keeperfx-alpha.desktop" \
-    "${pkgdir}/usr/share/applications/keeperfx-alpha.desktop"
+  install -Dm755 "${srcdir}/keeperfx-tux.sh" "${pkgdir}/usr/bin/keeperfx-tux"
+  install -Dm644 "${srcdir}/keeperfx-tux.desktop" \
+    "${pkgdir}/usr/share/applications/keeperfx-tux.desktop"
 
   local _px
   for _px in 016 032 048 064 128; do
     [ -f "res/keeperfx_icon${_px}-08bpp.png" ] || continue
     install -Dm644 "res/keeperfx_icon${_px}-08bpp.png" \
-      "${pkgdir}/usr/share/icons/hicolor/$((10#${_px}))x$((10#${_px}))/apps/keeperfx-alpha.png"
+      "${pkgdir}/usr/share/icons/hicolor/$((10#${_px}))x$((10#${_px}))/apps/keeperfx-tux.png"
   done
   for _px in 256 512; do
     [ -f "res/keeperfx_icon${_px}-24bpp.png" ] || continue
     install -Dm644 "res/keeperfx_icon${_px}-24bpp.png" \
-      "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-alpha.png"
+      "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-tux.png"
   done
 
   install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"

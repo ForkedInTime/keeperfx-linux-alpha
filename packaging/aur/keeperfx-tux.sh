@@ -91,7 +91,7 @@ KeeperFX cannot start: the game data is missing.
 This package ships the engine and configuration only. Install the data package
 for everything KeeperFX itself provides:
 
-  yay -S keeperfx-linux-alpha-data
+  yay -S keeperfx-tux-data
 
 Or supply a data tree yourself — the launcher will fetch and assemble one:
   https://github.com/ForkedInTime/keeperfx-launcher-qt-linux

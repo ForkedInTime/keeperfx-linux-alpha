@@ -174,9 +174,9 @@ jobs:
               fi )
           }
 
-          push_pkg keeperfx-linux-alpha      packaging/aur \
-                   PKGBUILD .SRCINFO keeperfx-alpha.sh keeperfx-alpha.desktop
-          push_pkg keeperfx-linux-alpha-data packaging/aur/data \
+          push_pkg keeperfx-tux           packaging/aur \
+                   PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop
+          push_pkg keeperfx-tux-data      packaging/aur/data \
                    PKGBUILD .SRCINFO
 
       - name: Dry-run summary
@@ -184,7 +184,7 @@ jobs:
         working-directory: packaging/aur
         run: |
           echo "Dry run — nothing pushed. Generated metadata:"
-          echo "=== keeperfx-linux-alpha ==="
+          echo "=== keeperfx-tux ==="
           cat .SRCINFO
-          echo "=== keeperfx-linux-alpha-data ==="
+          echo "=== keeperfx-tux-data ==="
           cat data/.SRCINFO

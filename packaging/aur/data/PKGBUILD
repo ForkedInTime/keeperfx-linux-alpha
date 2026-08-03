@@ -4,7 +4,7 @@
 # _tag must match the engine package's _tag: the two are versioned in lockstep so
 # that the config shipped here always matches the engine that reads it.
 _tag=v1.4.0.5366-alpha
-pkgname=keeperfx-linux-alpha-data
+pkgname=keeperfx-tux-data
 pkgver=1.4.0.5366
 pkgrel=1
 pkgdesc="Game data for KeeperFX Tux Edition (campaigns, graphics, sounds) — you still supply your own Dungeon Keeper files"
@@ -12,7 +12,7 @@ arch=('any')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
 license=('GPL-2.0-or-later')
 makedepends=('p7zip')
-optdepends=('keeperfx-linux-alpha: the engine that reads this data')
+optdepends=('keeperfx-tux: the engine that reads this data')
 # ~630 MB installed. Nothing here is executable, so there is nothing to strip
 # and no debug info to split out.
 options=('!strip' '!debug')

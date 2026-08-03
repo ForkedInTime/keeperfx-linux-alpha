@@ -1,4 +1,4 @@
-pkgbase = keeperfx-linux-alpha
+pkgbase = keeperfx-tux
 	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)
 	pkgver = 1.4.0.5366
 	pkgrel = 1
@@ -23,19 +23,20 @@ pkgbase = keeperfx-linux-alpha
 	depends = libnatpmp
 	depends = openssl
 	depends = zstd
-	optdepends = keeperfx-linux-alpha-data: the game data KeeperFX provides (campaigns, graphics, sounds)
+	optdepends = keeperfx-tux-data: the game data KeeperFX provides (campaigns, graphics, sounds)
 	optdepends = p7zip: extract the upstream full.7z game-data archive
 	optdepends = keeperfx-launcher-qt-linux: native Qt launcher, mod manager and data installer
-	provides = keeperfx-linux-alpha=1.4.0.5366
+	provides = keeperfx-tux=1.4.0.5366
+	conflicts = keeperfx-linux-alpha
 	conflicts = keeperfx-linux-alpha-git
 	options = !strip
 	options = !debug
 	options = !lto
-	source = keeperfx-linux-alpha::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5366-alpha
-	source = keeperfx-alpha.sh
-	source = keeperfx-alpha.desktop
+	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5366-alpha
+	source = keeperfx-tux.sh
+	source = keeperfx-tux.desktop
 	sha256sums = SKIP
-	sha256sums = 463788979a242dcc5c2fa72462b8642b07cf308403d7ee13fad50434ce4ebe5a
-	sha256sums = 09fee03b712bf75e4bd343e3f1560fd97ddd2c86f8f366cc60f3ef30949a5fa1
+	sha256sums = 1a4478f3b48063cbb92a2a094a4b9edb29b89a6e718901feb840a8b49748b6f4
+	sha256sums = 36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd
 
-pkgname = keeperfx-linux-alpha
+pkgname = keeperfx-tux

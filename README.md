@@ -54,10 +54,10 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 the engine is compiled from source against your system's own libraries and updates with everything else.
 
 ```bash
-yay -S keeperfx-linux-alpha keeperfx-linux-alpha-data
+yay -S keeperfx-tux keeperfx-tux-data
 ```
 
-Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-alpha`. Updates arrive with your
+Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-tux`. Updates arrive with your
 normal `yay -Syu` — no self-updater, no re-downloading half a gigabyte.
 
 Two packages: the engine (18 MB, compiled on your machine) and the game data (412 MB — campaigns,
@@ -67,8 +67,8 @@ KeeperFX data tree you want to point at.
 <details>
 <summary><b>What the package does and doesn't include</b></summary>
 
-> `keeperfx-linux-alpha` is the engine — about 18 MB, because it is compiled against your system's
-> SDL2/ffmpeg/OpenAL rather than bundling copies. `keeperfx-linux-alpha-data` is everything KeeperFX itself
+> `keeperfx-tux` is the engine — about 18 MB, because it is compiled against your system's
+> SDL2/ffmpeg/OpenAL rather than bundling copies. `keeperfx-tux-data` is everything KeeperFX itself
 > provides: campaigns, graphics, sounds and language files.
 >
 > On first launch the game directory is assembled at `~/.local/share/keeperfx-alpha` (set `KEEPERFX_HOME`
