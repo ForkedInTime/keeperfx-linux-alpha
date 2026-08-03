@@ -1,0 +1,141 @@
+# EXPERIMENTAL macOS build spike — manual trigger only.
+#
+# This exists to answer three questions and nothing else:
+#   1. Does the tree's "Windows vs POSIX" split actually cover Darwin?
+#   2. How bad is Apple Silicon (arm64) for a codebase that hardcodes x86-64?
+#   3. What is missing entirely?
+#
+# It is EXPECTED TO FAIL. The error list is the deliverable, so every step
+# reports rather than aborting the run, and the job never gates anything.
+#
+# It deliberately does not touch, reuse or trigger any part of the Linux
+# release pipeline: separate workflow, separate makefile (macos.mk), separate
+# obj-macos/bin-macos output dirs. workflow_dispatch only — it can never fire
+# on a push, a release, or a schedule.
+name: Spike — macOS build (experimental, manual only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    name: "macOS ${{ matrix.label }}"
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            label: "Apple Silicon (arm64)"
+          - runner: macos-13
+            label: "Intel (x86_64)"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Environment
+        run: |
+          echo "arch: $(uname -m)"
+          echo "os:   $(sw_vers -productVersion)"
+          cc --version | head -2
+
+      - name: Install Homebrew dependencies
+        continue-on-error: true
+        run: |
+          brew update >/dev/null 2>&1 || true
+          # Mirrors what linux.mk expects from the distro. openal-soft is used
+          # rather than Apple's OpenAL.framework, which has been deprecated
+          # since 10.15.
+          brew install \
+            sdl2 sdl2_mixer sdl2_net sdl2_image \
+            ffmpeg luajit libepoxy openal-soft \
+            libspng minizip miniupnpc libnatpmp zstd openssl@3 curl pkg-config \
+            || echo "::warning::one or more brew formulae failed to install"
+
+      - name: Build the vendored deps from source
+        continue-on-error: true
+        run: |
+          # linux.mk downloads prebuilt *-lin64.tar.gz archives for these. Those
+          # are Linux binaries; no macOS equivalents are published, so they have
+          # to come from source. libcurl is taken from Homebrew instead.
+          set -x
+          mkdir -p deps
+
+          git clone --depth 1 https://github.com/cosinekitty/astronomy.git /tmp/astronomy || true
+          if [ -d /tmp/astronomy ]; then
+            mkdir -p deps/astronomy/include
+            cp /tmp/astronomy/source/c/astronomy.h deps/astronomy/include/ || true
+            cc -O2 -c /tmp/astronomy/source/c/astronomy.c -o /tmp/astronomy.o \
+              && ar rcs deps/astronomy/libastronomy.a /tmp/astronomy.o || true
+          fi
+
+          git clone --depth 1 https://github.com/mity/centijson.git /tmp/centijson || true
+          if [ -d /tmp/centijson ]; then
+            mkdir -p deps/centijson/include
+            cp /tmp/centijson/src/*.h deps/centijson/include/ || true
+            for f in /tmp/centijson/src/*.c; do
+              cc -O2 -I/tmp/centijson/src -c "$f" -o "/tmp/$(basename "$f" .c).o" || true
+            done
+            ar rcs deps/centijson/libjson.a /tmp/json*.o /tmp/value.o 2>/dev/null || true
+          fi
+
+          git clone --depth 1 https://github.com/SirLynix/enet6.git /tmp/enet6 || true
+          if [ -d /tmp/enet6 ]; then
+            mkdir -p deps/enet6/include
+            cp -r /tmp/enet6/include/. deps/enet6/include/ || true
+            cc -O2 -I/tmp/enet6/include -c /tmp/enet6/*.c -o /dev/null 2>/dev/null || true
+          fi
+
+          echo "--- deps/ after source build ---"
+          find deps -maxdepth 3 -name '*.a' -o -maxdepth 3 -name '*.h' | head -20
+
+      - name: Probe the makefile
+        continue-on-error: true
+        run: make -f macos.mk probe
+
+      - name: Compile (the actual experiment)
+        id: compile
+        continue-on-error: true
+        run: |
+          set +e
+          make -f macos.mk -j"$(sysctl -n hw.ncpu)" > /tmp/build.log 2>&1
+          echo "exit=$?" | tee /tmp/exit.txt
+          tail -40 /tmp/build.log
+
+      - name: Summarise what broke
+        if: always()
+        run: |
+          echo "## macOS spike — ${{ matrix.label }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/build.log ]; then
+            TOTAL=$(grep -c 'error:' /tmp/build.log || true)
+            echo "**Compiler errors:** ${TOTAL:-0}" >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '### Distinct error kinds (most frequent first)' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -oE 'error: .*' /tmp/build.log \
+              | sed -E "s/'[^']*'/'X'/g" \
+              | sort | uniq -c | sort -rn | head -25 >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '### Files with the most errors' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -oE '^[^ :]+\.(c|cpp|h):' /tmp/build.log \
+              | sort | uniq -c | sort -rn | head -15 >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '_No build log produced — the run failed before compiling._' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-spike-log-${{ matrix.runner }}
+          path: /tmp/build.log
+          if-no-files-found: warn
