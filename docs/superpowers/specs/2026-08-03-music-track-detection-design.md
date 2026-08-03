@@ -58,10 +58,10 @@ Everything lives in one self-contained helper so that a future upstream conflict
 
 Extract the **last run of digits** from each basename as that file's candidate track number. Then a single decision:
 
-> Use the numeric mapping if — and only if — **every** file yields a number **and** every one of those numbers falls within the valid track range **2–7**.
-> Otherwise discard the numbers entirely and map sorted position → tracks 2, 3, 4, …
+> Use the numeric mapping if **at least one** file yields a number **and** every file that yields a number falls within the valid track range **2–7**. Files that yield no number take no part in the decision and are simply left out of the numeric mapping.
+> Otherwise (no file yields a number at all, or some file's number falls outside 2–7) discard the numbers entirely and map sorted position → tracks 2, 3, 4, …
 
-So a folder mixing `keeper02.ogg` with an unnumbered `bonus.flac` falls back to sorted order, because the numeric mapping cannot account for every file. Sorting is by filename, ascending, case-insensitive.
+An unnumbered file dropped alongside a fully-numbered set (`keeper02.ogg` … `keeper07.ogg` plus a stray `bonus.mp3`) is therefore just ignored — the numbered set is unaffected. This is a deliberate change from an earlier draft of this rule, which required *every* file to yield a number: that version fell back to sorted order the moment a single unnumbered file appeared, which meant a correct, fully-numbered install could be silently renumbered (and lose its highest track) by dropping in one stray extra file. A file whose number is genuinely out of the 2–7 range is different — the filenames can no longer describe a complete numbered set, so that still forces the sorted-position fallback for everything. Sorting, in both the fallback and the tie-break below, is by filename, ascending, case-insensitive.
 
 In sorted-fallback mode, files are assigned tracks from 2 upward; anything past track 7 is ignored and noted at debug level. In numeric mode, if two files in the **same** format claim the same track (`keeper03.ogg` and `track03.ogg`), the one earlier in sort order wins and the other is ignored, noted at debug level — the collision rule below only decides between *different* formats.
 
@@ -71,10 +71,11 @@ In sorted-fallback mode, files are assigned tracks from 2 upward; anything past 
 | `Track 02.flac` … `Track 07.flac` | 2–7 | numeric |
 | `music00.ogg` … `music05.ogg` | 0–5 | 0 and 1 out of range → sorted → tracks 2–7 |
 | `audiocd01.mp3` … `audiocd06.mp3` | 1–6 | 1 out of range → sorted → tracks 2–7 |
-| `dungeon.flac`, `battle.flac` | none | no numbers → sorted → tracks 2, 3 (4–7 warn once each) |
-| `keeper02.ogg`, `bonus.flac` | 2, none | not every file numbered → sorted → tracks 2, 3 |
+| `dungeon.flac`, `battle.flac` | none | no file numbered → sorted → tracks 2, 3 (4–7 warn once each) |
+| `keeper02.ogg`, `bonus.flac` | 2, none | `bonus.flac` yields no number → ignored → numeric, track 2 = `keeper02.ogg` only |
+| `keeper02.ogg` … `keeper07.ogg` plus `bonus.mp3` | 2–7, none | `bonus.mp3` yields no number → ignored → numeric, tracks 2–7 unchanged |
 
-The first row is the regression guard: a stock install takes the numeric path and resolves to exactly the files it resolves to today.
+The first row is the regression guard: a stock install takes the numeric path and resolves to exactly the files it resolves to today. The second-to-last and last rows are the regression guard for *this* rule: an unnumbered stray file must never renumber or discard a working numbered soundtrack.
 
 Track 2 is the land view; 3–6 are in-game (`player_utils.c:856` cycles `3 + (lvnum-1) % 4`); 7 is used by campaigns. Hence the 2–7 range.
 

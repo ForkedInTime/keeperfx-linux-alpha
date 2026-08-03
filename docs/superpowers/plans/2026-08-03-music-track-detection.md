@@ -238,6 +238,8 @@ Create `src/music_index.h`:
 /******************************************************************************/
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <climits>
 #include <cstddef>
 #include <cstdlib>
 #include <map>
@@ -275,7 +277,18 @@ inline int music_extension_rank(const std::string & fname) {
 	return -1;
 }
 
-// Last run of digits in the basename, extension stripped. -1 when there is none.
+// Last run of digits in the basename, extension stripped, parsed as a
+// non-negative integer. -1 when there is no trailing digit run, or when the
+// run does not fit back into the int this function returns.
+//
+// This only guards against overflow/UB in the parse itself (formerly atoi(),
+// which let e.g. "track4294967298.ogg" silently wrap around and parse as
+// track 2). It deliberately does NOT check the number against
+// MUSIC_TRACK_MIN/MUSIC_TRACK_MAX: a small out-of-range number such as 0 or 1
+// still comes back as itself, because build_music_index() needs to tell "no
+// number" (ignored) apart from "a real but out-of-range number" (forces the
+// sorted-position fallback) — folding the track-range check in here would
+// make those indistinguishable.
 inline int music_trailing_number(const std::string & fname) {
 	const std::string::size_type dot = fname.find_last_of('.');
 	const std::string stem = (dot == std::string::npos) ? fname : fname.substr(0, dot);
@@ -293,13 +306,29 @@ inline int music_trailing_number(const std::string & fname) {
 	while (begin > 0 && isdigit((unsigned char)stem[begin - 1])) {
 		--begin;
 	}
-	return atoi(stem.substr(begin, end - begin).c_str());
+	const std::string digits = stem.substr(begin, end - begin);
+	errno = 0;
+	const long value = strtol(digits.c_str(), nullptr, 10);
+	if (errno == ERANGE || value > INT_MAX) {
+		// Overflows long outright, or parses fine but does not fit back into
+		// the int this function returns: either way, not a plausible track
+		// number, so treat it the same as "no number" rather than let the
+		// narrowing conversion silently wrap it into a small bogus one.
+		return -1;
+	}
+	return (int)value;
 }
 
 // Maps track number -> filename for the given directory contents. Entries are
 // bare filenames, not paths; anything that is not a recognised audio file is
 // ignored.
-inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries) {
+//
+// When notes is non-null, one short human-readable line is appended for each
+// file dropped from the result (a same/lower-priority-format collision loser,
+// or a file sorted-mode had no track left for) so a caller can surface why a
+// file the user has in music/ is not actually playing.
+inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries,
+	std::vector<std::string> * notes = nullptr) {
 	// Keep the audio files, remembering each one's format preference.
 	std::vector<std::pair<std::string, int> > files;
 	for (std::size_t i = 0; i < entries.size(); ++i) {
@@ -318,41 +347,74 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 			return (la != lb) ? (la < lb) : (a.first < b.first);
 		});
 
-	// Numeric mode needs every file to carry a number AND every one of those
-	// numbers to be a track the game asks for. Anything else means the filenames
-	// cannot describe a complete set, so fall back to sorted order rather than
-	// producing a half-populated index.
-	bool numeric = !files.empty();
+	// Numeric mode needs at least one file to carry a track number, AND every
+	// file that carries one to be a track the game asks for. Files that carry
+	// no number at all take no part in that decision and are simply left out
+	// of the index in numeric mode: a stray untitled track dropped alongside
+	// a complete numbered set must not renumber (or discard) everything else
+	// — that renumbering was the regression that sank upstream PR #5061. A
+	// file whose number falls outside the game's track range is different:
+	// the filenames can no longer describe a complete numbered set, so that
+	// still forces the sorted-position fallback, exactly as before.
+	bool any_numbered = false;
+	bool numeric = true;
 	for (std::size_t i = 0; numeric && i < files.size(); ++i) {
 		const int track = music_trailing_number(files[i].first);
+		if (track < 0) {
+			continue;
+		}
+		any_numbered = true;
 		if (track < MUSIC_TRACK_MIN || track > MUSIC_TRACK_MAX) {
 			numeric = false;
 		}
 	}
+	numeric = numeric && any_numbered;
 
 	std::map<int, std::string> index;
 	if (numeric) {
 		std::map<int, int> best_rank;
 		for (std::size_t i = 0; i < files.size(); ++i) {
 			const int track = music_trailing_number(files[i].first);
+			if (track < 0) {
+				continue; // no number: ignored entirely in numeric mode
+			}
 			const std::map<int, int>::iterator seen = best_rank.find(track);
 			// Strictly-better keeps the first of an equal-ranked pair, so a
 			// same-format clash resolves to whichever sorts first.
-			if (seen == best_rank.end() || files[i].second < seen->second) {
+			if (seen == best_rank.end()) {
 				index[track] = files[i].first;
 				best_rank[track] = files[i].second;
+			} else if (files[i].second < seen->second) {
+				if (notes) {
+					notes->push_back("dropped " + index[track] + " for track " + std::to_string(track) +
+						": " + files[i].first + " is a higher-preference format");
+				}
+				index[track] = files[i].first;
+				best_rank[track] = files[i].second;
+			} else if (notes) {
+				notes->push_back("dropped " + files[i].first + " for track " + std::to_string(track) +
+					": " + index[track] + " already claims it in an equal-or-better format");
 			}
 		}
 	} else {
 		int track = MUSIC_TRACK_MIN;
-		for (std::size_t i = 0; i < files.size() && track <= MUSIC_TRACK_MAX; ++i) {
+		std::size_t i = 0;
+		for (; i < files.size() && track <= MUSIC_TRACK_MAX; ++i) {
 			index[track] = files[i].first;
 			++track;
+		}
+		if (notes) {
+			for (; i < files.size(); ++i) {
+				notes->push_back("dropped " + files[i].first + ": sorted mode already filled tracks " +
+					std::to_string(MUSIC_TRACK_MIN) + "-" + std::to_string(MUSIC_TRACK_MAX));
+			}
 		}
 	}
 	return index;
 }
 ```
+
+**Note (post-implementation update, final branch review):** the code block above reflects the mapping rule as it actually ships, not as first written. The originally-committed version (see `git log -- src/music_index.h`) required *every* file to carry an in-range number; that had its own regression (a stray unnumbered file forced the whole folder into sorted-position mode, silently renumbering — and losing track 7 off the end of — an otherwise-correct install). The rule was revised post-review to the "at least one, and every numbered one in range" form shown here. See the design spec's "Mapping rule" section for the full rationale and truth table.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -735,11 +797,13 @@ original DK installation, which always uses keeperNN.ogg."
 | Enumerate via `LbFileFindFirst`/`Next`/`End` | Task 2 Step 2 |
 | Extensions `.ogg`/`.flac`/`.wav`/`.mp3`, case-insensitive | Task 1 (`music_extension_rank`), test 8 |
 | Last digit run → candidate track | Task 1 (`music_trailing_number`) |
-| Numeric mode only if every file numbered and all in 2–7 | Task 1, tests 1–5 |
-| Sorted fallback → tracks 2, 3, 4, … | Task 1, tests 3–5 |
+| Numeric mode if at least one file numbered and every numbered file in 2–7; unnumbered files ignored, out-of-range numbers force fallback | Task 1, tests 1–5, 5b, 5c (updated post-review — see the note after the Task 1 code block) |
+| Sorted fallback → tracks 2, 3, 4, … | Task 1, tests 3–4, 5c |
 | Sorted mode ignores anything past track 7 | Task 1, test 11 |
 | Collision FLAC > WAV > OGG > MP3, per track | Task 1, test 6 |
 | Same-format clash → sort order | Task 1, test 7 |
+| Trailing-number parse does not overflow into a bogus track | Task 1, tests 12–13 (FIX 3, post-review) |
+| Debug notes for dropped collision losers and sorted-mode overflow | Task 1, tests 14–15 (FIX 4, post-review) |
 | Launcher: at least one playable file | Task 3 Steps 1–3 |
 | `musicFiles` / copy loop unchanged | Task 3 Step 1 (stated explicitly) |
 | Warn once per track | Task 2 Step 3 |
