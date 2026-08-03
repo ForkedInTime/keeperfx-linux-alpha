@@ -831,6 +831,28 @@ extern "C" TbBool play_music_track(int track) {
 		stop_music(true);
 		return true;
 	} else if (features_enabled & Ft_NoCdMusic) {
+		// The music index below only ever discovers tracks in the stock
+		// 2-7 range (or whatever a non-stock naming scheme maps to). This
+		// convenience feature must never remove a resolution the engine
+		// already had: a stock-named keeperNN file has to keep resolving
+		// for *any* track number, exactly like
+		// prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track) did
+		// before the index existed, so that e.g. a campaign shipping
+		// keeper08.ogg and calling SET_MUSIC(8) keeps working. Try every
+		// recognised extension in the same preference order the index
+		// uses (flac, wav, ogg, mp3) before ever consulting the index.
+		// See docs/superpowers/specs/2026-08-03-music-track-detection-design.md.
+		for (int i = 0; i < MUSIC_EXTENSION_COUNT; ++i) {
+			const char * stock_path = prepare_file_fmtpath(FGrp_Music, "keeper%02d%s", track, MUSIC_EXTENSIONS[i]);
+			// Case-insensitive existence check using the same mechanism
+			// play_music() itself relies on (LbFileExists falls back to
+			// find_case_insensitive_file on non-Windows, exactly as
+			// LbFileCaseInsensitivePath does) -- so this must not miss a
+			// file only play_music() would have found, e.g. KEEPER08.OGG.
+			if (LbFileExists(stock_path)) {
+				return play_music(stock_path);
+			}
+		}
 		const std::map<int, std::string> & index = music_index();
 		const std::map<int, std::string>::const_iterator it = index.find(track);
 		if (it == index.end()) {
