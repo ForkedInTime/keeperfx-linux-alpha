@@ -5,6 +5,7 @@
 #include "bflib_datetm.h"
 #include "bflib_sound.h"
 #include "bflib_fileio.h"
+#include "music_index.h"
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
@@ -26,6 +27,7 @@
 #include <utility>
 #include <array>
 #include <unordered_map>
+#include <set>
 #include <deque>
 #include <mutex>
 #include <atomic>
@@ -538,6 +540,71 @@ std::mutex g_mix_mutex;
 std::string g_current_music_fname; // empty if a numbered track (or nothing) is playing
 int g_current_music_track = 0;     // 0 if a custom file (or nothing) is playing
 
+// Cached mapping of track number -> filename in music/, built on first use.
+// Rebuilding is not supported: adding, removing or renaming files that the
+// index maps (e.g. a "Track 05.flac") requires a restart to take effect.
+// This does NOT apply to play_music_track()'s direct keeperNN.<ext>
+// stock-name lookup below, which re-checks the filesystem on every call, so
+// dropping in e.g. a keeper05.ogg takes effect immediately, without a restart.
+//
+// Thread-safety: this cache is built lazily with no synchronisation. That is
+// safe only because every play_music_track() call site runs on the main
+// thread, and on_music_finished() -- the SDL_mixer callback that can run off
+// the main thread -- never calls music_index() or touches this cache. If a
+// future caller needs to build or read the index from another thread (async
+// loading, preloading, etc.) this needs a lock.
+std::map<int, std::string> g_music_index;
+bool g_music_index_built = false;
+std::set<int> g_music_warned_tracks;
+// Directory music_index() enumerated, kept only so the "no music file" warning
+// below can name where it looked.
+std::string g_music_dir;
+
+const std::map<int, std::string> & music_index() {
+	if (!g_music_index_built) {
+		g_music_index_built = true;
+		std::vector<std::string> entries;
+		char spec[2048];
+		prepare_file_path_buf(spec, sizeof(spec), FGrp_Music, "*");
+		{
+			// spec is ".../music/*"; strip the enumeration glob to get just
+			// the directory for diagnostics.
+			const std::string spec_str(spec);
+			const std::string::size_type slash = spec_str.find_last_of('/');
+			g_music_dir = (slash == std::string::npos) ? spec_str : spec_str.substr(0, slash);
+		}
+		struct TbFileEntry fe;
+		struct TbFileFind * ff = LbFileFindFirst(spec, &fe);
+		if (ff) {
+			do {
+				entries.push_back(fe.Filename);
+			} while (LbFileFindNext(ff, &fe) >= 0);
+			LbFileFindEnd(ff);
+		}
+		std::vector<std::string> notes;
+		g_music_index = build_music_index(entries, &notes);
+		// Unconditional summary: the one line a stock, clean install should
+		// ever see out of this function.
+		SYNCLOG("Music index built: %d playable track(s) from %d directory entr(ies)",
+			(int)g_music_index.size(), (int)entries.size());
+		// Each note explains a specific file the index chose not to use --
+		// exactly the explanation a user with unexpectedly silent music
+		// needs, so it must land somewhere a normal keeperfx.log shows
+		// (SYNCDBG(7,...) effectively never does). Capped so a folder full
+		// of stray files cannot flood the log; nothing extra is logged when
+		// there are no notes at all.
+		const std::size_t max_notes = 10;
+		const std::size_t shown_notes = std::min(notes.size(), max_notes);
+		for (std::size_t i = 0; i < shown_notes; ++i) {
+			SYNCLOG("%s", notes[i].c_str());
+		}
+		if (notes.size() > max_notes) {
+			SYNCLOG("...and %d more music index note(s) suppressed", (int)(notes.size() - max_notes));
+		}
+	}
+	return g_music_index;
+}
+
 struct queued_sample {
 	std::string fname;
 	SoundVolume volume;
@@ -782,9 +849,59 @@ extern "C" TbBool play_music_track(int track) {
 		stop_music(true);
 		return true;
 	} else if (features_enabled & Ft_NoCdMusic) {
+		// The music index below only ever discovers tracks in the stock
+		// 2-7 range (or whatever a non-stock naming scheme maps to). This
+		// convenience feature must never remove a resolution the engine
+		// already had: a stock-named keeperNN file has to keep resolving
+		// for *any* track number, exactly like
+		// prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track) did
+		// before the index existed, so that e.g. a campaign shipping
+		// keeper08.ogg and calling SET_MUSIC(8) keeps working. Try every
+		// recognised extension in MUSIC_DIRECT_LOOKUP_EXTENSIONS' order --
+		// OGG first, deliberately NOT the index's FLAC-first
+		// MUSIC_EXTENSIONS order -- before ever consulting the index, so a
+		// keeper02.ogg beside a keeper02.flac keeps playing the OGG exactly
+		// as it did before this feature existed (see that array's comment
+		// in music_index.h for why the two orders differ). See also
+		// docs/superpowers/specs/2026-08-03-music-track-detection-design.md.
+		for (int i = 0; i < MUSIC_DIRECT_LOOKUP_EXTENSION_COUNT; ++i) {
+			const char * stock_path = prepare_file_fmtpath(FGrp_Music, "keeper%02d%s", track, MUSIC_DIRECT_LOOKUP_EXTENSIONS[i]);
+			// Case-insensitive existence check using the same mechanism
+			// play_music() itself relies on (LbFileExists falls back to
+			// find_case_insensitive_file on non-Windows, exactly as
+			// LbFileCaseInsensitivePath does) -- so this must not miss a
+			// file only play_music() would have found, e.g. KEEPER08.OGG.
+			//
+			// LbFileExists is a bare access(F_OK) check, so it also returns
+			// true for a directory named e.g. "keeper02.flac/" or for a
+			// mode-000 file -- neither of which play_music() can actually
+			// load. Falling through to the remaining extensions (and, if
+			// none of them pan out either, to the index) rather than
+			// returning play_music()'s result outright means such a hit can
+			// never silently beat a real file the index would otherwise have
+			// found.
+			if (LbFileExists(stock_path) && play_music(stock_path)) {
+				return true;
+			}
+		}
+		const std::map<int, std::string> & index = music_index();
+		const std::map<int, std::string>::const_iterator it = index.find(track);
+		if (it == index.end()) {
+			// Warn once per track: a level that retries must not flood the log,
+			// but a silent music folder should never again be undiagnosable.
+			if (g_music_warned_tracks.insert(track).second) {
+				// index.size() counts the music index's own mapping decisions,
+				// not every avenue play_music_track() just tried -- the direct
+				// stock-name lookup above resolves independently of it -- so
+				// this must not be read as "N tracks are playable overall".
+				WARNLOG("No music file for track %d in %s; the music index mapped %d track(s) there",
+					track, g_music_dir.c_str(), (int)index.size());
+			}
+			return false;
+		}
 		// play_music() itself skips restarting if this exact resolved file is
 		// already the one actually playing (e.g. reloading a save for the same level).
-		return play_music(prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track));
+		return play_music(prepare_file_fmtpath(FGrp_Music, "%s", it->second.c_str()));
 	} else {
 		if (track == g_current_music_track) {
 			// Already playing this exact numbered track — skip restarting it.

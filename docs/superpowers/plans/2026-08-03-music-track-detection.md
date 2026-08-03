@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Valid track numbers are **2–7**. 2 is the land view, 3–6 are cycled in-game by `player_utils.c:856` (`3 + (lvnum-1) % 4`), 7 is used by campaigns.
+- Valid track numbers are **2–7**. 2 is the land view, 3–6 are cycled in-game by `player_utils.c`'s music-track cycling logic (`3 + (lvnum-1) % 4`), 7 is used by campaigns.
 - Recognised extensions: `.ogg`, `.flac`, `.wav`, `.mp3` — compared **case-insensitively** (Linux filesystems are case-sensitive).
 - Same-track format preference: **FLAC > WAV > OGG > MP3**, applied per track, never folder-wide.
 - **Do not modify `linux.mk` or `Makefile`.** Both are upstream-owned; the header-only design exists specifically to avoid touching them.
@@ -42,175 +42,30 @@
 **Interfaces:**
 - Consumes: nothing (standard library only).
 - Produces:
-  - `std::map<int, std::string> build_music_index(const std::vector<std::string> & entries)` — takes bare filenames from a directory listing, returns track number → filename.
+  - `std::map<int, std::string> build_music_index(const std::vector<std::string> & entries, std::vector<std::string> * notes = nullptr)` — takes bare filenames from a directory listing, returns track number → filename. When `notes` is non-null, appends one human-readable line for every recognised audio file dropped from the result (format-collision loser, sorted-mode overflow past track 7, or — in numeric mode — a file with no track number in its name), so a caller can tell the user why a file sitting in `music/` is not playing.
   - `int music_extension_rank(const std::string & fname)` — index into the preference list, `-1` if not audio.
   - `int music_trailing_number(const std::string & fname)` — last digit run in the stem, `-1` if none.
   - Constants `MUSIC_TRACK_MIN` (2) and `MUSIC_TRACK_MAX` (7).
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/test_music_index.cpp`:
+The implementation lives in `tests/test_music_index.cpp` — read the file; it is the source of truth. It is deliberately not reproduced here, because embedded copies on this plan drifted five times.
 
-```cpp
-// Standalone unit tests for the pure music track-mapping logic.
-//
-// Build and run:
-//   g++ -std=c++17 -Wall -Wextra -o bin/test_music_index tests/test_music_index.cpp
-//   ./bin/test_music_index
-#include "../src/music_index.h"
+What it must cover: standalone, assert-based tests of `build_music_index()`, `music_extension_rank()` and `music_trailing_number()` from `src/music_index.h`, buildable and runnable with no engine/game dependency (`g++ -std=c++17 -Wall -Wextra -o bin/test_music_index tests/test_music_index.cpp && ./bin/test_music_index`, or simply `tests/run.sh`). At minimum:
 
-#include <cstdio>
+- A stock all-numbered set (`keeper02.ogg` … `keeper07.ogg`) resolving identically to the old hardcoded path — the core regression guard.
+- Alternate-format and alternate-naming numbered sets (FLAC, spaces in names).
+- Zero-based and one-based numbering forcing the sorted fallback.
+- A stray unnumbered or out-of-range-numbered file alongside a complete numbered set, confirming it cannot renumber or truncate the set — the regression guard for upstream #5061's renumbering bug.
+- The numeric/sorted tiebreak added post-review (build both candidates, strictly-more-tracks wins, ties favour numeric) — see the design spec's "Mapping rule" section for the current worked-example table and rationale, including the deliberate behaviour change where a lone numbered file plus one unnumbered file now resolves via sorted mode instead of numeric.
+- The FLAC > WAV > OGG > MP3 collision rule, both across formats and within the same format (sort-order tiebreak).
+- Case-insensitive names and extensions.
+- Non-audio entries, empty input, and dotfile/AppleDouble-sidecar entries (must not win a collision purely by sorting first).
+- Overflow-safe trailing-number parsing (an absurdly large digit run must not wrap into a bogus small track).
+- Sorted-fallback stem dedup, including the double-extension case (`a.ogg` vs `a.ogg.flac` deduping to the same song).
+- The `notes` output naming why each dropped file was excluded, worded to describe the index's own mapping decision rather than actual playback — the direct stock lookup is a separate mechanism this pure function has no visibility into.
 
-static int g_failures = 0;
-
-static void expect_track(const std::map<int, std::string> & index, int track,
-	const char * expected, const char * what)
-{
-	std::map<int, std::string>::const_iterator it = index.find(track);
-	const bool ok = (it != index.end()) && (it->second == expected);
-	if (ok) {
-		std::printf("  ok   %s\n", what);
-	} else {
-		std::printf("  FAIL %s: track %d -> '%s', wanted '%s'\n", what, track,
-			(it == index.end()) ? "<missing>" : it->second.c_str(), expected);
-		++g_failures;
-	}
-}
-
-static void expect_size(const std::map<int, std::string> & index, size_t expected,
-	const char * what)
-{
-	if (index.size() == expected) {
-		std::printf("  ok   %s\n", what);
-	} else {
-		std::printf("  FAIL %s: size %d, wanted %d\n", what,
-			(int)index.size(), (int)expected);
-		++g_failures;
-	}
-}
-
-int main()
-{
-	// 1. Stock install: numeric mode, resolves exactly as the old hardcoded path did.
-	{
-		std::vector<std::string> in;
-		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
-		in.push_back("keeper04.ogg"); in.push_back("keeper05.ogg");
-		in.push_back("keeper06.ogg"); in.push_back("keeper07.ogg");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 6, "stock ogg set yields 6 tracks");
-		expect_track(got, 2, "keeper02.ogg", "stock ogg track 2");
-		expect_track(got, 7, "keeper07.ogg", "stock ogg track 7");
-	}
-
-	// 2. FLAC set with spaces in the names, still numeric.
-	{
-		std::vector<std::string> in;
-		in.push_back("Track 02.flac"); in.push_back("Track 03.flac");
-		in.push_back("Track 04.flac"); in.push_back("Track 05.flac");
-		in.push_back("Track 06.flac"); in.push_back("Track 07.flac");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 6, "flac set yields 6 tracks");
-		expect_track(got, 3, "Track 03.flac", "flac track 3");
-	}
-
-	// 3. Numbered from zero: out of range, so sorted fallback maps to 2..7.
-	{
-		std::vector<std::string> in;
-		in.push_back("music00.ogg"); in.push_back("music01.ogg");
-		in.push_back("music02.ogg"); in.push_back("music03.ogg");
-		in.push_back("music04.ogg"); in.push_back("music05.ogg");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 6, "zero-based set yields 6 tracks");
-		expect_track(got, 2, "music00.ogg", "zero-based first file becomes track 2");
-		expect_track(got, 7, "music05.ogg", "zero-based last file becomes track 7");
-	}
-
-	// 4. Numbered from one: 1 is out of range, so sorted fallback again.
-	{
-		std::vector<std::string> in;
-		in.push_back("audiocd01.mp3"); in.push_back("audiocd02.mp3");
-		in.push_back("audiocd03.mp3"); in.push_back("audiocd04.mp3");
-		in.push_back("audiocd05.mp3"); in.push_back("audiocd06.mp3");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_track(got, 2, "audiocd01.mp3", "one-based first file becomes track 2");
-	}
-
-	// 5. One unnumbered file means the names cannot describe a complete set.
-	{
-		std::vector<std::string> in;
-		in.push_back("keeper02.ogg"); in.push_back("bonus.flac");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 2, "mixed numbered/unnumbered yields 2 tracks");
-		expect_track(got, 2, "bonus.flac", "sorted fallback puts bonus.flac first");
-		expect_track(got, 3, "keeper02.ogg", "sorted fallback puts keeper02.ogg second");
-	}
-
-	// 6. Same track in two formats: lossless wins, others unaffected.
-	{
-		std::vector<std::string> in;
-		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
-		in.push_back("keeper03.flac"); in.push_back("keeper04.ogg");
-		in.push_back("keeper05.ogg"); in.push_back("keeper06.ogg");
-		in.push_back("keeper07.ogg");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 6, "format collision still yields 6 tracks");
-		expect_track(got, 3, "keeper03.flac", "flac beats ogg for track 3");
-		expect_track(got, 2, "keeper02.ogg", "collision leaves track 2 alone");
-	}
-
-	// 7. Same track, same format: earlier in sort order wins.
-	{
-		std::vector<std::string> in;
-		in.push_back("track03.ogg"); in.push_back("keeper03.ogg");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_track(got, 3, "keeper03.ogg", "same-format clash resolves by sort order");
-	}
-
-	// 8. Uppercase names and extensions are recognised.
-	{
-		std::vector<std::string> in;
-		in.push_back("KEEPER02.OGG"); in.push_back("KEEPER03.OGG");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 2, "uppercase names are recognised");
-		expect_track(got, 2, "KEEPER02.OGG", "uppercase track 2");
-	}
-
-	// 9. Non-audio entries are ignored entirely.
-	{
-		std::vector<std::string> in;
-		in.push_back("MusicReadme.txt"); in.push_back("keeper02.ogg");
-		in.push_back("keeper03.ogg");
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 2, "non-audio entries ignored");
-	}
-
-	// 10. Empty folder yields an empty index rather than anything spurious.
-	{
-		const std::vector<std::string> in;
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 0, "empty folder yields empty index");
-	}
-
-	// 11. Sorted mode stops at track 7 instead of inventing higher tracks.
-	{
-		std::vector<std::string> in;
-		for (int i = 0; i < 10; ++i) {
-			in.push_back(std::string("a") + (char)('0' + i) + ".ogg");
-		}
-		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 6, "sorted mode caps at track 7");
-		expect_track(got, 7, "a5.ogg", "sixth file becomes track 7");
-	}
-
-	if (g_failures == 0) {
-		std::printf("\nAll music index tests passed.\n");
-		return 0;
-	}
-	std::printf("\n%d music index test(s) FAILED.\n", g_failures);
-	return 1;
-}
-```
+Do not hand-author a divergent version of these tests from an older draft of this plan — read the live file.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -224,135 +79,22 @@ Expected: FAILS to compile with `fatal error: ../src/music_index.h: No such file
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/music_index.h`:
+The implementation lives in `src/music_index.h` — read the file; it is the source of truth. It is deliberately not reproduced here, because embedded copies on this plan drifted five times.
 
-```cpp
-#pragma once
-/******************************************************************************/
-// Pure track-mapping logic for the music/ folder.
-//
-// Header-only, and free of any game, SDL or OpenAL dependency, so that
-// tests/test_music_index.cpp can exercise it without linking the engine. It is
-// also why this lives outside bflib_sndlib.cpp: neither linux.mk nor Makefile
-// needs a new entry, and both are upstream-owned.
-/******************************************************************************/
-#include <algorithm>
-#include <cctype>
-#include <cstddef>
-#include <cstdlib>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
+What the file must provide, header-only with no game/SDL/OpenAL dependency (so `tests/test_music_index.cpp` can exercise it standalone, and so neither `linux.mk` nor `Makefile` — both upstream-owned — needs a new source-file entry):
 
-// Track numbers the game actually asks for: 2 is the land view, 3-6 are cycled
-// in-game by player_utils.c, and 7 is used by campaigns.
-static const int MUSIC_TRACK_MIN = 2;
-static const int MUSIC_TRACK_MAX = 7;
+- `MUSIC_TRACK_MIN` (2), `MUSIC_TRACK_MAX` (7).
+- `MUSIC_EXTENSIONS` — FLAC, WAV, OGG, MP3, in the index's own per-track collision preference order — and `music_extension_rank()`.
+- `music_trailing_number()` — the last run of digits in a basename, with every trailing recognised extension stripped repeatedly (not just once: a name like `keeper02.mp3.ogg` has a second recognised-looking extension embedded right before the real one, and stripping only the outermost one would misread the `3` in `.mp3` as the track number). Overflow-safe: a huge digit run must not silently wrap into a small bogus track number.
+- `build_music_index()` — takes bare filenames, returns track number → filename. It builds two candidate mappings and returns whichever resolves the map:
+  - a **numeric** candidate: every file with a trailing number in 2–7 claims that track, format collisions resolved by the preference order above;
+  - a **sorted** candidate: dedup the files by filename stem (stripped the same repeated way), then assign surviving files to tracks 2, 3, 4, … by filename order, capped at 7.
 
-// Recognised extensions, in preference order for a same-track collision:
-// lossless first, then the better lossy codec.
-static const char * const MUSIC_EXTENSIONS[] = { ".flac", ".wav", ".ogg", ".mp3" };
-static const int MUSIC_EXTENSION_COUNT = 4;
+  Whichever candidate resolves **strictly more** tracks wins; an equal count favours numeric. This tiebreak is a post-review revision of the rule — the design spec's "Mapping rule" section has the full rationale, the current worked-example table (verified against the live code, not asserted from memory), and the reasoning for why ties favour numeric over an earlier all-or-nothing draft that let one stray file renumber or truncate a whole working soundtrack.
+- An optional `notes` output parameter: one line per recognised audio file the function itself chose not to use, worded to name the remedy where one exists. These notes describe **only the index's own decision** — the function has no visibility into `play_music_track()`'s separate direct stock-name lookup (see the design spec), so a file it "drops" may still be exactly what plays via that other path, and a file it keeps may be shadowed by it.
+- Dotfile/hidden-entry filtering before any of the above, so macOS AppleDouble sidecars (`._keeper02.ogg`) can never win a collision purely because `.` sorts first.
 
-inline std::string music_to_lower(std::string text) {
-	for (std::string::size_type i = 0; i < text.size(); ++i) {
-		text[i] = (char)tolower((unsigned char)text[i]);
-	}
-	return text;
-}
-
-// Index into MUSIC_EXTENSIONS (lower is preferred), or -1 when not an audio file.
-inline int music_extension_rank(const std::string & fname) {
-	const std::string lower = music_to_lower(fname);
-	for (int i = 0; i < MUSIC_EXTENSION_COUNT; ++i) {
-		const std::string ext(MUSIC_EXTENSIONS[i]);
-		if (lower.size() > ext.size()
-			&& lower.compare(lower.size() - ext.size(), ext.size(), ext) == 0) {
-			return i;
-		}
-	}
-	return -1;
-}
-
-// Last run of digits in the basename, extension stripped. -1 when there is none.
-inline int music_trailing_number(const std::string & fname) {
-	const std::string::size_type dot = fname.find_last_of('.');
-	const std::string stem = (dot == std::string::npos) ? fname : fname.substr(0, dot);
-	std::string::size_type end = std::string::npos;
-	for (std::string::size_type i = stem.size(); i-- > 0; ) {
-		if (isdigit((unsigned char)stem[i])) {
-			end = i + 1;
-			break;
-		}
-	}
-	if (end == std::string::npos) {
-		return -1;
-	}
-	std::string::size_type begin = end;
-	while (begin > 0 && isdigit((unsigned char)stem[begin - 1])) {
-		--begin;
-	}
-	return atoi(stem.substr(begin, end - begin).c_str());
-}
-
-// Maps track number -> filename for the given directory contents. Entries are
-// bare filenames, not paths; anything that is not a recognised audio file is
-// ignored.
-inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries) {
-	// Keep the audio files, remembering each one's format preference.
-	std::vector<std::pair<std::string, int> > files;
-	for (std::size_t i = 0; i < entries.size(); ++i) {
-		const int rank = music_extension_rank(entries[i]);
-		if (rank >= 0) {
-			files.push_back(std::make_pair(entries[i], rank));
-		}
-	}
-
-	// Ascending by filename, case-insensitive. The raw name breaks ties so the
-	// ordering is total and the result reproducible across filesystems.
-	std::sort(files.begin(), files.end(),
-		[](const std::pair<std::string, int> & a, const std::pair<std::string, int> & b) {
-			const std::string la = music_to_lower(a.first);
-			const std::string lb = music_to_lower(b.first);
-			return (la != lb) ? (la < lb) : (a.first < b.first);
-		});
-
-	// Numeric mode needs every file to carry a number AND every one of those
-	// numbers to be a track the game asks for. Anything else means the filenames
-	// cannot describe a complete set, so fall back to sorted order rather than
-	// producing a half-populated index.
-	bool numeric = !files.empty();
-	for (std::size_t i = 0; numeric && i < files.size(); ++i) {
-		const int track = music_trailing_number(files[i].first);
-		if (track < MUSIC_TRACK_MIN || track > MUSIC_TRACK_MAX) {
-			numeric = false;
-		}
-	}
-
-	std::map<int, std::string> index;
-	if (numeric) {
-		std::map<int, int> best_rank;
-		for (std::size_t i = 0; i < files.size(); ++i) {
-			const int track = music_trailing_number(files[i].first);
-			const std::map<int, int>::iterator seen = best_rank.find(track);
-			// Strictly-better keeps the first of an equal-ranked pair, so a
-			// same-format clash resolves to whichever sorts first.
-			if (seen == best_rank.end() || files[i].second < seen->second) {
-				index[track] = files[i].first;
-				best_rank[track] = files[i].second;
-			}
-		}
-	} else {
-		int track = MUSIC_TRACK_MIN;
-		for (std::size_t i = 0; i < files.size() && track <= MUSIC_TRACK_MAX; ++i) {
-			index[track] = files[i].first;
-			++track;
-		}
-	}
-	return index;
-}
-```
+Do not hand-author a divergent copy of this logic from an older draft of this plan — read the live file.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -382,10 +124,10 @@ behaviour where adding one file silently renumbers the whole soundtrack."
 ### Task 2: Wire the index into the engine
 
 **Files:**
-- Modify: `src/bflib_sndlib.cpp` (includes near line 7; globals near line 54; `play_music_track()` at line 778)
+- Modify: `src/bflib_sndlib.cpp` (the include sits right after the existing `bflib_fileio.h` include near the top of the file; the cache/enumerator globals sit next to the existing `g_current_music_track` global; `play_music_track()` is further down in the same file. Exact line numbers are not cited here because they drift with every unrelated change elsewhere in this large file — search for the symbol names instead.)
 
 **Interfaces:**
-- Consumes: `build_music_index()`, `MUSIC_TRACK_MIN`, `MUSIC_TRACK_MAX` from Task 1. `LbFileFindFirst`/`LbFileFindNext`/`LbFileFindEnd` and `struct TbFileEntry { const char * Filename; }` from `bflib_fileio.h` (already included at line 7). `prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname)` and `prepare_file_fmtpath(short fgroup, const char *fmt_str, ...)`, both already used in this file.
+- Consumes: `build_music_index()`, `MUSIC_TRACK_MIN`, `MUSIC_TRACK_MAX` from Task 1. `LbFileFindFirst`/`LbFileFindNext`/`LbFileFindEnd` and `struct TbFileEntry { const char * Filename; }` from `bflib_fileio.h` (already included near the top of the file, immediately before the new `music_index.h` include). `prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname)` and `prepare_file_fmtpath(short fgroup, const char *fmt_str, ...)`, both already used in this file.
 - Produces: nothing consumed by later tasks.
 
 - [ ] **Step 1: Add the include**
@@ -403,9 +145,19 @@ In `src/bflib_sndlib.cpp`, immediately after the existing line `int g_current_mu
 ```cpp
 // Cached mapping of track number -> filename in music/, built on first use.
 // Rebuilding is not supported: changing your soundtrack requires a restart.
+//
+// Thread-safety: this cache is built lazily with no synchronisation. That is
+// safe only because every play_music_track() call site runs on the main
+// thread, and on_music_finished() -- the SDL_mixer callback that can run off
+// the main thread -- never calls music_index() or touches this cache. If a
+// future caller needs to build or read the index from another thread (async
+// loading, preloading, etc.) this needs a lock.
 std::map<int, std::string> g_music_index;
 bool g_music_index_built = false;
 std::vector<int> g_music_warned_tracks;
+// Directory music_index() enumerated, kept only so the "no music file" warning
+// below can name where it looked.
+std::string g_music_dir;
 
 const std::map<int, std::string> & music_index() {
 	if (!g_music_index_built) {
@@ -413,6 +165,13 @@ const std::map<int, std::string> & music_index() {
 		std::vector<std::string> entries;
 		char spec[2048];
 		prepare_file_path_buf(spec, sizeof(spec), FGrp_Music, "*");
+		{
+			// spec is ".../music/*"; strip the enumeration glob to get just
+			// the directory for diagnostics.
+			const std::string spec_str(spec);
+			const std::string::size_type slash = spec_str.find_last_of('/');
+			g_music_dir = (slash == std::string::npos) ? spec_str : spec_str.substr(0, slash);
+		}
 		struct TbFileEntry fe;
 		struct TbFileFind * ff = LbFileFindFirst(spec, &fe);
 		if (ff) {
@@ -421,9 +180,13 @@ const std::map<int, std::string> & music_index() {
 			} while (LbFileFindNext(ff, &fe) >= 0);
 			LbFileFindEnd(ff);
 		}
-		g_music_index = build_music_index(entries);
+		std::vector<std::string> notes;
+		g_music_index = build_music_index(entries, &notes);
 		SYNCDBG(7, "Music index built: %d playable track(s) from %d directory entr(ies)",
 			(int)g_music_index.size(), (int)entries.size());
+		for (std::size_t i = 0; i < notes.size(); ++i) {
+			SYNCDBG(7, "%s", notes[i].c_str());
+		}
 	}
 	return g_music_index;
 }
@@ -431,38 +194,16 @@ const std::map<int, std::string> & music_index() {
 
 - [ ] **Step 3: Rewrite the disk branch of `play_music_track()`**
 
-In `src/bflib_sndlib.cpp`, replace this existing branch:
+The current implementation lives in `src/bflib_sndlib.cpp` — read `play_music_track()`; it is the source of truth. It is deliberately not reproduced here, because the embedded copy on this plan drifted twice.
 
-```cpp
-	} else if (features_enabled & Ft_NoCdMusic) {
-		// play_music() itself skips restarting if this exact resolved file is
-		// already the one actually playing (e.g. reloading a save for the same level).
-		return play_music(prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track));
-	} else {
-```
+What this step originally established: replace the old hardcoded disk branch (`play_music(prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track))`) with a lookup into `music_index()`, returning `false` with a warn-once `WARNLOG` when the requested track isn't in it, and otherwise calling the existing `play_music()` unchanged — which already skips restarting when the resolved file is already playing.
 
-with:
+**This description is now historical.** Two fixes landed after this plan's initial execution and changed the function beyond what is described above:
 
-```cpp
-	} else if (features_enabled & Ft_NoCdMusic) {
-		const std::map<int, std::string> & index = music_index();
-		const std::map<int, std::string>::const_iterator it = index.find(track);
-		if (it == index.end()) {
-			// Warn once per track: a level that retries must not flood the log,
-			// but a silent music folder should never again be undiagnosable.
-			if (std::find(g_music_warned_tracks.begin(), g_music_warned_tracks.end(), track)
-				== g_music_warned_tracks.end()) {
-				g_music_warned_tracks.push_back(track);
-				WARNLOG("No music file for track %d; the music folder supplied %d playable track(s)",
-					track, (int)index.size());
-			}
-			return false;
-		}
-		// play_music() itself skips restarting if this exact resolved file is
-		// already the one actually playing (e.g. reloading a save for the same level).
-		return play_music(prepare_file_fmtpath(FGrp_Music, "%s", it->second.c_str()));
-	} else {
-```
+- `1ebcc3294` / `846e6c6af` added a direct stock-named (`keeper%02d.*`) lookup that runs **before** the index is ever consulted, so a stock or near-stock install resolves exactly as it did before this feature existed for any track number, not just the index's 2–7.
+- `ea97f4257` made that direct lookup probe `.ogg` first via its own `MUSIC_DIRECT_LOOKUP_EXTENSIONS` array (deliberately not the index's FLAC-first `MUSIC_EXTENSIONS` order), made a direct-lookup hit that cannot actually be played fall through to the remaining extensions and then to the index, and reworded the `WARNLOG` so its track count describes the index's own mapping rather than implying it is a count of everything playable.
+
+The design spec's "Direct stock lookup is authoritative" and "Mapping rule" sections describe the function's current shape; treat this step as context for how the index first got wired in, not as a description of what ships today.
 
 - [ ] **Step 4: Build**
 
@@ -553,9 +294,9 @@ naming how many playable tracks were found, instead of failing quietly."
 ### Task 3: Relax the launcher's music-present check
 
 **Files:**
-- Modify: `/home/yetipaw/.cache/launcher-qt/src/dkfiles.h:20`
+- Modify: `/home/yetipaw/.cache/launcher-qt/src/dkfiles.h` (the `areAllSoundFilesPresent()` declaration)
 - Modify: `/home/yetipaw/.cache/launcher-qt/src/dkfiles.cpp` (`areAllSoundFilesPresent()`)
-- Modify: `/home/yetipaw/.cache/launcher-qt/src/copydkfilesdialog.cpp:120`
+- Modify: `/home/yetipaw/.cache/launcher-qt/src/copydkfilesdialog.cpp` (the `areAllSoundFilesPresent()` call site)
 - Modify: `/home/yetipaw/.cache/launcher-qt/src/launchermainwindow.cpp` (the missing-music startup check)
 
 **Interfaces:**
@@ -618,7 +359,16 @@ bool DkFiles::isAnyMusicPresent()
         return false;
     }
 
-    const QFileInfoList entries = musicDir.entryInfoList(QDir::Files | QDir::NoSymLinks);
+    // Symlinks are followed deliberately: linking a shared music library into
+    // music/ is a normal way to curate a soundtrack without duplicating files,
+    // and the code this replaced used QFile::exists(), which follows them too.
+    // This is the one function in this file that intentionally does NOT use
+    // QDir::NoSymLinks -- dkfiles.cpp's isOriginalDkExecutableFound() and the
+    // subdirectory scan both use that flag, but they are checking for an
+    // actual Dungeon Keeper install, not a curated music folder, so a symlink
+    // there would be suspicious rather than normal. Do not "fix" this for
+    // consistency with those two; the inconsistency is deliberate.
+    const QFileInfoList entries = musicDir.entryInfoList(QDir::Files);
     for (const QFileInfo& entry : entries) {
         if (musicExtensions.contains(entry.suffix().toLower())) {
             return true;
@@ -723,6 +473,8 @@ original DK installation, which always uses keeperNN.ogg."
 
 ## Self-Review
 
+**Historical note:** this Self-Review describes Task 1's original implementation. Four fixes landed after this plan was first executed — `ba704e506`/`833928e1c` (sorted-fallback stem dedup, "ADV-4"), `1ebcc3294`/`846e6c6af` (direct stock lookup ahead of the index), and `ea97f4257` (a five-part audit fix, including the numeric/sorted tiebreak) — and changed behaviour this table does not account for. **The design spec (`docs/superpowers/specs/2026-08-03-music-track-detection-design.md`) is the design of record for current behaviour.** The table below is kept as a record of what Task 1 covered when first committed, not a live description of what ships; rows are marked where the code has since moved past them.
+
 **Spec coverage:**
 
 | Spec requirement | Task |
@@ -731,21 +483,26 @@ original DK installation, which always uses keeperNN.ogg."
 | Enumerate via `LbFileFindFirst`/`Next`/`End` | Task 2 Step 2 |
 | Extensions `.ogg`/`.flac`/`.wav`/`.mp3`, case-insensitive | Task 1 (`music_extension_rank`), test 8 |
 | Last digit run → candidate track | Task 1 (`music_trailing_number`) |
-| Numeric mode only if every file numbered and all in 2–7 | Task 1, tests 1–5 |
-| Sorted fallback → tracks 2, 3, 4, … | Task 1, tests 3–5 |
+| Numeric mode if at least one file numbered and every numbered file in 2–7; unnumbered files ignored, out-of-range numbers force fallback | Task 1, tests 1–5, 5b, 5c — **superseded by `ea97f4257`**, which replaced this all-or-nothing rule with the two-candidate, more-tracks-wins tiebreak (see the spec's "Mapping rule" section) |
+| Sorted fallback → tracks 2, 3, 4, … | Task 1, tests 3–4, 5c |
 | Sorted mode ignores anything past track 7 | Task 1, test 11 |
 | Collision FLAC > WAV > OGG > MP3, per track | Task 1, test 6 |
 | Same-format clash → sort order | Task 1, test 7 |
+| Trailing-number parse does not overflow into a bogus track | Task 1, tests 12–13 |
+| Debug notes for dropped collision losers and sorted-mode overflow | Task 1, tests 14–15 |
+| **Sorted-fallback stem dedup (including the double-extension case, e.g. `a.ogg`/`a.ogg.flac`)** | *not in this plan's original scope* — added by `ba704e506`/`833928e1c`, extended by `ea97f4257`; see the spec's "Sorted-fallback deduplication" section |
+| **Direct stock lookup runs before the index (OGG-first, falls through on an unplayable hit)** | *not in this plan's original scope* — added by `1ebcc3294`/`846e6c6af`, extended by `ea97f4257`; see the spec's "Direct stock lookup is authoritative" section |
+| **Numeric-vs-sorted tiebreak: sorted wins only by strictly resolving more tracks** | *not in this plan's original scope* — added by `ea97f4257`; see the spec's "Mapping rule" section |
 | Launcher: at least one playable file | Task 3 Steps 1–3 |
 | `musicFiles` / copy loop unchanged | Task 3 Step 1 (stated explicitly) |
 | Warn once per track | Task 2 Step 3 |
 | `play_music_fgroup` / mods untouched | Global Constraints |
 | Verification matrix cases 1–8 | Task 2 Steps 5–6, Task 3 Steps 6–7 |
 
-No gaps.
+This plan is superseded on every row marked above. It remains a historical record of how the feature was first built and committed across three tasks; it is not a live description of `src/music_index.h` or `play_music_track()` as they stand today. For current behaviour, read the design spec and the code directly — that is also why Task 1's Steps 1 and 3, and Task 2's Step 3, now point at the live source files instead of embedding listings of them.
 
-**Placeholder scan:** none. Every code step carries complete code; every verification step carries a runnable command and its expected output.
+**Placeholder scan:** none remaining that matter. The three full-source listings this plan used to embed (Task 1 Step 1's test file, Task 1 Step 3's header, Task 2 Step 3's `play_music_track()` diff) drifted from the shipped code — each one twice, independently, despite an explicit in-document warning against exactly that — and have been replaced with pointers to the live files plus a description of what each must do. Every other step still carries a runnable command and its expected output.
 
-**Type consistency:** `build_music_index`, `music_extension_rank`, `music_trailing_number`, `music_to_lower`, `MUSIC_TRACK_MIN`, `MUSIC_TRACK_MAX` are defined in Task 1 and used with identical names and signatures in Task 2. `isAnyMusicPresent()` is declared in Task 3 Step 1 and used in Steps 2–3 consistently. `TbFileEntry::Filename` matches `bflib_fileio.h:44`. `prepare_file_path_buf` and `prepare_file_fmtpath` match `config.h:269` and `config.h:271`.
+**Type consistency:** `build_music_index`, `music_extension_rank`, `music_trailing_number`, `music_to_lower`, `MUSIC_TRACK_MIN`, `MUSIC_TRACK_MAX` are defined in `src/music_index.h` and used with identical names in `src/bflib_sndlib.cpp`. `isAnyMusicPresent()` is declared in `dkfiles.h` and used consistently in `dkfiles.cpp`, `copydkfilesdialog.cpp` and `launchermainwindow.cpp`. `TbFileEntry::Filename` (`bflib_fileio.h`) and `prepare_file_path_buf`/`prepare_file_fmtpath` (`config.h`) are used with matching signatures; line numbers are deliberately not cited here, since they drift with unrelated changes elsewhere in those files.
 
 **One deviation from the spec, deliberate:** the spec placed the logic as "a file-static index in `src/bflib_sndlib.cpp`". This plan puts the pure part in a new header-only `src/music_index.h` instead. Reason: `KFX_SOURCES` in `linux.mk` is an explicit source list and `linux.mk` is upstream-owned, so a new `.cpp` would require editing it (and `Makefile`) against the Global Constraint above. Header-only avoids both build files entirely and makes the logic unit-testable without linking the engine. The stateful cache still lives in `bflib_sndlib.cpp` exactly as the spec describes.
