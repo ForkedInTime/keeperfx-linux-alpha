@@ -149,7 +149,9 @@ Recommended default: **OGG**. The source most people have is the original CD sou
 
 **Avoid MP3 for looping tracks.** Music loops via `Mix_PlayMusic(music, -1)`; MP3's encoder delay and padding produce an audible gap at every loop point that OGG, FLAC and WAV do not have (they are gapless).
 
-**Packaging follow-up, not fixed by this feature:** the `MusicReadme.txt` shipped in `music/` still says "This directory will store music in OGG format", which predates format freedom and is now incomplete. That file ships from the upstream distribution and is not present in this repo or the launcher repo, so it cannot be corrected here — it needs an upstream or packaging-side fix.
+**`MusicReadme.txt` — resolved in 1.4.0.5363.** Upstream's copy says "This directory will store music in OGG format", which predates format freedom and points a player with silent music away from the answer. It ships from the upstream distribution and is in neither repo, so the fork now carries its own at `config/music/MusicReadme.txt`, staged by `build-linux-alpha.yml` beside the fxdata/creatrs/mods the fork already overlays.
+
+That alone was not enough to reach anyone. `full.7z` — the archive the self-updater downloads — is assembled by the launcher's `build-appimage.yml`, which overlays `fxdata`, `creatrs` and `mods` from the freshly-built engine but did not overlay `music`. Because each payload is built from the *previous release's* payload, a file only the engine repo knew about would have stayed frozen indefinitely: not this release, not any later one. Caught by checking the readme's byte size inside the built `full.7z` before publishing (537 bytes = upstream's, 2683 = ours). `music` was added to that overlay list. This is the second time this fork has shipped frozen payload config; the first prompted the overlay to exist at all.
 
 ### Launcher
 
