@@ -281,6 +281,72 @@ int main()
 		expect_size(got, 0, "a lone dotfile is not treated as music");
 	}
 
+	// 19. ADV-4: sorted fallback must not double up a song that exists in two
+	// formats. A "01"-style prefix is out of the 2-7 range, so this whole
+	// library forces sorted mode; without stem dedup, the four songs would
+	// spread across all six tracks (each song claiming two, one song
+	// dropped entirely) instead of resolving to four distinct FLAC tracks.
+	{
+		std::vector<std::string> in;
+		in.push_back("01 intro.flac"); in.push_back("01 intro.ogg");
+		in.push_back("02 dungeon.flac"); in.push_back("02 dungeon.ogg");
+		in.push_back("03 battle.flac"); in.push_back("03 battle.ogg");
+		in.push_back("04 boss.flac"); in.push_back("04 boss.ogg");
+		std::vector<std::string> notes;
+		const std::map<int, std::string> got = build_music_index(in, &notes);
+		expect_size(got, 4, "ADV-4: FLAC+OGG library collapses to 4 distinct songs");
+		expect_track(got, 2, "01 intro.flac", "ADV-4: track 2 is the FLAC intro");
+		expect_track(got, 3, "02 dungeon.flac", "ADV-4: track 3 is the FLAC dungeon theme");
+		expect_track(got, 4, "03 battle.flac", "ADV-4: track 4 is the FLAC battle theme");
+		expect_track(got, 5, "04 boss.flac", "ADV-4: track 5 is the FLAC boss theme");
+		if (notes.size() == 4) {
+			std::printf("  ok   ADV-4: one dedup note per dropped OGG duplicate\n");
+		} else {
+			std::printf("  FAIL ADV-4: got %d notes, wanted 4\n", (int)notes.size());
+			++g_failures;
+		}
+	}
+
+	// 20. ADV-4: rank must beat alphabetical sort order, not just coincide
+	// with it. Note this deliberately uses WAV vs MP3/OGG rather than the
+	// FLAC vs MP3 pairing one might reach for first: ".flac" sorts
+	// alphabetically before every other recognised extension (f < m/o/w), so
+	// FLAC would win any such pairing purely by sorting first -- that would
+	// not actually prove rank is consulted at all. WAV is the one format
+	// whose rank preference (2nd, beating OGG and MP3) is the *opposite* of
+	// its alphabetical position ("wav" sorts after both "mp3" and "ogg"), so
+	// it is the only pairing that can distinguish "picks by rank" from
+	// "picks whichever sorts first".
+	{
+		std::vector<std::string> in;
+		in.push_back("song.mp3"); in.push_back("song.wav");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 1, "ADV-4: mp3+wav of the same song collapses to one track");
+		expect_track(got, 2, "song.wav", "ADV-4: WAV wins over MP3 despite sorting later");
+	}
+
+	// 21. ADV-4: three formats of the same song all collapse to a single
+	// entry, and the lossless one wins.
+	{
+		std::vector<std::string> in;
+		in.push_back("x.mp3"); in.push_back("x.ogg"); in.push_back("x.flac");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 1, "ADV-4: three formats of one song collapse to one entry");
+		expect_track(got, 2, "x.flac", "ADV-4: FLAC wins the three-way collapse");
+	}
+
+	// 22. ADV-4 regression guard: a sorted-mode set with no duplicate stems
+	// maps exactly as it did before the dedup change.
+	{
+		std::vector<std::string> in;
+		in.push_back("dungeon.flac"); in.push_back("battle.ogg"); in.push_back("boss.mp3");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 3, "ADV-4: no-duplicate-stems set is unaffected by dedup");
+		expect_track(got, 2, "battle.ogg", "ADV-4: no-dup set, track 2 unchanged");
+		expect_track(got, 3, "boss.mp3", "ADV-4: no-dup set, track 3 unchanged");
+		expect_track(got, 4, "dungeon.flac", "ADV-4: no-dup set, track 4 unchanged");
+	}
+
 	if (g_failures == 0) {
 		std::printf("\nAll music index tests passed.\n");
 		return 0;

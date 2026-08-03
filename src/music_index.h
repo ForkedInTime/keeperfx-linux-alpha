@@ -13,6 +13,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 #include <utility>
@@ -46,6 +47,15 @@ inline int music_extension_rank(const std::string & fname) {
 		}
 	}
 	return -1;
+}
+
+// fname with its recognised extension removed, given the rank already
+// established for it by music_extension_rank() (so this never re-derives or
+// second-guesses that match). Used only to detect "same song, different
+// format" among files in sorted-fallback mode.
+inline std::string music_stem(const std::string & fname, int rank) {
+	const std::size_t ext_len = std::strlen(MUSIC_EXTENSIONS[rank]);
+	return fname.substr(0, fname.size() - ext_len);
 }
 
 // Last run of digits in the basename, extension stripped, parsed as a
@@ -187,15 +197,60 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 			}
 		}
 	} else {
+		// Sorted fallback keys entirely on position, so leaving the raw file
+		// list untouched would let two files that are really the same song in
+		// different formats (a FLAC re-rip left alongside the original OGGs)
+		// land on two different tracks: doubling up one song and, because
+		// sorted mode fills every track it can, silently pushing a genuinely
+		// distinct song out of range. Deduplicate by filename stem
+		// (case-insensitive) first, keeping each stem's best-format
+		// representative under the same FLAC > WAV > OGG > MP3 preference
+		// numeric mode already applies per track number; an equal-rank tie
+		// (same extension, different case) keeps whichever sorts first,
+		// exactly as numeric mode's same-format tiebreak.
+		std::map<std::string, std::size_t> best_for_stem; // lower stem -> index into files
+		for (std::size_t i = 0; i < files.size(); ++i) {
+			const std::string lower_stem = music_to_lower(music_stem(files[i].first, files[i].second));
+			const std::map<std::string, std::size_t>::iterator seen = best_for_stem.find(lower_stem);
+			if (seen == best_for_stem.end()) {
+				best_for_stem[lower_stem] = i;
+			} else if (files[i].second < files[seen->second].second) {
+				if (notes) {
+					notes->push_back("dropped " + files[seen->second].first + ": " + files[i].first +
+						" is a higher-preference format of the same track");
+				}
+				seen->second = i;
+			} else if (notes) {
+				notes->push_back("dropped " + files[i].first + ": " + files[seen->second].first +
+					" is a higher-preference format of the same track");
+			}
+		}
+
+		// Surviving representatives, sorted by stem (case-insensitive, full
+		// filename as tiebreak) rather than by full filename: this keeps the
+		// track ordering stable no matter which format happened to win each
+		// stem group above.
+		std::vector<std::size_t> reps;
+		for (std::map<std::string, std::size_t>::const_iterator it = best_for_stem.begin();
+			it != best_for_stem.end(); ++it) {
+			reps.push_back(it->second);
+		}
+		std::sort(reps.begin(), reps.end(),
+			[&files](std::size_t a, std::size_t b) {
+				const std::string sa = music_to_lower(music_stem(files[a].first, files[a].second));
+				const std::string sb = music_to_lower(music_stem(files[b].first, files[b].second));
+				return (sa != sb) ? (sa < sb) : (files[a].first < files[b].first);
+			});
+
 		int track = MUSIC_TRACK_MIN;
 		std::size_t i = 0;
-		for (; i < files.size() && track <= MUSIC_TRACK_MAX; ++i) {
-			index[track] = files[i].first;
+		for (; i < reps.size() && track <= MUSIC_TRACK_MAX; ++i) {
+			index[track] = files[reps[i]].first;
 			++track;
 		}
 		if (notes) {
-			for (; i < files.size(); ++i) {
-				notes->push_back("dropped " + files[i].first + ": sorted mode already filled tracks " +
+			for (; i < reps.size(); ++i) {
+				notes->push_back("dropped " + files[reps[i]].first + ": sorted mode already filled tracks " +
 					std::to_string(MUSIC_TRACK_MIN) + "-" + std::to_string(MUSIC_TRACK_MAX));
 			}
 		}
