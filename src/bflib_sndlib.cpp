@@ -541,9 +541,19 @@ int g_current_music_track = 0;     // 0 if a custom file (or nothing) is playing
 
 // Cached mapping of track number -> filename in music/, built on first use.
 // Rebuilding is not supported: changing your soundtrack requires a restart.
+//
+// Thread-safety: this cache is built lazily with no synchronisation. That is
+// safe only because every play_music_track() call site runs on the main
+// thread, and on_music_finished() -- the SDL_mixer callback that can run off
+// the main thread -- never calls music_index() or touches this cache. If a
+// future caller needs to build or read the index from another thread (async
+// loading, preloading, etc.) this needs a lock.
 std::map<int, std::string> g_music_index;
 bool g_music_index_built = false;
 std::vector<int> g_music_warned_tracks;
+// Directory music_index() enumerated, kept only so the "no music file" warning
+// below can name where it looked.
+std::string g_music_dir;
 
 const std::map<int, std::string> & music_index() {
 	if (!g_music_index_built) {
@@ -551,6 +561,13 @@ const std::map<int, std::string> & music_index() {
 		std::vector<std::string> entries;
 		char spec[2048];
 		prepare_file_path_buf(spec, sizeof(spec), FGrp_Music, "*");
+		{
+			// spec is ".../music/*"; strip the enumeration glob to get just
+			// the directory for diagnostics.
+			const std::string spec_str(spec);
+			const std::string::size_type slash = spec_str.find_last_of('/');
+			g_music_dir = (slash == std::string::npos) ? spec_str : spec_str.substr(0, slash);
+		}
 		struct TbFileEntry fe;
 		struct TbFileFind * ff = LbFileFindFirst(spec, &fe);
 		if (ff) {
@@ -559,9 +576,13 @@ const std::map<int, std::string> & music_index() {
 			} while (LbFileFindNext(ff, &fe) >= 0);
 			LbFileFindEnd(ff);
 		}
-		g_music_index = build_music_index(entries);
+		std::vector<std::string> notes;
+		g_music_index = build_music_index(entries, &notes);
 		SYNCDBG(7, "Music index built: %d playable track(s) from %d directory entr(ies)",
 			(int)g_music_index.size(), (int)entries.size());
+		for (std::size_t i = 0; i < notes.size(); ++i) {
+			SYNCDBG(7, "%s", notes[i].c_str());
+		}
 	}
 	return g_music_index;
 }
@@ -818,8 +839,8 @@ extern "C" TbBool play_music_track(int track) {
 			if (std::find(g_music_warned_tracks.begin(), g_music_warned_tracks.end(), track)
 				== g_music_warned_tracks.end()) {
 				g_music_warned_tracks.push_back(track);
-				WARNLOG("No music file for track %d; the music folder supplied %d playable track(s)",
-					track, (int)index.size());
+				WARNLOG("No music file for track %d in %s; the music folder supplied %d playable track(s)",
+					track, g_music_dir.c_str(), (int)index.size());
 			}
 			return false;
 		}

@@ -82,14 +82,43 @@ int main()
 		expect_track(got, 2, "audiocd01.mp3", "one-based first file becomes track 2");
 	}
 
-	// 5. One unnumbered file means the names cannot describe a complete set.
+	// 5. One unnumbered file alongside a numbered one: the unnumbered file is
+	// ignored entirely rather than dragging the whole set into sorted mode.
+	// (Previously this forced sorted-position fallback, silently renumbering
+	// a correct install when an extra file was dropped into music/ -- the
+	// regression that sank upstream PR #5061.)
 	{
 		std::vector<std::string> in;
 		in.push_back("keeper02.ogg"); in.push_back("bonus.flac");
 		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 2, "mixed numbered/unnumbered yields 2 tracks");
-		expect_track(got, 2, "bonus.flac", "sorted fallback puts bonus.flac first");
-		expect_track(got, 3, "keeper02.ogg", "sorted fallback puts keeper02.ogg second");
+		expect_size(got, 1, "unnumbered stray file is ignored, not merged into sorted fallback");
+		expect_track(got, 2, "keeper02.ogg", "numbered file keeps its own track number");
+	}
+
+	// 5b. A complete stock set plus one stray unnumbered file: the exact
+	// regression FIX 1 exists to prevent. All six numbered tracks must be
+	// completely unaffected; the stray file is simply dropped.
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
+		in.push_back("keeper04.ogg"); in.push_back("keeper05.ogg");
+		in.push_back("keeper06.ogg"); in.push_back("keeper07.ogg");
+		in.push_back("bonus.mp3");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 6, "stock six plus a stray file still yields exactly 6 tracks");
+		expect_track(got, 2, "keeper02.ogg", "stock six plus stray: track 2 unaffected");
+		expect_track(got, 7, "keeper07.ogg", "stock six plus stray: track 7 unaffected");
+	}
+
+	// 5c. No file numbered at all: sorted fallback assigns tracks in name
+	// order, same as before this fix.
+	{
+		std::vector<std::string> in;
+		in.push_back("dungeon.flac"); in.push_back("battle.flac");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 2, "no numbered files at all yields sorted fallback");
+		expect_track(got, 2, "battle.flac", "sorted fallback: battle.flac sorts first");
+		expect_track(got, 3, "dungeon.flac", "sorted fallback: dungeon.flac sorts second");
 	}
 
 	// 6. Same track in two formats: lossless wins, others unaffected.
@@ -147,6 +176,63 @@ int main()
 		const std::map<int, std::string> got = build_music_index(in);
 		expect_size(got, 6, "sorted mode caps at track 7");
 		expect_track(got, 7, "a5.ogg", "sixth file becomes track 7");
+	}
+
+	// 12. music_trailing_number() must not let a huge digit run overflow into
+	// a bogus small track (formerly atoi()'s UB, e.g. track4294967298.ogg
+	// silently parsing as track 2).
+	{
+		const int got1 = music_trailing_number("track4294967298.ogg");           // overflows int, fits in a 64-bit long
+		const int got2 = music_trailing_number("track99999999999999999999.ogg"); // overflows long outright
+		if (got1 == -1 && got2 == -1) {
+			std::printf("  ok   absurdly large trailing numbers do not overflow into a bogus track\n");
+		} else {
+			std::printf("  FAIL absurdly large trailing numbers: got %d / %d, wanted -1 / -1\n", got1, got2);
+			++g_failures;
+		}
+	}
+
+	// 13. A set of only absurdly-numbered files must fall back to sorted
+	// mode, not produce a bogus numeric mapping.
+	{
+		std::vector<std::string> in;
+		in.push_back("aaa4294967298.ogg");
+		in.push_back("bbb99999999999999999999.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 2, "a set of absurdly-numbered files falls back to sorted mode");
+		expect_track(got, 2, "aaa4294967298.ogg", "absurd set, sorted fallback first file");
+		expect_track(got, 3, "bbb99999999999999999999.ogg", "absurd set, sorted fallback second file");
+	}
+
+	// 14. Notes: a same-format collision records a note for the dropped file.
+	{
+		std::vector<std::string> in;
+		in.push_back("track03.ogg"); in.push_back("keeper03.ogg");
+		std::vector<std::string> notes;
+		build_music_index(in, &notes);
+		if (!notes.empty()) {
+			std::printf("  ok   same-format collision records a note\n");
+		} else {
+			std::printf("  FAIL same-format collision recorded no notes\n");
+			++g_failures;
+		}
+	}
+
+	// 15. Notes: sorted mode discarding files past track 7 records a note
+	// per dropped file.
+	{
+		std::vector<std::string> in;
+		for (int i = 0; i < 10; ++i) {
+			in.push_back(std::string("a") + (char)('0' + i) + ".ogg");
+		}
+		std::vector<std::string> notes;
+		build_music_index(in, &notes);
+		if (!notes.empty()) {
+			std::printf("  ok   sorted-mode overflow past track 7 records a note\n");
+		} else {
+			std::printf("  FAIL sorted-mode overflow past track 7 recorded no notes\n");
+			++g_failures;
+		}
 	}
 
 	if (g_failures == 0) {
