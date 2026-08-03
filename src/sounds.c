@@ -530,20 +530,25 @@ void stop_thing_playing_sample(struct Thing *thing, SoundSmplTblID smpl_idx)
 
 void mute_audio(TbBool mute)
 {
-    if (!SoundDisabled)
+    // The game window is created before init_sound() runs, and the focus event for it
+    // arrives on that window straight away. SoundDisabled only says whether the user
+    // turned sound off, not whether OpenAL and SDL_mixer are actually up, so it is not
+    // enough of a guard on its own here.
+    if (SoundDisabled || !GetSoundInstalled())
     {
-        if (mute)
-        {
-            SetSoundMasterVolume(0);
-            set_music_volume(0);
-            pause_music(); // volume seems to have no effect on CD audio, so just pause/resume it
-        }
-        else
-        {
-            set_music_volume(settings.music_volume);
-            SetSoundMasterVolume(settings.sound_volume);
-            resume_music();
-        }
+        return;
+    }
+    if (mute)
+    {
+        SetSoundMasterVolume(0);
+        set_music_volume(0);
+        pause_music(); // volume seems to have no effect on CD audio, so just pause/resume it
+    }
+    else
+    {
+        set_music_volume(settings.music_volume);
+        SetSoundMasterVolume(settings.sound_volume);
+        resume_music();
     }
 }
 
