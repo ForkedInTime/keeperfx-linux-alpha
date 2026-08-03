@@ -25,9 +25,23 @@ static const int MUSIC_TRACK_MIN = 2;
 static const int MUSIC_TRACK_MAX = 7;
 
 // Recognised extensions, in preference order for a same-track collision:
-// lossless first, then the better lossy codec.
+// lossless first, then the better lossy codec. This order is load-bearing
+// for the index's collision rule (build_music_index() below) and must not
+// change for that reason.
 static const char * const MUSIC_EXTENSIONS[] = { ".flac", ".wav", ".ogg", ".mp3" };
 static const int MUSIC_EXTENSION_COUNT = 4;
+
+// Same four extensions, but in the order play_music_track()'s direct
+// stock-name lookup (keeper%02d.<ext>) probes them in. This is deliberately
+// NOT the same order as MUSIC_EXTENSIONS: the direct lookup existed before
+// this feature and always checked OGG first (the format the original stock
+// install shipped), so a keeper02.ogg sitting next to a keeper02.flac must
+// keep playing the OGG -- exactly what an upgrading install already played
+// before this feature existed. MUSIC_EXTENSIONS' FLAC-first order is only a
+// preference for the *index*, which never had pre-existing behaviour to
+// preserve, so it is free to prefer lossless. Do not merge these two arrays.
+static const char * const MUSIC_DIRECT_LOOKUP_EXTENSIONS[] = { ".ogg", ".flac", ".wav", ".mp3" };
+static const int MUSIC_DIRECT_LOOKUP_EXTENSION_COUNT = 4;
 
 inline std::string music_to_lower(std::string text) {
 	for (std::string::size_type i = 0; i < text.size(); ++i) {
@@ -58,21 +72,53 @@ inline std::string music_stem(const std::string & fname, int rank) {
 	return fname.substr(0, fname.size() - ext_len);
 }
 
-// Last run of digits in the basename, extension stripped, parsed as a
-// non-negative integer. -1 when there is no trailing digit run, or when the
-// run does not fit back into the int this function returns.
+// fname with every trailing recognised extension removed, repeatedly. A
+// name has only one *real* extension, but a file like "keeper02.mp3.ogg" (a
+// renamed/re-exported file that kept its old extension as part of the name)
+// or "a.ogg.flac" has a second recognised-looking one immediately before
+// it. Stopping after a single strip -- as music_stem() deliberately does,
+// since it only ever removes the one extension its caller already resolved
+// -- leaves that embedded token in the stem, which corrupts two things that
+// scan a stem from the right: music_trailing_number() below (the "3" in
+// ".mp3" gets mistaken for the track number instead of the "02") and
+// sorted-fallback dedup's stem comparison ("a.ogg" and "a.ogg.flac" would
+// count as different songs instead of the same one). Ordinary single-
+// extension names only ever loop once here.
+inline std::string music_strip_extensions(const std::string & fname) {
+	std::string stem = fname;
+	for (;;) {
+		const int rank = music_extension_rank(stem);
+		if (rank < 0) {
+			break;
+		}
+		stem = music_stem(stem, rank);
+	}
+	return stem;
+}
+
+// Last run of digits in the basename, every trailing recognised extension
+// stripped (see music_strip_extensions() -- this is what keeps
+// "keeper02.mp3.ogg" reading as track 2 rather than the "3" embedded in
+// ".mp3"), parsed as a non-negative integer. -1 when there is no trailing
+// digit run, or when the run does not fit back into the int this function
+// returns.
 //
-// This only guards against overflow/UB in the parse itself (formerly atoi(),
-// which let e.g. "track4294967298.ogg" silently wrap around and parse as
-// track 2). It deliberately does NOT check the number against
+// When had_digit_run is non-null, it is set to whether a trailing digit run
+// was found at all, distinguishing the two different reasons for a -1
+// return: "this file has no number in its name" vs. "it has a number, but
+// one too large to be a plausible track". build_music_index() uses this to
+// word its notes accurately (see FIX 5) instead of telling a file with an
+// absurdly large number that it has "no track number" when it has one.
+//
+// The overflow guard only protects the parse itself (formerly atoi(), which
+// let e.g. "track4294967298.ogg" silently wrap around and parse as track 2).
+// It deliberately does NOT check the number against
 // MUSIC_TRACK_MIN/MUSIC_TRACK_MAX: a small out-of-range number such as 0 or 1
 // still comes back as itself, because build_music_index() needs to tell "no
-// number" (ignored) apart from "a real but out-of-range number" (forces the
-// sorted-position fallback) — folding the track-range check in here would
-// make those indistinguishable.
-inline int music_trailing_number(const std::string & fname) {
-	const std::string::size_type dot = fname.find_last_of('.');
-	const std::string stem = (dot == std::string::npos) ? fname : fname.substr(0, dot);
+// number" (ignored) apart from "a real but out-of-range number" — folding
+// the track-range check in here would make those indistinguishable.
+inline int music_trailing_number(const std::string & fname, bool * had_digit_run = nullptr) {
+	const std::string stem = music_strip_extensions(fname);
 	std::string::size_type end = std::string::npos;
 	for (std::string::size_type i = stem.size(); i-- > 0; ) {
 		if (isdigit((unsigned char)stem[i])) {
@@ -81,7 +127,13 @@ inline int music_trailing_number(const std::string & fname) {
 		}
 	}
 	if (end == std::string::npos) {
+		if (had_digit_run) {
+			*had_digit_run = false;
+		}
 		return -1;
+	}
+	if (had_digit_run) {
+		*had_digit_run = true;
 	}
 	std::string::size_type begin = end;
 	while (begin > 0 && isdigit((unsigned char)stem[begin - 1])) {
@@ -105,12 +157,18 @@ inline int music_trailing_number(const std::string & fname) {
 // ignored.
 //
 // When notes is non-null, one short human-readable line is appended for each
-// recognised audio file dropped from the result (a same/lower-priority-format
-// collision loser, a file sorted-mode had no track left for, or -- in numeric
-// mode -- a file with no track number in its name) so a caller can surface
-// why a file the user has in music/ is not actually playing. Hidden/dotfile
-// entries are not "the user's music" and are filtered out silently, with no
-// note, before any of this.
+// recognised audio file this function itself chose not to use (a same/lower-
+// priority-format collision loser, a file sorted-mode had no track left for,
+// a file numeric mode had no number -- or no in-range number -- for). Each
+// note describes *this function's own mapping decision*, not what the game
+// actually plays: build_music_index() is deliberately kept unaware of
+// play_music_track()'s separate direct stock-name lookup (see
+// docs/superpowers/specs/2026-08-03-music-track-detection-design.md), so a
+// file this function "dropped" may still be exactly what plays, via that
+// other path, and a file it kept may be shadowed by it. Callers that want to
+// describe actual playback must account for the direct lookup themselves.
+// Hidden/dotfile entries are not "the user's music" and are filtered out
+// silently, with no note, before any of this.
 inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries,
 	std::vector<std::string> * notes = nullptr) {
 	// Keep the audio files, remembering each one's format preference.
@@ -139,90 +197,117 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 			return (la != lb) ? (la < lb) : (a.first < b.first);
 		});
 
-	// Numeric mode needs at least one file to carry a track number, AND every
-	// file that carries one to be a track the game asks for. Files that carry
-	// no number at all take no part in that decision and are simply left out
-	// of the index in numeric mode: a stray untitled track dropped alongside
-	// a complete numbered set must not renumber (or discard) everything else
-	// — that renumbering was the regression that sank upstream PR #5061. A
-	// file whose number falls outside the game's track range is different:
-	// the filenames can no longer describe a complete numbered set, so that
-	// still forces the sorted-position fallback, exactly as before.
-	bool any_numbered = false;
-	bool numeric = true;
-	for (std::size_t i = 0; numeric && i < files.size(); ++i) {
-		const int track = music_trailing_number(files[i].first);
-		if (track < 0) {
-			continue;
-		}
-		any_numbered = true;
-		if (track < MUSIC_TRACK_MIN || track > MUSIC_TRACK_MAX) {
-			numeric = false;
-		}
-	}
-	numeric = numeric && any_numbered;
-
-	std::map<int, std::string> index;
-	if (numeric) {
+	// Build both candidate mappings, then use whichever actually resolves
+	// more tracks -- numeric wins ties. This replaces an earlier all-or-
+	// nothing rule ("numeric mode only if every numbered file is in range,
+	// otherwise sorted fallback for everything") that let a single
+	// out-of-range-numbered file force the whole folder into sorted
+	// position-based mode, which renumbers and can truncate a working,
+	// otherwise-correctly-numbered set. Building both and comparing resolved
+	// counts means an incidental stray file can never make things worse than
+	// leaving it out would have: sorted only wins by actually placing more
+	// files into the 2-7 range than numeric could.
+	std::vector<std::string> numeric_notes;
+	std::map<int, std::string> numeric_index;
+	{
 		std::map<int, int> best_rank;
 		for (std::size_t i = 0; i < files.size(); ++i) {
-			const int track = music_trailing_number(files[i].first);
+			bool had_digit_run = false;
+			const int track = music_trailing_number(files[i].first, &had_digit_run);
 			if (track < 0) {
-				// Ignored entirely in numeric mode. Record why: the file is
-				// otherwise valid music, so a silent drop here is exactly the
-				// undiagnosable-silence bug this whole feature exists to fix.
+				// Not used by the numeric candidate at all. Record why: the
+				// file is otherwise valid music, so a silent drop here is
+				// exactly the undiagnosable-silence bug this feature exists
+				// to fix. had_digit_run tells "no number in the name" apart
+				// from "a number too large to be plausible" (FIX 5) -- both
+				// used to be reported as "no track number found", which is
+				// false for the second case.
 				if (notes) {
-					notes->push_back("dropped " + files[i].first +
-						": no track number found in the filename; rename it to include one "
-						"(2-7, e.g. keeper05.ogg) so it can be assigned a track");
+					numeric_notes.push_back(had_digit_run
+						? ("not used by the music index: " + files[i].first +
+							"'s number is too large to be a track; rename it with a number in " +
+							std::to_string(MUSIC_TRACK_MIN) + "-" + std::to_string(MUSIC_TRACK_MAX) +
+							" (e.g. keeper05.ogg)")
+						: ("not used by the music index: " + files[i].first +
+							" has no track number in its filename; rename it to include one (" +
+							std::to_string(MUSIC_TRACK_MIN) + "-" + std::to_string(MUSIC_TRACK_MAX) +
+							", e.g. keeper05.ogg) so it can be assigned a track"));
 				}
-				continue; // no number: ignored entirely in numeric mode
+				continue;
+			}
+			if (track < MUSIC_TRACK_MIN || track > MUSIC_TRACK_MAX) {
+				// A real number, just not one the game asks for. Distinct
+				// from "no number" above -- this file could be renamed to
+				// join the numbered set, not merely have a number added.
+				if (notes) {
+					numeric_notes.push_back("not used by the music index: " + files[i].first +
+						"'s track number (" + std::to_string(track) + ") is outside the playable range " +
+						std::to_string(MUSIC_TRACK_MIN) + "-" + std::to_string(MUSIC_TRACK_MAX));
+				}
+				continue;
 			}
 			const std::map<int, int>::iterator seen = best_rank.find(track);
 			// Strictly-better keeps the first of an equal-ranked pair, so a
 			// same-format clash resolves to whichever sorts first.
 			if (seen == best_rank.end()) {
-				index[track] = files[i].first;
+				numeric_index[track] = files[i].first;
 				best_rank[track] = files[i].second;
 			} else if (files[i].second < seen->second) {
 				if (notes) {
-					notes->push_back("dropped " + index[track] + " for track " + std::to_string(track) +
-						": " + files[i].first + " is a higher-preference format");
+					numeric_notes.push_back("not used by the music index for track " + std::to_string(track) +
+						": " + numeric_index[track] + " was superseded by " + files[i].first +
+						", a higher-preference format");
 				}
-				index[track] = files[i].first;
+				numeric_index[track] = files[i].first;
 				best_rank[track] = files[i].second;
 			} else if (notes) {
-				notes->push_back("dropped " + files[i].first + " for track " + std::to_string(track) +
-					": " + index[track] + " already claims it in an equal-or-better format");
+				numeric_notes.push_back("not used by the music index for track " + std::to_string(track) +
+					": " + files[i].first + " -- " + numeric_index[track] +
+					" already claims it in an equal-or-better format");
 			}
 		}
-	} else {
-		// Sorted fallback keys entirely on position, so leaving the raw file
-		// list untouched would let two files that are really the same song in
-		// different formats (a FLAC re-rip left alongside the original OGGs)
-		// land on two different tracks: doubling up one song and, because
-		// sorted mode fills every track it can, silently pushing a genuinely
-		// distinct song out of range. Deduplicate by filename stem
-		// (case-insensitive) first, keeping each stem's best-format
-		// representative under the same FLAC > WAV > OGG > MP3 preference
-		// numeric mode already applies per track number; an equal-rank tie
-		// (same extension, different case) keeps whichever sorts first,
-		// exactly as numeric mode's same-format tiebreak.
-		std::map<std::string, std::size_t> best_for_stem; // lower stem -> index into files
+	}
+
+	// Sorted fallback keys entirely on position, so leaving the raw file
+	// list untouched would let two files that are really the same song in
+	// different formats (a FLAC re-rip left alongside the original OGGs)
+	// land on two different tracks: doubling up one song and, because
+	// sorted mode fills every track it can, silently pushing a genuinely
+	// distinct song out of range. Deduplicate by filename stem
+	// (case-insensitive, every trailing recognised extension stripped --
+	// see music_strip_extensions() -- so "a.ogg" and "a.ogg.flac" count as
+	// the same song too) first, keeping each stem's best-format
+	// representative under the same FLAC > WAV > OGG > MP3 preference
+	// numeric mode already applies per track number; an equal-rank tie
+	// (same extension, different case) keeps whichever sorts first, exactly
+	// as numeric mode's same-format tiebreak.
+	std::vector<std::string> sorted_notes;
+	std::map<int, std::string> sorted_index;
+	{
+		std::map<std::string, std::size_t> best_for_stem; // lower stripped stem -> index into files
 		for (std::size_t i = 0; i < files.size(); ++i) {
-			const std::string lower_stem = music_to_lower(music_stem(files[i].first, files[i].second));
+			const std::string lower_stem = music_to_lower(music_strip_extensions(files[i].first));
 			const std::map<std::string, std::size_t>::iterator seen = best_for_stem.find(lower_stem);
 			if (seen == best_for_stem.end()) {
 				best_for_stem[lower_stem] = i;
 			} else if (files[i].second < files[seen->second].second) {
 				if (notes) {
-					notes->push_back("dropped " + files[seen->second].first + ": " + files[i].first +
-						" is a higher-preference format of the same track");
+					sorted_notes.push_back("not used by the music index: " + files[seen->second].first +
+						"; " + files[i].first + " is a higher-preference format of the same song");
 				}
 				seen->second = i;
 			} else if (notes) {
-				notes->push_back("dropped " + files[i].first + ": " + files[seen->second].first +
-					" is a higher-preference format of the same track");
+				if (files[i].second == files[seen->second].second) {
+					// Equal rank (e.g. "Song.OGG" vs "song.ogg"): the two
+					// formats are identical, so it would be false to call
+					// either one "higher-preference" -- the real reason the
+					// survivor won is sort order.
+					sorted_notes.push_back("not used by the music index: " + files[i].first + "; " +
+						files[seen->second].first + " is the same format and sorts first");
+				} else {
+					sorted_notes.push_back("not used by the music index: " + files[i].first + "; " +
+						files[seen->second].first + " is a higher-preference format of the same song");
+				}
 			}
 		}
 
@@ -237,23 +322,34 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 		}
 		std::sort(reps.begin(), reps.end(),
 			[&files](std::size_t a, std::size_t b) {
-				const std::string sa = music_to_lower(music_stem(files[a].first, files[a].second));
-				const std::string sb = music_to_lower(music_stem(files[b].first, files[b].second));
+				const std::string sa = music_to_lower(music_strip_extensions(files[a].first));
+				const std::string sb = music_to_lower(music_strip_extensions(files[b].first));
 				return (sa != sb) ? (sa < sb) : (files[a].first < files[b].first);
 			});
 
 		int track = MUSIC_TRACK_MIN;
 		std::size_t i = 0;
 		for (; i < reps.size() && track <= MUSIC_TRACK_MAX; ++i) {
-			index[track] = files[reps[i]].first;
+			sorted_index[track] = files[reps[i]].first;
 			++track;
 		}
 		if (notes) {
 			for (; i < reps.size(); ++i) {
-				notes->push_back("dropped " + files[reps[i]].first + ": sorted mode already filled tracks " +
-					std::to_string(MUSIC_TRACK_MIN) + "-" + std::to_string(MUSIC_TRACK_MAX));
+				sorted_notes.push_back("not used by the music index: " + files[reps[i]].first +
+					"; sorted mode already filled tracks " + std::to_string(MUSIC_TRACK_MIN) + "-" +
+					std::to_string(MUSIC_TRACK_MAX));
 			}
 		}
 	}
-	return index;
+
+	// The tiebreak: sorted only wins by strictly resolving more tracks than
+	// numeric managed. Equal counts favour numeric, since a numeric mapping
+	// reflects filenames the user (or a campaign) chose deliberately, while
+	// sorted position is incidental.
+	const bool use_sorted = sorted_index.size() > numeric_index.size();
+	if (notes) {
+		const std::vector<std::string> & chosen_notes = use_sorted ? sorted_notes : numeric_notes;
+		notes->insert(notes->end(), chosen_notes.begin(), chosen_notes.end());
+	}
+	return use_sorted ? sorted_index : numeric_index;
 }

@@ -839,18 +839,31 @@ extern "C" TbBool play_music_track(int track) {
 		// prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track) did
 		// before the index existed, so that e.g. a campaign shipping
 		// keeper08.ogg and calling SET_MUSIC(8) keeps working. Try every
-		// recognised extension in the same preference order the index
-		// uses (flac, wav, ogg, mp3) before ever consulting the index.
-		// See docs/superpowers/specs/2026-08-03-music-track-detection-design.md.
-		for (int i = 0; i < MUSIC_EXTENSION_COUNT; ++i) {
-			const char * stock_path = prepare_file_fmtpath(FGrp_Music, "keeper%02d%s", track, MUSIC_EXTENSIONS[i]);
+		// recognised extension in MUSIC_DIRECT_LOOKUP_EXTENSIONS' order --
+		// OGG first, deliberately NOT the index's FLAC-first
+		// MUSIC_EXTENSIONS order -- before ever consulting the index, so a
+		// keeper02.ogg beside a keeper02.flac keeps playing the OGG exactly
+		// as it did before this feature existed (see that array's comment
+		// in music_index.h for why the two orders differ). See also
+		// docs/superpowers/specs/2026-08-03-music-track-detection-design.md.
+		for (int i = 0; i < MUSIC_DIRECT_LOOKUP_EXTENSION_COUNT; ++i) {
+			const char * stock_path = prepare_file_fmtpath(FGrp_Music, "keeper%02d%s", track, MUSIC_DIRECT_LOOKUP_EXTENSIONS[i]);
 			// Case-insensitive existence check using the same mechanism
 			// play_music() itself relies on (LbFileExists falls back to
 			// find_case_insensitive_file on non-Windows, exactly as
 			// LbFileCaseInsensitivePath does) -- so this must not miss a
 			// file only play_music() would have found, e.g. KEEPER08.OGG.
-			if (LbFileExists(stock_path)) {
-				return play_music(stock_path);
+			//
+			// LbFileExists is a bare access(F_OK) check, so it also returns
+			// true for a directory named e.g. "keeper02.flac/" or for a
+			// mode-000 file -- neither of which play_music() can actually
+			// load. Falling through to the remaining extensions (and, if
+			// none of them pan out either, to the index) rather than
+			// returning play_music()'s result outright means such a hit can
+			// never silently beat a real file the index would otherwise have
+			// found.
+			if (LbFileExists(stock_path) && play_music(stock_path)) {
+				return true;
 			}
 		}
 		const std::map<int, std::string> & index = music_index();
@@ -861,7 +874,11 @@ extern "C" TbBool play_music_track(int track) {
 			if (std::find(g_music_warned_tracks.begin(), g_music_warned_tracks.end(), track)
 				== g_music_warned_tracks.end()) {
 				g_music_warned_tracks.push_back(track);
-				WARNLOG("No music file for track %d in %s; the music folder supplied %d playable track(s)",
+				// index.size() counts the music index's own mapping decisions,
+				// not every avenue play_music_track() just tried -- the direct
+				// stock-name lookup above resolves independently of it -- so
+				// this must not be read as "N tracks are playable overall".
+				WARNLOG("No music file for track %d in %s; the music index mapped %d track(s) there",
 					track, g_music_dir.c_str(), (int)index.size());
 			}
 			return false;
