@@ -618,7 +618,11 @@ bool DkFiles::isAnyMusicPresent()
         return false;
     }
 
-    const QFileInfoList entries = musicDir.entryInfoList(QDir::Files | QDir::NoSymLinks);
+    // Symlinks are followed deliberately: linking a shared music library into
+    // music/ is a normal way to curate a soundtrack without duplicating files,
+    // and the code this replaced used QFile::exists(), which follows them too.
+    // Do not add QDir::NoSymLinks here for symmetry with the other functions.
+    const QFileInfoList entries = musicDir.entryInfoList(QDir::Files);
     for (const QFileInfo& entry : entries) {
         if (musicExtensions.contains(entry.suffix().toLower())) {
             return true;

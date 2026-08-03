@@ -90,6 +90,8 @@ This is applied **per track**, not folder-wide as in #5061. Mixed formats theref
 
 It becomes: **does `music/` contain at least one playable audio file** (`.ogg`/`.flac`/`.wav`/`.mp3`, case-insensitive)?
 
+Symlinks count. Linking a shared music library into `music/` is a normal way to curate a soundtrack without duplicating files, and the check this replaces used `QFile::exists()`, which follows symlinks — excluding them would be a silent regression.
+
 Deliberately under-nag rather than false-nag. A user who has curated their own soundtrack must never be told their music is missing; the cost is that a partial set (say two files) no longer prompts. That trade is correct because a curated folder is a deliberate act while an empty folder is the actual failure being guarded against.
 
 `DkFiles::musicFiles` and the copy loop in `copyDkDirToDir()` are **unchanged**. They read from an original Dungeon Keeper installation, which always uses `keeperNN.ogg`; only the presence check needs to relax.
