@@ -95,14 +95,25 @@ inline int music_trailing_number(const std::string & fname) {
 // ignored.
 //
 // When notes is non-null, one short human-readable line is appended for each
-// file dropped from the result (a same/lower-priority-format collision loser,
-// or a file sorted-mode had no track left for) so a caller can surface why a
-// file the user has in music/ is not actually playing.
+// recognised audio file dropped from the result (a same/lower-priority-format
+// collision loser, a file sorted-mode had no track left for, or -- in numeric
+// mode -- a file with no track number in its name) so a caller can surface
+// why a file the user has in music/ is not actually playing. Hidden/dotfile
+// entries are not "the user's music" and are filtered out silently, with no
+// note, before any of this.
 inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries,
 	std::vector<std::string> * notes = nullptr) {
 	// Keep the audio files, remembering each one's format preference.
 	std::vector<std::pair<std::string, int> > files;
 	for (std::size_t i = 0; i < entries.size(); ++i) {
+		// Hidden files are not content on Unix. This also covers macOS
+		// AppleDouble sidecars (e.g. "._keeper02.ogg"): without this check
+		// they would beat their real counterpart in every collision, because
+		// '.' sorts before ordinary letters, and macOS-created zips/exFAT
+		// transfers leave them sitting right next to the real file.
+		if (!entries[i].empty() && entries[i][0] == '.') {
+			continue;
+		}
 		const int rank = music_extension_rank(entries[i]);
 		if (rank >= 0) {
 			files.push_back(std::make_pair(entries[i], rank));
@@ -147,6 +158,14 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 		for (std::size_t i = 0; i < files.size(); ++i) {
 			const int track = music_trailing_number(files[i].first);
 			if (track < 0) {
+				// Ignored entirely in numeric mode. Record why: the file is
+				// otherwise valid music, so a silent drop here is exactly the
+				// undiagnosable-silence bug this whole feature exists to fix.
+				if (notes) {
+					notes->push_back("dropped " + files[i].first +
+						": no track number found in the filename; rename it to include one "
+						"(2-7, e.g. keeper05.ogg) so it can be assigned a track");
+				}
 				continue; // no number: ignored entirely in numeric mode
 			}
 			const std::map<int, int>::iterator seen = best_rank.find(track);

@@ -235,6 +235,52 @@ int main()
 		}
 	}
 
+	// 16. FIX A: numeric mode silently dropped every unnumbered file with no
+	// trace in notes. A curated folder with one numbered file among several
+	// untitled tracks must now explain all five drops, not just resolve the
+	// one number correctly.
+	{
+		std::vector<std::string> in;
+		in.push_back("Ambience.ogg"); in.push_back("Battle Theme.ogg");
+		in.push_back("Dungeon Keeper 2.ogg"); in.push_back("Menu.ogg");
+		in.push_back("Victory.ogg"); in.push_back("War Drums.ogg");
+		std::vector<std::string> notes;
+		const std::map<int, std::string> got = build_music_index(in, &notes);
+		expect_size(got, 1, "curated folder: only the numbered file survives");
+		expect_track(got, 2, "Dungeon Keeper 2.ogg", "curated folder: track 2 resolves correctly");
+		if (notes.size() == 5) {
+			std::printf("  ok   curated folder: five notes for the five unnumbered files\n");
+		} else {
+			std::printf("  FAIL curated folder: got %d notes, wanted 5\n", (int)notes.size());
+			++g_failures;
+		}
+	}
+
+	// 17. FIX B: macOS AppleDouble sidecars ("._keeper02.ogg" etc.) sort
+	// before their real counterparts and must not be allowed to win the
+	// collision -- they must not even be candidates.
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
+		in.push_back("keeper04.ogg"); in.push_back("keeper05.ogg");
+		in.push_back("keeper06.ogg"); in.push_back("keeper07.ogg");
+		in.push_back("._keeper02.ogg"); in.push_back("._keeper03.ogg");
+		in.push_back("._keeper04.ogg"); in.push_back("._keeper05.ogg");
+		in.push_back("._keeper06.ogg"); in.push_back("._keeper07.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 6, "AppleDouble sidecars: still exactly 6 tracks");
+		expect_track(got, 2, "keeper02.ogg", "AppleDouble sidecars: real file wins track 2");
+		expect_track(got, 7, "keeper07.ogg", "AppleDouble sidecars: real file wins track 7");
+	}
+
+	// 18. A lone dotfile is not music, AppleDouble or otherwise.
+	{
+		std::vector<std::string> in;
+		in.push_back(".hidden.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 0, "a lone dotfile is not treated as music");
+	}
+
 	if (g_failures == 0) {
 		std::printf("\nAll music index tests passed.\n");
 		return 0;
