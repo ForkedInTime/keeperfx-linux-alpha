@@ -90,23 +90,31 @@ jobs:
             https://github.com/${{ github.repository }}.git \
             "refs/tags/${{ steps.tag.outputs.tag }}"
 
-      - name: Regenerate .SRCINFO
+      - name: Regenerate .SRCINFO for both packages
         working-directory: packaging/aur
         run: |
           # makepkg refuses to run as root, so do this as a normal user.
           useradd -m builder
           chown -R builder .
-          su builder -c 'makepkg --printsrcinfo' > .SRCINFO
-          chown root .SRCINFO
-          head -6 .SRCINFO
+          for d in . data; do
+            ( cd "$d" && su builder -c 'makepkg --printsrcinfo' > .SRCINFO )
+            chown root "$d/.SRCINFO"
+            echo "--- $d/.SRCINFO"; head -4 "$d/.SRCINFO"
+          done
 
       - name: Sanity-check the generated metadata
         working-directory: packaging/aur
         run: |
-          grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" .SRCINFO \
-            || { echo "::error::.SRCINFO pkgver does not match the release"; exit 1; }
-          grep -q "${{ steps.tag.outputs.tag }}" .SRCINFO \
-            || { echo "::error::.SRCINFO does not reference the release tag"; exit 1; }
+          for d in . data; do
+            grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" "$d/.SRCINFO" \
+              || { echo "::error::$d/.SRCINFO pkgver does not match the release"; exit 1; }
+            grep -q "${{ steps.tag.outputs.tag }}" "$d/.SRCINFO" \
+              || { echo "::error::$d/.SRCINFO does not reference the release tag"; exit 1; }
+          done
+          # The two packages must never drift apart.
+          [ "$(grep '^_tag=' PKGBUILD)" = "$(grep '^_tag=' data/PKGBUILD)" ] \
+            || { echo "::error::engine and data PKGBUILD _tag differ"; exit 1; }
+          echo "both packages agree on ${{ steps.tag.outputs.tag }}"
 
       - name: Commit the bump back to this repo
         if: ${{ !inputs.dry_run }}
@@ -114,11 +122,12 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
+          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
+                  packaging/aur/data/PKGBUILD packaging/aur/data/.SRCINFO
           if git diff --cached --quiet; then
-            echo "PKGBUILD already at this version; nothing to commit"
+            echo "PKGBUILDs already at this version; nothing to commit"
           else
-            git commit -m "packaging: AUR package to ${{ steps.tag.outputs.tag }}"
+            git commit -m "packaging: AUR packages to ${{ steps.tag.outputs.tag }}"
             git push origin HEAD:${{ github.event.repository.default_branch }}
           fi
 
@@ -144,21 +153,38 @@ jobs:
 
           git config --global user.name  'KeeperFX Tux Edition CI'
           git config --global user.email 'noreply@users.noreply.github.com'
-          git clone ssh://aur@aur.archlinux.org/keeperfx-linux-alpha.git /tmp/aur
-          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
-             packaging/aur/keeperfx-alpha.sh packaging/aur/keeperfx-alpha.desktop /tmp/aur/
-          cd /tmp/aur
-          git add -A
-          if git diff --cached --quiet; then
-            echo "AUR already up to date"
-          else
-            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}"
-            git push
-          fi
+
+          # Two AUR repositories, one per package. push_pkg <aur-name> <src-dir> <files...>
+          push_pkg() {
+            local name=$1 src=$2; shift 2
+            local dst="/tmp/aur-$name"
+            git clone "ssh://aur@aur.archlinux.org/$name.git" "$dst"
+            if [ ! -e "$dst/.git" ]; then
+              echo "::error::could not clone $name — has it been imported to the AUR yet?"
+              return 1
+            fi
+            local f; for f in "$@"; do cp "$src/$f" "$dst/"; done
+            ( cd "$dst"
+              git add -A
+              if git diff --cached --quiet; then
+                echo "$name already up to date"
+              else
+                git commit -m "Update to ${{ steps.tag.outputs.pkgver }}"
+                git push
+              fi )
+          }
+
+          push_pkg keeperfx-linux-alpha      packaging/aur \
+                   PKGBUILD .SRCINFO keeperfx-alpha.sh keeperfx-alpha.desktop
+          push_pkg keeperfx-linux-alpha-data packaging/aur/data \
+                   PKGBUILD .SRCINFO
 
       - name: Dry-run summary
         if: ${{ inputs.dry_run }}
         working-directory: packaging/aur
         run: |
           echo "Dry run — nothing pushed. Generated metadata:"
+          echo "=== keeperfx-linux-alpha ==="
           cat .SRCINFO
+          echo "=== keeperfx-linux-alpha-data ==="
+          cat data/.SRCINFO
