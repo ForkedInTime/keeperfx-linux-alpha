@@ -24,6 +24,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <SDL2/SDL.h>
 
@@ -138,9 +139,37 @@ int str_appendf(char * buffer, int size, const char * format, ...)
     return strlen(buffer);
 }
 
+/**
+ * True when nobody is present to dismiss a message box.
+ *
+ * The engine is not always started by a human: CI runs it, scripts run it, and
+ * the launcher passes through whatever a user typed into its extra-launch-options
+ * field. An SDL message box in any of those contexts waits forever for a click
+ * that will never come, so the process only dies to a timeout -- and the reason
+ * is visible solely in the log, which is the last place anyone looks when the
+ * game appears to hang at startup.
+ *
+ * Every dialog below already logs its message before showing anything, so
+ * suppressing the box costs nothing but the wait. Set KFX_NONINTERACTIVE=1 to
+ * enable it. Deliberately opt-in rather than auto-detected: the launcher starts
+ * the game without a terminal too, so a tty check would suppress dialogs for
+ * ordinary players.
+ */
+static TbBool dialogs_suppressed(void)
+{
+    const char *value = getenv("KFX_NONINTERACTIVE");
+    return (value != NULL) && (value[0] != '\0') && (value[0] != '0');
+}
+
 short warning_dialog(const char *codefile,const int ecode,const char *message)
 {
   LbWarnLog("In source %s:\n %5d - %s\n",codefile,ecode,message);
+
+  // 0 is what this returns today whenever SDL cannot show the box, so skipping
+  // it introduces no return value the callers have not already had to handle.
+  if (dialogs_suppressed()) {
+    return 0;
+  }
 
   const SDL_MessageBoxButtonData buttons[] = {
         { .flags = SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, .buttonid = 1, .text = "Ignore" },
@@ -165,6 +194,9 @@ short warning_dialog(const char *codefile,const int ecode,const char *message)
 short error_dialog(const char *codefile,const int ecode,const char *message)
 {
   LbErrorLog("In source %s:\n %5d - %s\n",codefile,ecode,message);
+  if (dialogs_suppressed()) {
+    return 0;
+  }
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, PROGRAM_FULL_NAME, message, NULL);
   return 0;
 }
@@ -174,6 +206,9 @@ short error_dialog_fatal(const char *codefile,const int ecode,const char *messag
   LbErrorLog("In source %s:\n %5d - %s\n",codefile,ecode,message);
   char msg_text[2048];
   snprintf(msg_text, sizeof(msg_text), "%s This error in '%s' makes the program unable to continue. See '%s' for details.", message, codefile, log_file_name);
+  if (dialogs_suppressed()) {
+    return 0;
+  }
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, PROGRAM_FULL_NAME, msg_text, NULL);
   return 0;
 }
