@@ -20,7 +20,7 @@ Naming and format freedom: drop any set of audio files into `music/` and have th
 
 ## What is already solved
 
-`InitialiseSDLAudio()` (`src/bflib_sndlib.cpp:1147`) already initialises the extra decoders:
+`InitialiseSDLAudio()` (`src/bflib_sndlib.cpp`) already initialises the extra decoders:
 
 ```c
 int flags = Mix_Init(MIX_INIT_OGG|MIX_INIT_MP3|MIX_INIT_FLAC);
@@ -48,9 +48,10 @@ Per the standing fork rule, our implementation supersedes upstream's. If #5061 m
 A file-static index in `src/bflib_sndlib.cpp` mapping track number → resolved absolute path, built lazily on first use and cached for the process lifetime.
 
 1. Enumerate `music/` (`FGrp_Music`) with `LbFileFindFirst`/`LbFileFindNext`/`LbFileFindEnd`.
-2. Keep files whose extension is `.ogg`, `.flac`, `.wav` or `.mp3`, compared **case-insensitively** — this matters on Linux, where `KEEPER02.OGG` is a distinct name.
-3. Build the track mapping (below).
-4. `play_music_track()` becomes a lookup into the index; on a hit it calls the existing `play_music()` unchanged.
+2. Ignore any entry whose filename starts with `.` before anything else is checked. This is not a Windows-porting nicety: `LbFileFindFirst`'s Linux implementation (`src/linux.cpp`) enumerates with raw `readdir` and matches with `fnmatch` but never passes `FNM_PERIOD`, so hidden entries come back from the enumeration. Without this filter, a macOS AppleDouble sidecar (`._keeper02.ogg`) would beat the real `keeper02.ogg` in every collision, because `.` (0x2E) sorts before ordinary letters — silently taking over the track if the sidecar fails to decode, with the real file sitting unused in the same folder. This is routine fallout from extracting a Mac-created zip or copying music via macOS onto exFAT, not a theoretical edge case.
+3. Keep files whose extension is `.ogg`, `.flac`, `.wav` or `.mp3`, compared **case-insensitively** — this matters on Linux, where `KEEPER02.OGG` is a distinct name.
+4. Build the track mapping (below).
+5. `play_music_track()` becomes a lookup into the index; on a hit it calls the existing `play_music()` unchanged.
 
 Everything lives in one self-contained helper so that a future upstream conflict in this function is small and reviewable.
 
@@ -63,7 +64,7 @@ Extract the **last run of digits** from each basename as that file's candidate t
 
 An unnumbered file dropped alongside a fully-numbered set (`keeper02.ogg` … `keeper07.ogg` plus a stray `bonus.mp3`) is therefore just ignored — the numbered set is unaffected. This is a deliberate change from an earlier draft of this rule, which required *every* file to yield a number: that version fell back to sorted order the moment a single unnumbered file appeared, which meant a correct, fully-numbered install could be silently renumbered (and lose its highest track) by dropping in one stray extra file. A file whose number is genuinely out of the 2–7 range is different — the filenames can no longer describe a complete numbered set, so that still forces the sorted-position fallback for everything. Sorting, in both the fallback and the tie-break below, is by filename, ascending, case-insensitive.
 
-In sorted-fallback mode, files are assigned tracks from 2 upward; anything past track 7 is ignored and noted at debug level. In numeric mode, if two files in the **same** format claim the same track (`keeper03.ogg` and `track03.ogg`), the one earlier in sort order wins and the other is ignored, noted at debug level — the collision rule below only decides between *different* formats.
+In sorted-fallback mode, files are assigned tracks from 2 upward; anything past track 7 is ignored and noted at debug level. In numeric mode, if two files in the **same** format claim the same track (`keeper03.ogg` and `track03.ogg`), the one earlier in sort order wins and the other is ignored, noted at debug level — the collision rule below only decides between *different* formats. An unnumbered file ignored by numeric mode (the `bonus.flac`/`bonus.mp3` rows below) is also noted at debug level, worded so it names the remedy — that the file has no track number in its name and can be given one — rather than vanishing with no trace anywhere, which was the original form of this bug: a recognised audio file in `music/` that silently never played, with nothing in the log to explain why.
 
 | Files present | Extracted | Outcome |
 |---|---|---|

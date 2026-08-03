@@ -42,7 +42,7 @@
 **Interfaces:**
 - Consumes: nothing (standard library only).
 - Produces:
-  - `std::map<int, std::string> build_music_index(const std::vector<std::string> & entries)` — takes bare filenames from a directory listing, returns track number → filename.
+  - `std::map<int, std::string> build_music_index(const std::vector<std::string> & entries, std::vector<std::string> * notes = nullptr)` — takes bare filenames from a directory listing, returns track number → filename. When `notes` is non-null, appends one human-readable line for every recognised audio file dropped from the result (format-collision loser, sorted-mode overflow past track 7, or — in numeric mode — a file with no track number in its name), so a caller can tell the user why a file sitting in `music/` is not playing.
   - `int music_extension_rank(const std::string & fname)` — index into the preference list, `-1` if not audio.
   - `int music_trailing_number(const std::string & fname)` — last digit run in the stem, `-1` if none.
   - Constants `MUSIC_TRACK_MIN` (2) and `MUSIC_TRACK_MAX` (7).
@@ -50,6 +50,8 @@
 - [ ] **Step 1: Write the failing test**
 
 Create `tests/test_music_index.cpp`:
+
+**Note (kept in sync with the shipped tests):** the listing below is a copy of the actual `tests/test_music_index.cpp` as of the branch's final review pass, including the later FIX-driven additions (overflow guards, drop notes, dot-file filtering). Do not hand-author a divergent version from an older draft — copy the live file.
 
 ```cpp
 // Standalone unit tests for the pure music track-mapping logic.
@@ -136,14 +138,43 @@ int main()
 		expect_track(got, 2, "audiocd01.mp3", "one-based first file becomes track 2");
 	}
 
-	// 5. One unnumbered file means the names cannot describe a complete set.
+	// 5. One unnumbered file alongside a numbered one: the unnumbered file is
+	// ignored entirely rather than dragging the whole set into sorted mode.
+	// (Previously this forced sorted-position fallback, silently renumbering
+	// a correct install when an extra file was dropped into music/ -- the
+	// regression that sank upstream PR #5061.)
 	{
 		std::vector<std::string> in;
 		in.push_back("keeper02.ogg"); in.push_back("bonus.flac");
 		const std::map<int, std::string> got = build_music_index(in);
-		expect_size(got, 2, "mixed numbered/unnumbered yields 2 tracks");
-		expect_track(got, 2, "bonus.flac", "sorted fallback puts bonus.flac first");
-		expect_track(got, 3, "keeper02.ogg", "sorted fallback puts keeper02.ogg second");
+		expect_size(got, 1, "unnumbered stray file is ignored, not merged into sorted fallback");
+		expect_track(got, 2, "keeper02.ogg", "numbered file keeps its own track number");
+	}
+
+	// 5b. A complete stock set plus one stray unnumbered file: the exact
+	// regression FIX 1 exists to prevent. All six numbered tracks must be
+	// completely unaffected; the stray file is simply dropped.
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
+		in.push_back("keeper04.ogg"); in.push_back("keeper05.ogg");
+		in.push_back("keeper06.ogg"); in.push_back("keeper07.ogg");
+		in.push_back("bonus.mp3");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 6, "stock six plus a stray file still yields exactly 6 tracks");
+		expect_track(got, 2, "keeper02.ogg", "stock six plus stray: track 2 unaffected");
+		expect_track(got, 7, "keeper07.ogg", "stock six plus stray: track 7 unaffected");
+	}
+
+	// 5c. No file numbered at all: sorted fallback assigns tracks in name
+	// order, same as before this fix.
+	{
+		std::vector<std::string> in;
+		in.push_back("dungeon.flac"); in.push_back("battle.flac");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 2, "no numbered files at all yields sorted fallback");
+		expect_track(got, 2, "battle.flac", "sorted fallback: battle.flac sorts first");
+		expect_track(got, 3, "dungeon.flac", "sorted fallback: dungeon.flac sorts second");
 	}
 
 	// 6. Same track in two formats: lossless wins, others unaffected.
@@ -201,6 +232,109 @@ int main()
 		const std::map<int, std::string> got = build_music_index(in);
 		expect_size(got, 6, "sorted mode caps at track 7");
 		expect_track(got, 7, "a5.ogg", "sixth file becomes track 7");
+	}
+
+	// 12. music_trailing_number() must not let a huge digit run overflow into
+	// a bogus small track (formerly atoi()'s UB, e.g. track4294967298.ogg
+	// silently parsing as track 2).
+	{
+		const int got1 = music_trailing_number("track4294967298.ogg");           // overflows int, fits in a 64-bit long
+		const int got2 = music_trailing_number("track99999999999999999999.ogg"); // overflows long outright
+		if (got1 == -1 && got2 == -1) {
+			std::printf("  ok   absurdly large trailing numbers do not overflow into a bogus track\n");
+		} else {
+			std::printf("  FAIL absurdly large trailing numbers: got %d / %d, wanted -1 / -1\n", got1, got2);
+			++g_failures;
+		}
+	}
+
+	// 13. A set of only absurdly-numbered files must fall back to sorted
+	// mode, not produce a bogus numeric mapping.
+	{
+		std::vector<std::string> in;
+		in.push_back("aaa4294967298.ogg");
+		in.push_back("bbb99999999999999999999.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 2, "a set of absurdly-numbered files falls back to sorted mode");
+		expect_track(got, 2, "aaa4294967298.ogg", "absurd set, sorted fallback first file");
+		expect_track(got, 3, "bbb99999999999999999999.ogg", "absurd set, sorted fallback second file");
+	}
+
+	// 14. Notes: a same-format collision records a note for the dropped file.
+	{
+		std::vector<std::string> in;
+		in.push_back("track03.ogg"); in.push_back("keeper03.ogg");
+		std::vector<std::string> notes;
+		build_music_index(in, &notes);
+		if (!notes.empty()) {
+			std::printf("  ok   same-format collision records a note\n");
+		} else {
+			std::printf("  FAIL same-format collision recorded no notes\n");
+			++g_failures;
+		}
+	}
+
+	// 15. Notes: sorted mode discarding files past track 7 records a note
+	// per dropped file.
+	{
+		std::vector<std::string> in;
+		for (int i = 0; i < 10; ++i) {
+			in.push_back(std::string("a") + (char)('0' + i) + ".ogg");
+		}
+		std::vector<std::string> notes;
+		build_music_index(in, &notes);
+		if (!notes.empty()) {
+			std::printf("  ok   sorted-mode overflow past track 7 records a note\n");
+		} else {
+			std::printf("  FAIL sorted-mode overflow past track 7 recorded no notes\n");
+			++g_failures;
+		}
+	}
+
+	// 16. FIX A: numeric mode silently dropped every unnumbered file with no
+	// trace in notes. A curated folder with one numbered file among several
+	// untitled tracks must now explain all five drops, not just resolve the
+	// one number correctly.
+	{
+		std::vector<std::string> in;
+		in.push_back("Ambience.ogg"); in.push_back("Battle Theme.ogg");
+		in.push_back("Dungeon Keeper 2.ogg"); in.push_back("Menu.ogg");
+		in.push_back("Victory.ogg"); in.push_back("War Drums.ogg");
+		std::vector<std::string> notes;
+		const std::map<int, std::string> got = build_music_index(in, &notes);
+		expect_size(got, 1, "curated folder: only the numbered file survives");
+		expect_track(got, 2, "Dungeon Keeper 2.ogg", "curated folder: track 2 resolves correctly");
+		if (notes.size() == 5) {
+			std::printf("  ok   curated folder: five notes for the five unnumbered files\n");
+		} else {
+			std::printf("  FAIL curated folder: got %d notes, wanted 5\n", (int)notes.size());
+			++g_failures;
+		}
+	}
+
+	// 17. FIX B: macOS AppleDouble sidecars ("._keeper02.ogg" etc.) sort
+	// before their real counterparts and must not be allowed to win the
+	// collision -- they must not even be candidates.
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
+		in.push_back("keeper04.ogg"); in.push_back("keeper05.ogg");
+		in.push_back("keeper06.ogg"); in.push_back("keeper07.ogg");
+		in.push_back("._keeper02.ogg"); in.push_back("._keeper03.ogg");
+		in.push_back("._keeper04.ogg"); in.push_back("._keeper05.ogg");
+		in.push_back("._keeper06.ogg"); in.push_back("._keeper07.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 6, "AppleDouble sidecars: still exactly 6 tracks");
+		expect_track(got, 2, "keeper02.ogg", "AppleDouble sidecars: real file wins track 2");
+		expect_track(got, 7, "keeper07.ogg", "AppleDouble sidecars: real file wins track 7");
+	}
+
+	// 18. A lone dotfile is not music, AppleDouble or otherwise.
+	{
+		std::vector<std::string> in;
+		in.push_back(".hidden.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 0, "a lone dotfile is not treated as music");
 	}
 
 	if (g_failures == 0) {
@@ -324,14 +458,25 @@ inline int music_trailing_number(const std::string & fname) {
 // ignored.
 //
 // When notes is non-null, one short human-readable line is appended for each
-// file dropped from the result (a same/lower-priority-format collision loser,
-// or a file sorted-mode had no track left for) so a caller can surface why a
-// file the user has in music/ is not actually playing.
+// recognised audio file dropped from the result (a same/lower-priority-format
+// collision loser, a file sorted-mode had no track left for, or -- in numeric
+// mode -- a file with no track number in its name) so a caller can surface
+// why a file the user has in music/ is not actually playing. Hidden/dotfile
+// entries are not "the user's music" and are filtered out silently, with no
+// note, before any of this.
 inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries,
 	std::vector<std::string> * notes = nullptr) {
 	// Keep the audio files, remembering each one's format preference.
 	std::vector<std::pair<std::string, int> > files;
 	for (std::size_t i = 0; i < entries.size(); ++i) {
+		// Hidden files are not content on Unix. This also covers macOS
+		// AppleDouble sidecars (e.g. "._keeper02.ogg"): without this check
+		// they would beat their real counterpart in every collision, because
+		// '.' sorts before ordinary letters, and macOS-created zips/exFAT
+		// transfers leave them sitting right next to the real file.
+		if (!entries[i].empty() && entries[i][0] == '.') {
+			continue;
+		}
 		const int rank = music_extension_rank(entries[i]);
 		if (rank >= 0) {
 			files.push_back(std::make_pair(entries[i], rank));
@@ -376,6 +521,14 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 		for (std::size_t i = 0; i < files.size(); ++i) {
 			const int track = music_trailing_number(files[i].first);
 			if (track < 0) {
+				// Ignored entirely in numeric mode. Record why: the file is
+				// otherwise valid music, so a silent drop here is exactly the
+				// undiagnosable-silence bug this whole feature exists to fix.
+				if (notes) {
+					notes->push_back("dropped " + files[i].first +
+						": no track number found in the filename; rename it to include one "
+						"(2-7, e.g. keeper05.ogg) so it can be assigned a track");
+				}
 				continue; // no number: ignored entirely in numeric mode
 			}
 			const std::map<int, int>::iterator seen = best_rank.find(track);
@@ -416,6 +569,8 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 
 **Note (post-implementation update, final branch review):** the code block above reflects the mapping rule as it actually ships, not as first written. The originally-committed version (see `git log -- src/music_index.h`) required *every* file to carry an in-range number; that had its own regression (a stray unnumbered file forced the whole folder into sorted-position mode, silently renumbering — and losing track 7 off the end of — an otherwise-correct install). The rule was revised post-review to the "at least one, and every numbered one in range" form shown here. See the design spec's "Mapping rule" section for the full rationale and truth table.
 
+Two further additions came out of an adversarial correctness audit, also folded into the block above: (1) numeric mode used to drop an unnumbered file with no trace at all in `notes`, which broke the `notes` contract stated in this same file's doc comment; it now records why each such file was ignored. (2) entries whose filename starts with `.` are filtered out before the extension test, so macOS AppleDouble sidecars (`._keeper02.ogg`) and ordinary dotfiles can no longer win a format collision against the real file they shadow — this is live on Linux because `LbFileFindFirst`'s `fnmatch` call has no `FNM_PERIOD`.
+
 - [ ] **Step 4: Run the test to verify it passes**
 
 ```bash
@@ -444,10 +599,10 @@ behaviour where adding one file silently renumbers the whole soundtrack."
 ### Task 2: Wire the index into the engine
 
 **Files:**
-- Modify: `src/bflib_sndlib.cpp` (includes near line 7; globals near line 54; `play_music_track()` at line 778)
+- Modify: `src/bflib_sndlib.cpp` (the include sits right after the existing `bflib_fileio.h` include near the top of the file; the cache/enumerator globals sit next to the existing `g_current_music_track` global; `play_music_track()` is further down in the same file. Exact line numbers are not cited here because they drift with every unrelated change elsewhere in this large file — search for the symbol names instead.)
 
 **Interfaces:**
-- Consumes: `build_music_index()`, `MUSIC_TRACK_MIN`, `MUSIC_TRACK_MAX` from Task 1. `LbFileFindFirst`/`LbFileFindNext`/`LbFileFindEnd` and `struct TbFileEntry { const char * Filename; }` from `bflib_fileio.h` (already included at line 7). `prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname)` and `prepare_file_fmtpath(short fgroup, const char *fmt_str, ...)`, both already used in this file.
+- Consumes: `build_music_index()`, `MUSIC_TRACK_MIN`, `MUSIC_TRACK_MAX` from Task 1. `LbFileFindFirst`/`LbFileFindNext`/`LbFileFindEnd` and `struct TbFileEntry { const char * Filename; }` from `bflib_fileio.h` (already included near the top of the file, immediately before the new `music_index.h` include). `prepare_file_path_buf(char *dst, int dst_size, short fgroup, const char *fname)` and `prepare_file_fmtpath(short fgroup, const char *fmt_str, ...)`, both already used in this file.
 - Produces: nothing consumed by later tasks.
 
 - [ ] **Step 1: Add the include**
@@ -465,9 +620,19 @@ In `src/bflib_sndlib.cpp`, immediately after the existing line `int g_current_mu
 ```cpp
 // Cached mapping of track number -> filename in music/, built on first use.
 // Rebuilding is not supported: changing your soundtrack requires a restart.
+//
+// Thread-safety: this cache is built lazily with no synchronisation. That is
+// safe only because every play_music_track() call site runs on the main
+// thread, and on_music_finished() -- the SDL_mixer callback that can run off
+// the main thread -- never calls music_index() or touches this cache. If a
+// future caller needs to build or read the index from another thread (async
+// loading, preloading, etc.) this needs a lock.
 std::map<int, std::string> g_music_index;
 bool g_music_index_built = false;
 std::vector<int> g_music_warned_tracks;
+// Directory music_index() enumerated, kept only so the "no music file" warning
+// below can name where it looked.
+std::string g_music_dir;
 
 const std::map<int, std::string> & music_index() {
 	if (!g_music_index_built) {
@@ -475,6 +640,13 @@ const std::map<int, std::string> & music_index() {
 		std::vector<std::string> entries;
 		char spec[2048];
 		prepare_file_path_buf(spec, sizeof(spec), FGrp_Music, "*");
+		{
+			// spec is ".../music/*"; strip the enumeration glob to get just
+			// the directory for diagnostics.
+			const std::string spec_str(spec);
+			const std::string::size_type slash = spec_str.find_last_of('/');
+			g_music_dir = (slash == std::string::npos) ? spec_str : spec_str.substr(0, slash);
+		}
 		struct TbFileEntry fe;
 		struct TbFileFind * ff = LbFileFindFirst(spec, &fe);
 		if (ff) {
@@ -483,9 +655,13 @@ const std::map<int, std::string> & music_index() {
 			} while (LbFileFindNext(ff, &fe) >= 0);
 			LbFileFindEnd(ff);
 		}
-		g_music_index = build_music_index(entries);
+		std::vector<std::string> notes;
+		g_music_index = build_music_index(entries, &notes);
 		SYNCDBG(7, "Music index built: %d playable track(s) from %d directory entr(ies)",
 			(int)g_music_index.size(), (int)entries.size());
+		for (std::size_t i = 0; i < notes.size(); ++i) {
+			SYNCDBG(7, "%s", notes[i].c_str());
+		}
 	}
 	return g_music_index;
 }
@@ -515,8 +691,8 @@ with:
 			if (std::find(g_music_warned_tracks.begin(), g_music_warned_tracks.end(), track)
 				== g_music_warned_tracks.end()) {
 				g_music_warned_tracks.push_back(track);
-				WARNLOG("No music file for track %d; the music folder supplied %d playable track(s)",
-					track, (int)index.size());
+				WARNLOG("No music file for track %d in %s; the music folder supplied %d playable track(s)",
+					track, g_music_dir.c_str(), (int)index.size());
 			}
 			return false;
 		}
@@ -525,6 +701,8 @@ with:
 		return play_music(prepare_file_fmtpath(FGrp_Music, "%s", it->second.c_str()));
 	} else {
 ```
+
+This matches the spec's error-handling requirement of a `WARNLOG` naming the folder, not just the track number.
 
 - [ ] **Step 4: Build**
 
@@ -683,7 +861,12 @@ bool DkFiles::isAnyMusicPresent()
     // Symlinks are followed deliberately: linking a shared music library into
     // music/ is a normal way to curate a soundtrack without duplicating files,
     // and the code this replaced used QFile::exists(), which follows them too.
-    // Do not add QDir::NoSymLinks here for symmetry with the other functions.
+    // This is the one function in this file that intentionally does NOT use
+    // QDir::NoSymLinks -- dkfiles.cpp's isOriginalDkExecutableFound() and the
+    // subdirectory scan both use that flag, but they are checking for an
+    // actual Dungeon Keeper install, not a curated music folder, so a symlink
+    // there would be suspicious rather than normal. Do not "fix" this for
+    // consistency with those two; the inconsistency is deliberate.
     const QFileInfoList entries = musicDir.entryInfoList(QDir::Files);
     for (const QFileInfo& entry : entries) {
         if (musicExtensions.contains(entry.suffix().toLower())) {
