@@ -3,6 +3,38 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5363 — 2026-08-03
+- **Your own music, any names, any format.** The game used to demand exactly `keeper02.ogg` …
+  `keeper07.ogg` and play nothing otherwise. Now it uses whatever audio is in `music/`: name the files
+  what you like (`Track 02.flac`, `02.wav`, or the original names), in **OGG, FLAC, WAV or MP3**. Files
+  carrying a track number are placed by that number; files without one are used in alphabetical order.
+  Nothing about an existing install changes — `keeperNN` names are still looked up first and still win,
+  so the same files keep playing.
+- **Silent music is no longer a mystery.** `keeperfx.log` now says how many tracks were found and names
+  every file it did **not** use, with the reason — no track number, a better-quality copy of the same
+  track winning, or more files present than there are tracks. Previously this was logged at a debug level
+  no normal build emits, which is how a music folder holding nothing but its readme went unnoticed for
+  weeks.
+- **The launcher's "music missing" prompt actually reaches you.** It was only ever offered while copying
+  the original DK files, so an otherwise-complete install could never be told its music was missing.
+  It now checks at startup (with a "Don't show this again" box), and there's a **Download music** entry
+  in the menu beside the Play button. The check also understands FLAC/WAV/MP3 soundtracks and symlinked
+  music libraries, so a curated folder is never wrongly called empty — and a partly-failed copy now
+  offers the download instead of quietly leaving you short a track.
+- **Fixed: an OpenAL error at every startup.** `SetSoundMasterVolume: OpenAL error … Invalid operation`
+  appeared in every log. The game window exists before the audio system starts, so the focus event fired
+  on it reached the mixer too early. Cosmetic — audio was never affected — but the log is clean now.
+- **`make` builds Linux.** A bare `make` ran the upstream Windows/mingw target, which also overwrote a
+  shared dependency and left the next Linux build failing with a bare `cannot find -ljson`. It now builds
+  Linux, and repairs that dependency automatically if a Windows build clobbered it.
+- **A `music/` readme that is actually true.** The one shipped upstream still said "OGG format" only.
+  Ours explains where to get the music, that filenames are free-form, which format to pick and why
+  (OGG by default; FLAC only if you rip the CD yourself; MP3 avoided because its encoder padding makes an
+  audible gap every time a track loops), and how to read the log when something isn't playing.
+- **Upstream sync — 6 patches** (#5064–#5082): default campaign loaded when none is active (#5082), three
+  new classic multiplayer maps (#5081), frameskip doubling (#5076), multiplayer lobby chat fixed (#5079),
+  ctrl drag-click camera movement fixed (#5078), and a large `main.cpp` cleanup (#5064). All clean-merged.
+
 ## 1.4.0.5335 — 2026-08-01
 - **Named: "KeeperFX — Tux Edition."** The native Linux build now has an identity — the game's main-menu
   stamp, the launcher window title, and the GNOME menu entry all read **KeeperFX Tux Edition**. (The repo
