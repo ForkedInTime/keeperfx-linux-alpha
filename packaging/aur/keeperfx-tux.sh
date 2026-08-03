@@ -9,8 +9,9 @@
 # a path inside it so the engine roots itself there.
 set -euo pipefail
 
-PREFIX=/usr/share/keeperfx-linux-alpha            # engine package
-DATA_PREFIX=/usr/share/keeperfx-linux-alpha-data  # optional data package
+BINDIR=/usr/lib/keeperfx-tux                # the engine ELF
+PREFIX=/usr/share/keeperfx-tux              # engine package's config trees
+DATA_PREFIX=/usr/share/keeperfx-tux-data    # optional data package
 GAMEDIR="${KEEPERFX_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/keeperfx-alpha}"
 
 # Read-only trees, linked wholesale. The data package's copies are preferred: they
@@ -71,7 +72,7 @@ for d in "${RW_DIRS[@]}"; do
     cp -rn "$src/." "$GAMEDIR/$d/" 2>/dev/null || true
 done
 
-ln -sfn "$PREFIX/keeperfx" "$GAMEDIR/keeperfx"
+ln -sfn "$BINDIR/keeperfx" "$GAMEDIR/keeperfx"
 [ -e "$PREFIX/version.txt" ] && cp -f "$PREFIX/version.txt" "$GAMEDIR/version.txt"
 
 # Report what is missing in terms of what the user has to do about it, rather than

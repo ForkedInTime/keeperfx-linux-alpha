@@ -15,6 +15,9 @@ depends=(
   'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
   'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
   'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
+  # Implicit but real: the engine links these, the wrapper is a bash script, and
+  # the icons need the hicolor theme hierarchy to exist.
+  'glibc' 'gcc-libs' 'bash' 'hicolor-icon-theme'
 )
 makedepends=('git' 'python' 'curl')
 optdepends=(
@@ -37,7 +40,7 @@ source=(
 )
 sha256sums=(
   'SKIP'
-  '1a4478f3b48063cbb92a2a094a4b9edb29b89a6e718901feb840a8b49748b6f4'
+  'd50e131e5381c663e5e9a95cb0dd7646b559ccd609bb258f6250ce8d1a4b337e'
   '36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd'
 )
 
@@ -84,7 +87,14 @@ package() {
   cd "${srcdir}/${pkgname}"
   local _share="${pkgdir}/usr/share/${pkgname}"
 
-  install -Dm755 bin/keeperfx "${_share}/keeperfx"
+  # /usr/share is for architecture-independent files, so the ELF lives in
+  # /usr/lib. Its location is free: the wrapper links it into the game directory
+  # and the engine roots itself at argv[0], not at the binary's real path.
+  install -Dm755 bin/keeperfx "${pkgdir}/usr/lib/${pkgname}/keeperfx"
+
+  # The engine used to be installed here, which created this directory as a side
+  # effect; it now has to be created explicitly.
+  install -dm755 "${_share}"
 
   # The launcher reads the engine version from version.txt: a native ELF carries
   # no Windows PE ProductVersion resource for it to inspect.

@@ -132,14 +132,21 @@ of the packaged data.
 
 ## Verification status
 
-Done: wrapper logic (game-directory assembly, idempotency, preservation of
-user-edited mods and of a real directory replacing a symlink, `argv[0]`
-rooting), and a full `makepkg` build from the release tag — 16 MB package,
-correct version string, all seven icon sizes, no bundled `.so` files, and `ldd`
-reporting no missing libraries.
+Done:
 
-Not done: a **clean-chroot** build (`extra-x86_64-build`, needs `devtools`),
-which is what would catch a dependency that happens to be installed on the
-build machine but missing from `depends`. Worth running once before the first
-AUR publish. Also untested: launching the packaged game end-to-end, which needs
-a populated `data/` + `sound/`.
+- **Clean-chroot build** (`extra-x86_64-build`) of the engine package: succeeds
+  from `depends`/`makedepends` alone, so nothing leaks in from the build machine.
+- **namcap**: no errors. Five warnings remain, all understood — `!strip` is
+  deliberate, FULL RELRO is absent because `linux.mk` sets its own `LDFLAGS`
+  rather than honouring makepkg's, and the `gcc-libs`/`libstdc++`/`libgcc`
+  triplet is namcap contradicting itself about a dependency that is correct.
+- **Data package build**: 412 MB, every expected tree, no engine binary or
+  launcher, none of the 14 restricted original-DK files.
+- **Wrapper**: game-directory assembly, idempotency, preservation of user-edited
+  mods and of a real directory replacing a symlink, a user file overriding a
+  packaged one, the engine-only fallback, the missing-originals message, and
+  `argv[0]` rooting in the game directory while the ELF lives in `/usr/lib`.
+
+Not done: **launching the packaged game end-to-end**, which needs a real
+`data/` + `sound/` including the user's own Dungeon Keeper files. Install with
+`KEEPERFX_HOME=~/kfx-aur-test` and play a level to close this out.
