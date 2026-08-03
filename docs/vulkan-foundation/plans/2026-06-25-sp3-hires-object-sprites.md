@@ -1,7 +1,5 @@
 # Hi-res Object/Item Sprites Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Render a high-impact set of object/item sprites (dungeon heart, gold, statue, traps, doors, a couple of effects) as hi-res truecolor, through SP1's GPU sprite path, gated by `KFX_HIRES_SPRITES` (off by default), ending in an in-game render the user confirms.
 
 **Architecture:** Mirror the SP2 terrain override seam on SP1's sprite path. Offline: the proven object-upscale pipeline produces `hires_sprites/sprite_<frame_key>.png` for every frame of each chosen object. Runtime: a parallel RGBA8 `GL_TEXTURE_2D_ARRAY` + a `frame_key→layer` lookup; `glworld_submit_keepersprite` tags each sprite command with its override layer (or -1); the sprite fragment shader samples the RGBA8 array (× a shade scalar, honouring `flip_x`) for overridden frames and the unchanged paletted path otherwise.

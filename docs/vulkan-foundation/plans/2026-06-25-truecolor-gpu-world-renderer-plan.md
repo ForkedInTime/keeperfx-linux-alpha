@@ -1,7 +1,5 @@
 # Truecolor GPU World Renderer Implementation Plan (Sub-project 1)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Render the KeeperFX 3D world view on the GPU in 32-bit truecolor, reproducing the current software look exactly, so hi-res truecolor assets (Sub-project 2) become a drop-in texture swap.
 
 **Architecture:** Keep the engine's CPU geometry (projection, cull, depth-sort into buckets). Intercept the **bucket-draw dispatch loop** in `engine_render.c` — instead of calling the software rasterizer (`draw_gpoly`, `draw_jonty_mapwho`, …) per sorted bucket item, submit each primitive to a new GPU world module that renders it (textured + gouraud-shaded) into a truecolor scene FBO. Composite the existing 8-bit GUI/overlays over the GPU world (reusing the post-FX present), then run the existing post-FX.

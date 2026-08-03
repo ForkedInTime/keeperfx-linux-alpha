@@ -163,7 +163,7 @@ inline int music_trailing_number(const std::string & fname, bool * had_digit_run
 // note describes *this function's own mapping decision*, not what the game
 // actually plays: build_music_index() is deliberately kept unaware of
 // play_music_track()'s separate direct stock-name lookup (see
-// docs/superpowers/specs/2026-08-03-music-track-detection-design.md), so a
+// docs/design/specs/2026-08-03-music-track-detection-design.md), so a
 // file this function "dropped" may still be exactly what plays, via that
 // other path, and a file it kept may be shadowed by it. Callers that want to
 // describe actual playback must account for the direct lookup themselves.

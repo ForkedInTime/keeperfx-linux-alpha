@@ -1,7 +1,5 @@
 # Hi-res Truecolor Terrain Tiles (Proof Pack) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Render ~8–12 of the highest-impact terrain tiles as hi-res truecolor art (authored offline) through the SP1 GPU world renderer, gated by `KFX_HIRES=1`, with the engine/lighting/gameplay unchanged — ending in an in-game visual the user confirms.
 
 **Architecture:** Two decoupled halves meeting at a `hires/` PNG folder. (A) An **offline Python toolset** (`tools/hires/`) that decompresses the real RNC tiles, upscales them seamlessly (Real-ESRGAN on a 3×3 wrap), adds detail (SDXL-Turbo img2img with circular-padding convolutions = native tiling), color-matches back toward the DK palette (Reinhard LAB transfer), and writes RGBA8 PNGs keyed by block id. (B) A **runtime override path** in `bflib_render_glworld.{c,h}`: a `GL_TEXTURE_2D_ARRAY` (RGBA8, `GL_REPEAT`+`GL_LINEAR`) holding the hi-res tiles, a `block_id→layer` lookup texture, a per-shade brightness LUT derived from `fade_tables`, and a terrain-fragment-shader branch that samples the array and multiplies by shade — falling back to the existing paletted path for non-overridden tiles.
@@ -763,7 +761,7 @@ The controller sends `/tmp/ingame_hires_compare.png` (and the two raw frames) to
 
 - [ ] **Step 4: Update the spec status + commit**
 
-After the user's visual confirmation, update the status line in `docs/superpowers/specs/2026-06-25-sp2-hires-terrain-tiles-design.md` to note the proof pack is rendered and confirmed, then:
+After the user's visual confirmation, update the status line in `docs/design/specs/2026-06-25-sp2-hires-terrain-tiles-design.md` to note the proof pack is rendered and confirmed, then:
 
 ```bash
 git add -A

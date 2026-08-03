@@ -1,7 +1,5 @@
 # Music Track Detection Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Let any set of audio files dropped into `music/` be picked up as the game's numbered tracks, replacing the hardcoded `keeper%02d.ogg` lookup.
 
 **Architecture:** The track-mapping rule lives in a new header-only file, `src/music_index.h`, with no game, SDL or OpenAL dependency, so it can be unit-tested standalone. `src/bflib_sndlib.cpp` enumerates `music/` once via the existing cross-platform `LbFileFindFirst`/`LbFileFindNext`, feeds the filenames through that pure function, caches the result, and turns `play_music_track()` into a lookup. The launcher's "is music present" check relaxes to match.
@@ -233,7 +231,7 @@ Work in a scratch copy so the real folder is never at risk:
 
 ```bash
 INSTALL=/home/yetipaw/.local/share/keeperfx-alpha
-SCRATCH=/mnt/Storage/tmp/claude-1000/-mnt-Storage-Projects-keeperfx-alpha/music-test
+SCRATCH=/tmp/keeperfx-music-test
 mkdir -p "$SCRATCH/backup"
 cp "$INSTALL"/music/*.ogg "$SCRATCH/backup/"
 
@@ -425,7 +423,7 @@ Expected: builds to completion, no errors.
 
 ```bash
 INSTALL=/home/yetipaw/.local/share/keeperfx-alpha
-SCRATCH=/mnt/Storage/tmp/claude-1000/-mnt-Storage-Projects-keeperfx-alpha/music-test
+SCRATCH=/tmp/keeperfx-music-test
 cp /home/yetipaw/.cache/launcher-qt/build/keeperfx-launcher-qt "$INSTALL/keeperfx-launcher-qt-test"
 mkdir -p "$SCRATCH/backup2" && cp "$INSTALL"/music/*.ogg "$SCRATCH/backup2/"
 rm -f "$INSTALL"/music/*.ogg
@@ -442,7 +440,7 @@ Expected: `case 7 OK - no prompt with flac present`.
 
 ```bash
 INSTALL=/home/yetipaw/.local/share/keeperfx-alpha
-SCRATCH=/mnt/Storage/tmp/claude-1000/-mnt-Storage-Projects-keeperfx-alpha/music-test
+SCRATCH=/tmp/keeperfx-music-test
 rm -f "$INSTALL"/music/*.flac
 cd "$INSTALL" && timeout 12 ./keeperfx-launcher-qt-test --allow-multiple >/dev/null 2>&1
 grep -i 'Music files not found' "$INSTALL/keeperfx-launcher-qt-test.log" \
@@ -473,7 +471,7 @@ original DK installation, which always uses keeperNN.ogg."
 
 ## Self-Review
 
-**Historical note:** this Self-Review describes Task 1's original implementation. Four fixes landed after this plan was first executed — `ba704e506`/`833928e1c` (sorted-fallback stem dedup, "ADV-4"), `1ebcc3294`/`846e6c6af` (direct stock lookup ahead of the index), and `ea97f4257` (a five-part audit fix, including the numeric/sorted tiebreak) — and changed behaviour this table does not account for. **The design spec (`docs/superpowers/specs/2026-08-03-music-track-detection-design.md`) is the design of record for current behaviour.** The table below is kept as a record of what Task 1 covered when first committed, not a live description of what ships; rows are marked where the code has since moved past them.
+**Historical note:** this Self-Review describes Task 1's original implementation. Four fixes landed after this plan was first executed — `ba704e506`/`833928e1c` (sorted-fallback stem dedup, "ADV-4"), `1ebcc3294`/`846e6c6af` (direct stock lookup ahead of the index), and `ea97f4257` (a five-part audit fix, including the numeric/sorted tiebreak) — and changed behaviour this table does not account for. **The design spec (`docs/design/specs/2026-08-03-music-track-detection-design.md`) is the design of record for current behaviour.** The table below is kept as a record of what Task 1 covered when first committed, not a live description of what ships; rows are marked where the code has since moved past them.
 
 **Spec coverage:**
 

@@ -863,7 +863,7 @@ extern "C" TbBool play_music_track(int track) {
 		// keeper02.ogg beside a keeper02.flac keeps playing the OGG exactly
 		// as it did before this feature existed (see that array's comment
 		// in music_index.h for why the two orders differ). See also
-		// docs/superpowers/specs/2026-08-03-music-track-detection-design.md.
+		// docs/design/specs/2026-08-03-music-track-detection-design.md.
 		for (int i = 0; i < MUSIC_DIRECT_LOOKUP_EXTENSION_COUNT; ++i) {
 			const char * stock_path = prepare_file_fmtpath(FGrp_Music, "keeper%02d%s", track, MUSIC_DIRECT_LOOKUP_EXTENSIONS[i]);
 			// Case-insensitive existence check using the same mechanism
