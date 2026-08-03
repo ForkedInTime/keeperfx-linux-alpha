@@ -9,7 +9,7 @@
 ![Render](https://img.shields.io/badge/display-GPU%20OpenGL%203.3-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--2.0-blue?style=flat-square)
 
-**Dungeon Keeper, native on Linux. One file — download, run, play.**
+**Dungeon Keeper, native on Linux.** One file on most distros — a proper `yay -S` package on Arch.
 
 ## ▶ Download &amp; play
 
@@ -46,6 +46,37 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 > - install the small shim once: `sudo apt install libfuse2t64` (Ubuntu/Debian) / the `fuse2` package elsewhere.
 >
 > That's the AppImage *runtime*, not our app — everything our game needs is already bundled.
+</details>
+
+## 🏛 Arch Linux — install from the AUR
+
+**Arch, CachyOS, EndeavourOS, Manjaro:** there's a proper package. No blob to download, no `chmod +x` —
+the engine is compiled from source against your system's own libraries and updates with everything else.
+
+```bash
+yay -S keeperfx-linux-alpha      # or: paru -S keeperfx-linux-alpha
+```
+
+Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-alpha`. Updates arrive with your
+normal `yay -Syu` — no self-updater, no re-downloading half a gigabyte.
+
+<details>
+<summary><b>What the package does and doesn't include</b></summary>
+
+> It installs the engine, campaigns, levels and configuration — about 18 MB, because it links your system's
+> SDL2/ffmpeg/OpenAL instead of bundling copies, and because it does not ship the ~400 MB game-data tree.
+>
+> On first launch it assembles your game directory at `~/.local/share/keeperfx-alpha` (set `KEEPERFX_HOME`
+> to put it elsewhere) and tells you how to supply the *Dungeon Keeper* `data/` and `sound/` files — the
+> launcher can fetch and assemble them for you, exactly as with the AppImage. **You still need to own the
+> original game**, same as every other install method here.
+>
+> Prefer to build it yourself from this repo rather than the AUR:
+> ```bash
+> git clone https://github.com/ForkedInTime/keeperfx-linux-alpha.git
+> cd keeperfx-linux-alpha/packaging/aur && makepkg -si
+> ```
+
 </details>
 
 <details>
@@ -227,6 +258,9 @@ first.)
 - An OpenGL 3.3-capable GPU.
 
 ## Other ways to install
+
+<sub>On Arch or a derivative? Use the **[AUR package](#-arch-linux--install-from-the-aur)** above instead of
+any of these.</sub>
 
 <details>
 <summary><b>The complete package</b> (engine + data, you add libraries + DK files)</summary>

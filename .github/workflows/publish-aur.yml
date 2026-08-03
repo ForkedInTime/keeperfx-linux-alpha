@@ -1,0 +1,145 @@
+# Publishes the AUR package when a release is cut.
+#
+# The AUR holds only a build recipe, not a build: users' machines compile from the
+# tag this workflow points them at. So "cutting AUR" is just bumping _tag/pkgver in
+# the PKGBUILD, regenerating .SRCINFO, and pushing those two files to the AUR's own
+# git repo -- there is no artifact to upload and nothing to attach to the release.
+#
+# Runs on release publication, alongside the AppImage, so the AUR never lags the
+# other channels. The Flatpak stays monthly (see build-flatpak.yml) because it is
+# slow and self-updates; the AUR is cheap here because no compilation happens.
+#
+# Requires one repository secret:
+#   AUR_SSH_PRIVATE_KEY -- a private key whose public half is registered on the
+#                          AUR account that owns the package.
+name: Publish to AUR
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v1.4.0.5366-alpha)'
+        required: true
+      dry_run:
+        description: 'Build and validate, but do not push to the AUR'
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # makepkg --printsrcinfo is the only supported way to generate .SRCINFO, and it
+    # only exists on Arch, so the whole job runs in an Arch container.
+    container: archlinux:base-devel
+
+    steps:
+      - name: Resolve the tag being published
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          [ -n "$TAG" ] || { echo "::error::no tag to publish"; exit 1; }
+          # pkgver is the tag without the leading v and the -alpha suffix.
+          PKGVER="${TAG#v}"; PKGVER="${PKGVER%-alpha}"
+          case "$PKGVER" in
+            *[!0-9.]*) echo "::error::tag '$TAG' does not yield a numeric pkgver ('$PKGVER')"; exit 1 ;;
+          esac
+          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+          echo "pkgver=$PKGVER" >> "$GITHUB_OUTPUT"
+          echo "Publishing $TAG as pkgver $PKGVER"
+
+      - name: Install tooling
+        run: pacman -Syu --noconfirm --needed git openssh
+
+      - uses: actions/checkout@v4
+
+      - name: Bump the PKGBUILD to this release
+        working-directory: packaging/aur
+        run: |
+          sed -i "s|^_tag=.*|_tag=${{ steps.tag.outputs.tag }}|" PKGBUILD
+          sed -i "s|^pkgver=.*|pkgver=${{ steps.tag.outputs.pkgver }}|" PKGBUILD
+          sed -i "s|^pkgrel=.*|pkgrel=1|" PKGBUILD
+          grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
+
+      - name: Verify the tag actually exists upstream
+        working-directory: packaging/aur
+        run: |
+          # Catches a release published before its tag propagated, which would
+          # otherwise ship a PKGBUILD nobody can build.
+          git ls-remote --exit-code --tags \
+            https://github.com/${{ github.repository }}.git \
+            "refs/tags/${{ steps.tag.outputs.tag }}"
+
+      - name: Regenerate .SRCINFO
+        working-directory: packaging/aur
+        run: |
+          # makepkg refuses to run as root, so do this as a normal user.
+          useradd -m builder
+          chown -R builder .
+          su builder -c 'makepkg --printsrcinfo' > .SRCINFO
+          chown root .SRCINFO
+          head -6 .SRCINFO
+
+      - name: Sanity-check the generated metadata
+        working-directory: packaging/aur
+        run: |
+          grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" .SRCINFO \
+            || { echo "::error::.SRCINFO pkgver does not match the release"; exit 1; }
+          grep -q "${{ steps.tag.outputs.tag }}" .SRCINFO \
+            || { echo "::error::.SRCINFO does not reference the release tag"; exit 1; }
+
+      - name: Commit the bump back to this repo
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
+          if git diff --cached --quiet; then
+            echo "PKGBUILD already at this version; nothing to commit"
+          else
+            git commit -m "packaging: AUR package to ${{ steps.tag.outputs.tag }}"
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+          fi
+
+      - name: Push to the AUR
+        if: ${{ !inputs.dry_run }}
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "::error::AUR_SSH_PRIVATE_KEY is not set — add it in Settings > Secrets"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+          EOF
+
+          git config --global user.name  'KeeperFX Tux Edition CI'
+          git config --global user.email 'noreply@users.noreply.github.com'
+          git clone ssh://aur@aur.archlinux.org/keeperfx-linux-alpha.git /tmp/aur
+          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
+             packaging/aur/keeperfx-alpha.sh packaging/aur/keeperfx-alpha.desktop /tmp/aur/
+          cd /tmp/aur
+          git add -A
+          if git diff --cached --quiet; then
+            echo "AUR already up to date"
+          else
+            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}"
+            git push
+          fi
+
+      - name: Dry-run summary
+        if: ${{ inputs.dry_run }}
+        working-directory: packaging/aur
+        run: |
+          echo "Dry run — nothing pushed. Generated metadata:"
+          cat .SRCINFO

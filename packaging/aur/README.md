@@ -1,8 +1,13 @@
 # AUR packaging
 
-Source for the `keeperfx-linux-alpha-git` AUR package. This directory is the
+Source for the `keeperfx-linux-alpha` AUR package. This directory is the
 canonical copy; the AUR repository is a mirror of these three files plus a
 generated `.SRCINFO`.
+
+The package is **versioned against release tags**, not a `-git` package: it
+builds whatever `_tag` points at, so `yay -Syu` shows an update like any other
+package instead of requiring `--devel`. The cost is one bump per release, which
+`.github/workflows/publish-aur.yml` does automatically.
 
 ## What the package does and does not ship
 
@@ -44,24 +49,41 @@ it alone — it only ever replaces its own symlinks.
 
 ## Maintenance
 
-Bump the vendored wrapper or desktop file, then refresh checksums and metadata:
+**Per release: nothing.** Publishing a GitHub release triggers
+`.github/workflows/publish-aur.yml`, which rewrites `_tag`/`pkgver`, regenerates
+`.SRCINFO`, commits the bump back here, and pushes to the AUR. It needs one
+repository secret, `AUR_SSH_PRIVATE_KEY`, whose public half is registered on the
+AUR account owning the package. Run it with **Actions > Publish to AUR > Run
+workflow** and `dry_run: true` to validate without pushing.
+
+**When you change the wrapper or desktop file**, their checksums are pinned, so
+refresh them:
 
 ```bash
 updpkgsums
 makepkg --printsrcinfo > .SRCINFO
 ```
 
-`pkgver()` derives the version the same way the project does: the base from
-`version.mk`, the build number from the commit count. The `pkgver` field in the
-PKGBUILD is only a placeholder — makepkg overwrites it at build time.
-
-Publishing to the AUR:
+**First publish** (one-off, before the workflow can take over — the AUR creates
+a package repo on first push):
 
 ```bash
-git clone ssh://aur@aur.archlinux.org/keeperfx-linux-alpha-git.git aur-pkg
-cp PKGBUILD keeperfx-alpha.sh keeperfx-alpha.desktop .SRCINFO aur-pkg/
-cd aur-pkg && git commit -am "update to 1.4.0.x" && git push
+git clone ssh://aur@aur.archlinux.org/keeperfx-linux-alpha.git aur-pkg
+cp PKGBUILD .SRCINFO keeperfx-alpha.sh keeperfx-alpha.desktop aur-pkg/
+cd aur-pkg && git add -A && git commit -m "Initial import" && git push
 ```
+
+Building locally to test a change:
+
+```bash
+makepkg -f                       # build only
+KEEPERFX_HOME=~/kfx-aur-test makepkg -si   # build, install, then run keeperfx-alpha
+```
+
+Use `KEEPERFX_HOME` when testing on a machine that already has a
+`refresh-alpha.sh` install: the wrapper deliberately refuses to overwrite real
+directories, so it would silently keep using the existing game directory instead
+of the packaged data.
 
 ## Deliberate choices a reviewer may query
 
@@ -75,8 +97,16 @@ cd aur-pkg && git commit -am "update to 1.4.0.x" && git push
   been validated for this codebase. Letting makepkg inject it risks a silent
   miscompile of the kind that already forced a `-march` revert.
 
-## Not yet verified
+## Verification status
 
-The wrapper logic is tested (assembly, idempotency, user-data preservation,
-`argv[0]` rooting). A full `makepkg` run — clean-chroot build, install, launch —
-has **not** been done from this directory yet. Do that before publishing.
+Done: wrapper logic (game-directory assembly, idempotency, preservation of
+user-edited mods and of a real directory replacing a symlink, `argv[0]`
+rooting), and a full `makepkg` build from the release tag — 16 MB package,
+correct version string, all seven icon sizes, no bundled `.so` files, and `ldd`
+reporting no missing libraries.
+
+Not done: a **clean-chroot** build (`extra-x86_64-build`, needs `devtools`),
+which is what would catch a dependency that happens to be installed on the
+build machine but missing from `depends`. Worth running once before the first
+AUR publish. Also untested: launching the packaged game end-to-end, which needs
+a populated `data/` + `sound/`.

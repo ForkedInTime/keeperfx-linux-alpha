@@ -1,7 +1,10 @@
 # Maintainer: Alfredo Montesinos <alfredo.montesinos@kubereva.com>
 
-pkgname=keeperfx-linux-alpha-git
-_srcname=keeperfx-linux-alpha
+# Version and tag are bumped together by .github/workflows/publish-aur.yml when a
+# release is published. Keep _tag and pkgver in step: _tag is the release tag,
+# pkgver is that tag without the leading "v" or the "-alpha" suffix.
+_tag=v1.4.0.5366-alpha
+pkgname=keeperfx-linux-alpha
 pkgver=1.4.0.5366
 pkgrel=1
 pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)"
@@ -16,13 +19,18 @@ depends=(
 makedepends=('git' 'python' 'curl')
 optdepends=(
   'p7zip: extract the upstream full.7z game-data archive'
-  'keeperfx-launcher-qt-linux-git: native Qt launcher, mod manager and data installer'
+  'keeperfx-launcher-qt-linux: native Qt launcher, mod manager and data installer'
 )
+conflicts=('keeperfx-linux-alpha-git')
 provides=("keeperfx-linux-alpha=${pkgver}")
-conflicts=('keeperfx-linux-alpha')
-options=('!strip' '!lto')
+# !strip: this is an alpha -- usable backtraces in bug reports beat the saved MBs.
+# !debug: without it, !strip leaves the debug sources in the main package.
+# !lto:   linux.mk manages its own optimisation flags and LTO is unvalidated here;
+#         letting makepkg inject it risks the kind of silent miscompile that already
+#         forced a -march revert.
+options=('!strip' '!debug' '!lto')
 source=(
-  "${_srcname}::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#branch=alpha"
+  "${pkgname}::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=${_tag}"
   'keeperfx-alpha.sh'
   'keeperfx-alpha.desktop'
 )
@@ -32,17 +40,8 @@ sha256sums=(
   '09fee03b712bf75e4bd343e3f1560fd97ddd2c86f8f366cc60f3ef30949a5fa1'
 )
 
-pkgver() {
-  cd "${srcdir}/${_srcname}"
-  # Mirrors how the project versions itself: base from version.mk, build number
-  # from the commit count (see refresh-alpha.sh and the upstream CI).
-  local _base
-  _base=$(sed -n 's/^[[:space:]]*VER_\(MAJOR\|MINOR\|RELEASE\)[[:space:]]*=[[:space:]]*\([0-9]\+\).*/\2/p' version.mk | paste -sd.)
-  printf '%s.%s' "${_base:-1.4.0}" "$(git rev-list --count HEAD)"
-}
-
 prepare() {
-  cd "${srcdir}/${_srcname}"
+  cd "${srcdir}/${pkgname}"
   # These four deps are fetched by the makefile rather than vendored. Doing it in
   # prepare() keeps the network access out of build(), which is where makepkg
   # expects an already-populated source tree.
@@ -54,7 +53,7 @@ prepare() {
 }
 
 build() {
-  cd "${srcdir}/${_srcname}"
+  cd "${srcdir}/${pkgname}"
 
   # ver_defs.h is only regenerated when version.mk changes, so a stale build
   # number would otherwise be baked in — and the launcher gates settings on it.
@@ -81,14 +80,13 @@ build() {
 }
 
 package() {
-  cd "${srcdir}/${_srcname}"
-  local _share="${pkgdir}/usr/share/${_srcname}"
+  cd "${srcdir}/${pkgname}"
+  local _share="${pkgdir}/usr/share/${pkgname}"
 
   install -Dm755 bin/keeperfx "${_share}/keeperfx"
 
   # The launcher reads the engine version from version.txt: a native ELF carries
   # no Windows PE ProductVersion resource for it to inspect.
-  install -dm755 "${_share}"
   sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "${_share}/version.txt"
 
   # Text/config data that tracks the engine version.
@@ -111,14 +109,14 @@ package() {
     "${pkgdir}/usr/share/applications/keeperfx-alpha.desktop"
 
   local _px
-  for _px in 16 32 48 64 128; do
-    [ -f "res/keeperfx_icon$(printf '%03d' ${_px})-08bpp.png" ] || continue
-    install -Dm644 "res/keeperfx_icon$(printf '%03d' ${_px})-08bpp.png" \
-      "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-alpha.png"
+  for _px in 016 032 048 064 128; do
+    [ -f "res/keeperfx_icon${_px}-08bpp.png" ] || continue
+    install -Dm644 "res/keeperfx_icon${_px}-08bpp.png" \
+      "${pkgdir}/usr/share/icons/hicolor/$((10#${_px}))x$((10#${_px}))/apps/keeperfx-alpha.png"
   done
   for _px in 256 512; do
-    [ -f "res/keeperfx_icon$(printf '%03d' ${_px})-24bpp.png" ] || continue
-    install -Dm644 "res/keeperfx_icon$(printf '%03d' ${_px})-24bpp.png" \
+    [ -f "res/keeperfx_icon${_px}-24bpp.png" ] || continue
+    install -Dm644 "res/keeperfx_icon${_px}-24bpp.png" \
       "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-alpha.png"
   done
 
