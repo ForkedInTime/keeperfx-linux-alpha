@@ -103,8 +103,8 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit: out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs | ~29 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, creature-list corruption guard | ~6 fixes |
 > | ⚡ | **Performance** — GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 7 wins |
-> | 🎨 | **Graphics** — GPU OpenGL 3.3 present layer, truecolor movie playback | 2 features |
-> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, single-instance lock, weekly sync bot | 9+ items |
+> | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3 | 3 features |
+> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, music download + recovery, single-instance lock, weekly sync bot | 10+ items |
 >
 > <sub>Count it yourself: `git log --oneline upstream/master..HEAD`. The sections below are the line items.</sub>
 
@@ -120,6 +120,12 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 - **Truecolor front-end movies.** The intro, logo stings and outro can play in full color through the GPU
   (any codec, not just 8-bit Smacker), plus a no-AI "vintage cleanup" of all five movies that keeps the
   original 80s-CG character while removing blocking/banding on a big screen.
+- **Your own music — any filenames, any format.** Upstream demands exactly `keeper02.ogg` … `keeper07.ogg`
+  and plays nothing otherwise. Here the game uses whatever audio is in `music/`: name the files what you
+  like (`Track 02.flac`, `02.wav`, or the original names) in **OGG, FLAC, WAV or MP3**. Files carrying a
+  track number are placed by it; the rest are used in alphabetical order. Existing installs are untouched —
+  `keeperNN` names are still looked up first and still win. And when something doesn't play, `keeperfx.log`
+  now names every file the game skipped and why, instead of failing silently.
 
 **Native Linux launcher** *(the KeeperFX team's `keeperfx-launcher-qt`, made to run natively)*
 - The team's Qt settings launcher compiles cross-platform but was written Windows-first (it launched the game
@@ -194,6 +200,13 @@ first.)
   opens a pull request for review (details [below](#how-this-alpha-stays-current-with-upstream)).
 - **`refresh-alpha.sh`** — pulls upstream, builds with the correct version number, generates the UTF-8
   fonts, and deploys locally.
+- **`make` builds Linux.** A bare `make` ran upstream's Windows/mingw target, which also overwrote a shared
+  prebuilt dependency and left the *next* Linux build failing with a bare `cannot find -ljson`. It now
+  builds Linux, and repairs that dependency automatically if a Windows build clobbered it.
+- **`KFX_NONINTERACTIVE=1`** — startup problems (an unrecognised command-line option, for instance) raise a
+  message box that waits for a click. Fine for a person, fatal for automation: CI, scripts and the
+  launcher's extra-launch-options field all hang until something times out. With this set, the engine logs
+  the message and carries on instead. Unset, nothing changes.
 
 </details>
 

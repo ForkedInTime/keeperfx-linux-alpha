@@ -3,6 +3,18 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5366 — 2026-08-03
+- **`KFX_NONINTERACTIVE=1` for scripts and CI.** A startup problem — an unrecognised command-line option,
+  say — raised a message box and waited for a click. Fine for a person, fatal for anything automated: CI,
+  scripts, and the launcher's *extra launch options* field all hung until something timed out, with the
+  reason visible only in the log. Set this variable and the engine logs the message and carries on. Unset,
+  nothing changes, so ordinary players still get their dialogs.
+- **Our own `music/MusicReadme.txt` now actually reaches you.** Shipping it in 5363 wasn't enough: the
+  update archive is assembled from the *previous* release's payload, and its config overlay copied
+  `fxdata`, `creatrs` and `mods` but not `music` — so a file only the engine repo knew about would have
+  stayed frozen indefinitely. Caught by checking the readme's size inside the built archive before
+  publishing. The same freezing bit this fork once before, which is why that overlay exists at all.
+
 ## 1.4.0.5363 — 2026-08-03
 - **Your own music, any names, any format.** The game used to demand exactly `keeper02.ogg` …
   `keeper07.ogg` and play nothing otherwise. Now it uses whatever audio is in `music/`: name the files
