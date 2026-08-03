@@ -65,13 +65,16 @@ jobs:
       - name: Stage the portable engine package (engine + fonts + config + version)
         run: |
           S="dist/keeperfx-linux-alpha"
-          mkdir -p "$S/fxdata" "$S/creatrs" "$S/mods"
+          mkdir -p "$S/fxdata" "$S/creatrs" "$S/mods" "$S/music"
           cp bin/keeperfx "$S/keeperfx"
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "$S/version.txt"
           cp tools/fxfontmaker/*.fxfont "$S/fxdata/"
           cp -r config/fxdata/. "$S/fxdata/"
           cp -r config/creatrs/. "$S/creatrs/"
           cp -r config/mods/.    "$S/mods/"
+          # Our own MusicReadme: the upstream one still says OGG only, which has
+          # not been true since the engine gained format and naming freedom.
+          cp -r config/music/.   "$S/music/"
           tar -C dist -czf "keeperfx-linux-alpha-${PKG_VER}-x86_64-portable.tar.gz" keeperfx-linux-alpha
           ls -la keeperfx-linux-alpha-*-portable.tar.gz
 
