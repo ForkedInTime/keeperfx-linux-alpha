@@ -51,9 +51,23 @@ A file-static index in `src/bflib_sndlib.cpp` mapping track number → resolved 
 2. Ignore any entry whose filename starts with `.` before anything else is checked. This is not a Windows-porting nicety: `LbFileFindFirst`'s Linux implementation (`src/linux.cpp`) enumerates with raw `readdir` and matches with `fnmatch` but never passes `FNM_PERIOD`, so hidden entries come back from the enumeration. Without this filter, a macOS AppleDouble sidecar (`._keeper02.ogg`) would beat the real `keeper02.ogg` in every collision, because `.` (0x2E) sorts before ordinary letters — silently taking over the track if the sidecar fails to decode, with the real file sitting unused in the same folder. This is routine fallout from extracting a Mac-created zip or copying music via macOS onto exFAT, not a theoretical edge case.
 3. Keep files whose extension is `.ogg`, `.flac`, `.wav` or `.mp3`, compared **case-insensitively** — this matters on Linux, where `KEEPER02.OGG` is a distinct name.
 4. Build the track mapping (below).
-5. `play_music_track()` becomes a lookup into the index; on a hit it calls the existing `play_music()` unchanged.
+5. `play_music_track()` tries the direct stock-named lookup first (see "Direct stock lookup is authoritative" below); only when that fails does it fall back to a lookup into the index. On either hit it calls the existing `play_music()` unchanged.
 
 Everything lives in one self-contained helper so that a future upstream conflict in this function is small and reviewable.
+
+### Direct stock lookup is authoritative
+
+`play_music_track()` used to resolve every track through one hardcoded call: `prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track)`. That worked for **any** track number `game.music_track` could hold — including a campaign-defined `SET_MUSIC(8)` playing a `keeper08.ogg` the campaign shipped — because `set_music_check()` (`src/lvl_script_commands.c`) stores straight into `value->chars[0] = atoi(...)` with no range check, and `lua_PlayMusic()` / `console_cmd.c`'s music command accept the same unrestricted range.
+
+The index above only ever discovers tracks the enumeration + mapping rule assigns, which for a stock or near-stock install is 2–7 (`MUSIC_STOCK_TRACK_MAX`) or whatever `MUSIC_TRACK_MAX` allows in numeric mode. Making the index the *only* resolution path — as an earlier version of this feature did — silently discarded any resolution the engine had for track numbers the index happened not to produce, which is exactly the regression described in "The regression" section this fix addresses: `keeper08.ogg` + `SET_MUSIC(8)` worked before this feature existed and stopped working once the index became the sole lookup.
+
+The fix keeps this feature strictly additive. In the `Ft_NoCdMusic` branch, `play_music_track(track)` now:
+
+1. **First**, tries a stock-named `keeper%02d` file for the requested track, trying each recognised extension in the same preference order the index uses (`MUSIC_EXTENSIONS`: flac, wav, ogg, mp3), checking existence case-insensitively via `LbFileExists` (the same `find_case_insensitive_file` mechanism `play_music()` itself uses through `LbFileCaseInsensitivePath`). This is the engine's original, unrestricted lookup, restored — it resolves any track number, not just 2–7, and never sees a differently-named or malformed variant (e.g. `keeper02(1).ogg`) since it only ever probes the exact stock name.
+2. **Otherwise**, consults the music index exactly as before.
+3. **Otherwise**, emits the existing warn-once message and returns `false`.
+
+This ordering means a stock install (or any install that happens to still use `keeperNN.*` naming) is resolved identically to before this feature existed, for every track — the index is consulted only for tracks/names the direct lookup cannot already satisfy. The governing rule: a convenience feature may only make *additional* tracks resolvable; it must never remove or change a resolution the engine already had.
 
 ### Mapping rule
 
