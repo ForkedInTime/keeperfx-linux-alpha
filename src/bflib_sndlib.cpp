@@ -663,6 +663,15 @@ extern "C" void sound_restore_id_redirect_snapshot(void) {
 }
 
 extern "C" void SetSoundMasterVolume(SoundVolume volume) {
+	// This can be reached before InitAudio() has created a context, so guard the AL call.
+	// Without a current context alListenerf() does nothing and only raises
+	// AL_INVALID_OPERATION, which then gets reported as a master volume failure. The
+	// level is still worth recording: the gain below is a constant and the stored value
+	// is what the per-source volumes are scaled against.
+	if (!GetSoundInstalled()) {
+		g_master_volume = volume;
+		return;
+	}
 	try {
 		// Set OpenAL listener gain to maximum so we can split up the mentor speech volume slider from the sound effects volume slider
 		alListenerf(AL_GAIN, 1.0f);
