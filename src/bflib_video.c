@@ -25,6 +25,10 @@
 #include "bflib_render.h"
 #include "bflib_sprfnt.h"
 #include "bflib_vidsurface.h"
+#include "bflib_fileio.h"
+#ifndef _WIN32
+#include <SDL2/SDL_image.h>
+#endif
 #ifndef _WIN32
 #include "bflib_render_gl.h"
 #include "bflib_render_glworld.h"
@@ -73,6 +77,10 @@ SDL_Color lbPaletteColors[PALETTE_COLORS];
 char lbDrawAreaTitle[128] = "Bullfrog Shell";
 volatile TbBool lbInteruptMouse;
 volatile unsigned long lbIconIndex = 0;
+#ifndef _WIN32
+// Cached so repeated mode changes do not re-read the file from disk.
+static SDL_Surface *lbWindowIcon = NULL;
+#endif
 SDL_Window *lbWindow = NULL;
 
 TbDisplayStruct lbDisplay;
@@ -548,6 +556,26 @@ TbResult LbScreenInitialize(void)
         LbRegisterStandardVideoModes();
         LbRegisterModernVideoModes(); // register modern and flexible custom modes
     }
+#ifndef _WIN32
+    // Tell the desktop which application this window belongs to, so taskbars and
+    // docks can show KeeperFX rather than a generic placeholder.
+    //
+    // Wayland compositors ignore the icon attached to a window entirely: they
+    // look up the .desktop entry whose basename matches the surface's app_id.
+    // X11 taskbars use WM_CLASS for the same purpose. Both must therefore match
+    // the entry the AppImage installs -- keeperfx-linux-alpha.desktop -- and not
+    // the binary name, which is what SDL would otherwise use.
+    //
+    // Set before SDL_Init, because SDL reads these while bringing the video
+    // subsystem up. Guarded because SDL_HINT_APP_ID only exists in newer SDL2
+    // headers, and the fork must keep building against older ones.
+#ifdef SDL_HINT_APP_ID
+    SDL_SetHint(SDL_HINT_APP_ID, "keeperfx-linux-alpha");
+#endif
+#ifdef SDL_HINT_VIDEO_X11_WMCLASS
+    SDL_SetHint(SDL_HINT_VIDEO_X11_WMCLASS, "keeperfx-linux-alpha");
+#endif
+#endif
     // Initialize SDL library
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         ERRORLOG("SDL init: %s",SDL_GetError());
@@ -654,6 +682,24 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
         ERRORLOG("SDL_CreateWindow failed for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
         return Lb_FAIL;
     }
+
+#ifndef _WIN32
+    // Attach the icon to the window itself. This is what X11 taskbars read; on
+    // Wayland it is ignored in favour of the app_id set before SDL_Init above,
+    // so both are needed to cover the two display servers. Non-fatal: a missing
+    // icon should never stop the game starting.
+    if (lbWindowIcon == NULL) {
+        char icon_path[2048];
+        lbWindowIcon = IMG_Load(LbFileCaseInsensitivePath("fxdata/keeperfx_icon.png",
+                                                          icon_path, sizeof(icon_path)));
+        if (lbWindowIcon == NULL) {
+            WARNLOG("Could not load window icon 'fxdata/keeperfx_icon.png': %s", IMG_GetError());
+        }
+    }
+    if (lbWindowIcon != NULL) {
+        SDL_SetWindowIcon(lbWindow, lbWindowIcon);
+    }
+#endif
 
 #ifndef _WIN32
     // GPU present path. The engine renders into an 8-bit indexed surface; with
