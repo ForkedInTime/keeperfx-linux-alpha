@@ -27,6 +27,7 @@
 #include <utility>
 #include <array>
 #include <unordered_map>
+#include <set>
 #include <deque>
 #include <mutex>
 #include <atomic>
@@ -540,7 +541,11 @@ std::string g_current_music_fname; // empty if a numbered track (or nothing) is 
 int g_current_music_track = 0;     // 0 if a custom file (or nothing) is playing
 
 // Cached mapping of track number -> filename in music/, built on first use.
-// Rebuilding is not supported: changing your soundtrack requires a restart.
+// Rebuilding is not supported: adding, removing or renaming files that the
+// index maps (e.g. a "Track 05.flac") requires a restart to take effect.
+// This does NOT apply to play_music_track()'s direct keeperNN.<ext>
+// stock-name lookup below, which re-checks the filesystem on every call, so
+// dropping in e.g. a keeper05.ogg takes effect immediately, without a restart.
 //
 // Thread-safety: this cache is built lazily with no synchronisation. That is
 // safe only because every play_music_track() call site runs on the main
@@ -550,7 +555,7 @@ int g_current_music_track = 0;     // 0 if a custom file (or nothing) is playing
 // loading, preloading, etc.) this needs a lock.
 std::map<int, std::string> g_music_index;
 bool g_music_index_built = false;
-std::vector<int> g_music_warned_tracks;
+std::set<int> g_music_warned_tracks;
 // Directory music_index() enumerated, kept only so the "no music file" warning
 // below can name where it looked.
 std::string g_music_dir;
@@ -578,10 +583,23 @@ const std::map<int, std::string> & music_index() {
 		}
 		std::vector<std::string> notes;
 		g_music_index = build_music_index(entries, &notes);
-		SYNCDBG(7, "Music index built: %d playable track(s) from %d directory entr(ies)",
+		// Unconditional summary: the one line a stock, clean install should
+		// ever see out of this function.
+		SYNCLOG("Music index built: %d playable track(s) from %d directory entr(ies)",
 			(int)g_music_index.size(), (int)entries.size());
-		for (std::size_t i = 0; i < notes.size(); ++i) {
-			SYNCDBG(7, "%s", notes[i].c_str());
+		// Each note explains a specific file the index chose not to use --
+		// exactly the explanation a user with unexpectedly silent music
+		// needs, so it must land somewhere a normal keeperfx.log shows
+		// (SYNCDBG(7,...) effectively never does). Capped so a folder full
+		// of stray files cannot flood the log; nothing extra is logged when
+		// there are no notes at all.
+		const std::size_t max_notes = 10;
+		const std::size_t shown_notes = std::min(notes.size(), max_notes);
+		for (std::size_t i = 0; i < shown_notes; ++i) {
+			SYNCLOG("%s", notes[i].c_str());
+		}
+		if (notes.size() > max_notes) {
+			SYNCLOG("...and %d more music index note(s) suppressed", (int)(notes.size() - max_notes));
 		}
 	}
 	return g_music_index;
@@ -871,9 +889,7 @@ extern "C" TbBool play_music_track(int track) {
 		if (it == index.end()) {
 			// Warn once per track: a level that retries must not flood the log,
 			// but a silent music folder should never again be undiagnosable.
-			if (std::find(g_music_warned_tracks.begin(), g_music_warned_tracks.end(), track)
-				== g_music_warned_tracks.end()) {
-				g_music_warned_tracks.push_back(track);
+			if (g_music_warned_tracks.insert(track).second) {
 				// index.size() counts the music index's own mapping decisions,
 				// not every avenue play_music_track() just tried -- the direct
 				// stock-name lookup above resolves independently of it -- so
