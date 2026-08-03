@@ -1,0 +1,127 @@
+# Maintainer: Alfredo Montesinos <alfredo.montesinos@kubereva.com>
+
+pkgname=keeperfx-linux-alpha-git
+_srcname=keeperfx-linux-alpha
+pkgver=1.4.0.5366
+pkgrel=1
+pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)"
+arch=('x86_64')
+url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
+license=('GPL-2.0-or-later')
+depends=(
+  'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
+  'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
+  'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
+)
+makedepends=('git' 'python' 'curl')
+optdepends=(
+  'p7zip: extract the upstream full.7z game-data archive'
+  'keeperfx-launcher-qt-linux-git: native Qt launcher, mod manager and data installer'
+)
+provides=("keeperfx-linux-alpha=${pkgver}")
+conflicts=('keeperfx-linux-alpha')
+options=('!strip' '!lto')
+source=(
+  "${_srcname}::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#branch=alpha"
+  'keeperfx-alpha.sh'
+  'keeperfx-alpha.desktop'
+)
+sha256sums=(
+  'SKIP'
+  '969fb9f2ede255076e1d8c0917e56e64a453c932f379e37c3e63ab5ab380e64f'
+  '09fee03b712bf75e4bd343e3f1560fd97ddd2c86f8f366cc60f3ef30949a5fa1'
+)
+
+pkgver() {
+  cd "${srcdir}/${_srcname}"
+  # Mirrors how the project versions itself: base from version.mk, build number
+  # from the commit count (see refresh-alpha.sh and the upstream CI).
+  local _base
+  _base=$(sed -n 's/^[[:space:]]*VER_\(MAJOR\|MINOR\|RELEASE\)[[:space:]]*=[[:space:]]*\([0-9]\+\).*/\2/p' version.mk | paste -sd.)
+  printf '%s.%s' "${_base:-1.4.0}" "$(git rev-list --count HEAD)"
+}
+
+prepare() {
+  cd "${srcdir}/${_srcname}"
+  # These four deps are fetched by the makefile rather than vendored. Doing it in
+  # prepare() keeps the network access out of build(), which is where makepkg
+  # expects an already-populated source tree.
+  make -f linux.mk \
+    deps/centijson/include/json.h \
+    deps/astronomy/include/astronomy.h \
+    deps/enet6/include/enet6/enet.h \
+    deps/libcurl/lib/libcurl.a
+}
+
+build() {
+  cd "${srcdir}/${_srcname}"
+
+  # ver_defs.h is only regenerated when version.mk changes, so a stale build
+  # number would otherwise be baked in — and the launcher gates settings on it.
+  rm -f src/ver_defs.h
+  make -f linux.mk \
+    BUILD_NUMBER="$(git rev-list --count HEAD)" \
+    VER_SUFFIX=alpha \
+    -j"$(nproc)"
+
+  # The UTF-8 fonts are required since upstream #4920 but linux.mk does not build
+  # them; the project's CI generates them from tools/fxfontmaker.
+  (
+    cd tools/fxfontmaker
+    local PY; PY=$(command -v python3 || command -v python)
+    "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
+    "$PY" bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
+    "$PY" merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
+    "$PY" unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
+    "$PY" unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
+    "$PY" unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
+    "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+    rm -f merged12.hex wenquanyi.hex unifont12.hex
+  )
+}
+
+package() {
+  cd "${srcdir}/${_srcname}"
+  local _share="${pkgdir}/usr/share/${_srcname}"
+
+  install -Dm755 bin/keeperfx "${_share}/keeperfx"
+
+  # The launcher reads the engine version from version.txt: a native ELF carries
+  # no Windows PE ProductVersion resource for it to inspect.
+  install -dm755 "${_share}"
+  sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "${_share}/version.txt"
+
+  # Text/config data that tracks the engine version.
+  local _d
+  for _d in fxdata creatrs mods; do
+    install -dm755 "${_share}/${_d}"
+    cp -r "config/${_d}/." "${_share}/${_d}/"
+  done
+  for _d in campgns levels lang; do
+    [ -d "${_d}" ] || continue
+    install -dm755 "${_share}/${_d}"
+    cp -r "${_d}/." "${_share}/${_d}/"
+  done
+
+  # Generated fonts live alongside the text config, as the engine expects.
+  install -m644 tools/fxfontmaker/*.fxfont "${_share}/fxdata/"
+
+  install -Dm755 "${srcdir}/keeperfx-alpha.sh" "${pkgdir}/usr/bin/keeperfx-alpha"
+  install -Dm644 "${srcdir}/keeperfx-alpha.desktop" \
+    "${pkgdir}/usr/share/applications/keeperfx-alpha.desktop"
+
+  local _px
+  for _px in 16 32 48 64 128; do
+    [ -f "res/keeperfx_icon$(printf '%03d' ${_px})-08bpp.png" ] || continue
+    install -Dm644 "res/keeperfx_icon$(printf '%03d' ${_px})-08bpp.png" \
+      "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-alpha.png"
+  done
+  for _px in 256 512; do
+    [ -f "res/keeperfx_icon$(printf '%03d' ${_px})-24bpp.png" ] || continue
+    install -Dm644 "res/keeperfx_icon$(printf '%03d' ${_px})-24bpp.png" \
+      "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-alpha.png"
+  done
+
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}

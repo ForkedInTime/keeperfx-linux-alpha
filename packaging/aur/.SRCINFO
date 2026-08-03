@@ -1,0 +1,39 @@
+pkgbase = keeperfx-linux-alpha-git
+	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)
+	pkgver = 1.4.0.5366
+	pkgrel = 1
+	url = https://github.com/ForkedInTime/keeperfx-linux-alpha
+	arch = x86_64
+	license = GPL-2.0-or-later
+	makedepends = git
+	makedepends = python
+	makedepends = curl
+	depends = sdl2-compat
+	depends = sdl2_mixer
+	depends = sdl2_net
+	depends = sdl2_image
+	depends = ffmpeg
+	depends = openal
+	depends = luajit
+	depends = libspng
+	depends = minizip
+	depends = zlib
+	depends = libepoxy
+	depends = miniupnpc
+	depends = libnatpmp
+	depends = openssl
+	depends = zstd
+	optdepends = p7zip: extract the upstream full.7z game-data archive
+	optdepends = keeperfx-launcher-qt-linux-git: native Qt launcher, mod manager and data installer
+	provides = keeperfx-linux-alpha=1.4.0.5366
+	conflicts = keeperfx-linux-alpha
+	options = !strip
+	options = !lto
+	source = keeperfx-linux-alpha::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#branch=alpha
+	source = keeperfx-alpha.sh
+	source = keeperfx-alpha.desktop
+	sha256sums = SKIP
+	sha256sums = 969fb9f2ede255076e1d8c0917e56e64a453c932f379e37c3e63ab5ab380e64f
+	sha256sums = 09fee03b712bf75e4bd343e3f1560fd97ddd2c86f8f366cc60f3ef30949a5fa1
+
+pkgname = keeperfx-linux-alpha-git

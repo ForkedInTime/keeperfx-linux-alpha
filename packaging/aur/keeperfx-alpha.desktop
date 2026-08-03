@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=KeeperFX (Tux Edition)
+GenericName=Dungeon Keeper
+Comment=Native Linux build of the Dungeon Keeper engine remake
+Exec=keeperfx-alpha
+Icon=keeperfx-alpha
+Terminal=false
+Categories=Game;StrategyGame;
+Keywords=dungeon;keeper;keeperfx;strategy;
+StartupWMClass=keeperfx
