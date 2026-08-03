@@ -5,6 +5,7 @@
 #include "bflib_datetm.h"
 #include "bflib_sound.h"
 #include "bflib_fileio.h"
+#include "music_index.h"
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
@@ -538,6 +539,33 @@ std::mutex g_mix_mutex;
 std::string g_current_music_fname; // empty if a numbered track (or nothing) is playing
 int g_current_music_track = 0;     // 0 if a custom file (or nothing) is playing
 
+// Cached mapping of track number -> filename in music/, built on first use.
+// Rebuilding is not supported: changing your soundtrack requires a restart.
+std::map<int, std::string> g_music_index;
+bool g_music_index_built = false;
+std::vector<int> g_music_warned_tracks;
+
+const std::map<int, std::string> & music_index() {
+	if (!g_music_index_built) {
+		g_music_index_built = true;
+		std::vector<std::string> entries;
+		char spec[2048];
+		prepare_file_path_buf(spec, sizeof(spec), FGrp_Music, "*");
+		struct TbFileEntry fe;
+		struct TbFileFind * ff = LbFileFindFirst(spec, &fe);
+		if (ff) {
+			do {
+				entries.push_back(fe.Filename);
+			} while (LbFileFindNext(ff, &fe) >= 0);
+			LbFileFindEnd(ff);
+		}
+		g_music_index = build_music_index(entries);
+		SYNCDBG(7, "Music index built: %d playable track(s) from %d directory entr(ies)",
+			(int)g_music_index.size(), (int)entries.size());
+	}
+	return g_music_index;
+}
+
 struct queued_sample {
 	std::string fname;
 	SoundVolume volume;
@@ -782,9 +810,22 @@ extern "C" TbBool play_music_track(int track) {
 		stop_music(true);
 		return true;
 	} else if (features_enabled & Ft_NoCdMusic) {
+		const std::map<int, std::string> & index = music_index();
+		const std::map<int, std::string>::const_iterator it = index.find(track);
+		if (it == index.end()) {
+			// Warn once per track: a level that retries must not flood the log,
+			// but a silent music folder should never again be undiagnosable.
+			if (std::find(g_music_warned_tracks.begin(), g_music_warned_tracks.end(), track)
+				== g_music_warned_tracks.end()) {
+				g_music_warned_tracks.push_back(track);
+				WARNLOG("No music file for track %d; the music folder supplied %d playable track(s)",
+					track, (int)index.size());
+			}
+			return false;
+		}
 		// play_music() itself skips restarting if this exact resolved file is
 		// already the one actually playing (e.g. reloading a save for the same level).
-		return play_music(prepare_file_fmtpath(FGrp_Music, "keeper%02d.ogg", track));
+		return play_music(prepare_file_fmtpath(FGrp_Music, "%s", it->second.c_str()));
 	} else {
 		if (track == g_current_music_track) {
 			// Already playing this exact numbered track — skip restarting it.
