@@ -80,6 +80,18 @@ The first row is the regression guard: a stock install takes the numeric path an
 
 Track 2 is the land view; 3–6 are in-game (`player_utils.c:856` cycles `3 + (lvnum-1) % 4`); 7 is used by campaigns. Hence the 2–7 range.
 
+### Sorted-fallback deduplication
+
+Sorted fallback assigns tracks purely by position, so on its own it can be fooled by a library that keeps two formats of the same song side by side — a FLAC re-rip left next to the original OGGs, say. Sorted mode never compares by track number, so the collision rule below never gets a chance to apply to it; without dedup the two copies of one song would land on two different tracks, doubling that song up and, because sorted mode fills every slot it can, silently pushing a genuinely distinct song out of the 2–7 range entirely. A `01`/`02`/…-style prefix is exactly what forces sorted mode in the first place (see the `music00.ogg`/`audiocd01.mp3` rows above), so a user who transcodes such a library to FLAC and leaves the originals in place hits this every time — and because sorted mode still fills all six tracks, no "file dropped" warning fires; the symptom is only that the music is silently wrong.
+
+Sorted fallback therefore deduplicates by filename **stem** (the basename with its extension removed, compared case-insensitively) before assigning positions: within each stem group, keep the best format by the same FLAC > WAV > OGG > MP3 preference described in the collision rule below — an equal-rank tie (same extension, different case) keeps whichever sorts first, exactly as the numeric-mode same-format tiebreak. The surviving representatives are then sorted by stem (case-insensitive, full filename as tiebreak) rather than by full filename, so the resulting track order stays stable no matter which format happened to win each group, and tracks are assigned from 2 upward as before. Every file dropped as a losing duplicate is noted, worded so it is clear a higher-preference copy of the same song won it, not that the file was rejected outright.
+
+| Files present | Outcome |
+|---|---|
+| `01 intro.flac`/`.ogg`, `02 dungeon.flac`/`.ogg`, `03 battle.flac`/`.ogg`, `04 boss.flac`/`.ogg` | `01`-style prefix forces sorted mode; stem dedup collapses each pair to its FLAC copy → tracks 2–5 are the four FLAC files in song order, the four losing OGGs are noted and dropped, nothing is unreachable |
+
+This dedup applies only within sorted-fallback mode. Numeric mode's per-track collision rule below is unchanged: it already keys on track number, so two files sharing a number are already "the same track" and nothing about that rule needed to change.
+
 ### Collision rule
 
 When two files claim the same track number (`keeper03.ogg` and `keeper03.flac`), prefer in order: **FLAC > WAV > OGG > MP3** — lossless first, then the better lossy codec.
