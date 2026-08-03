@@ -1,0 +1,57 @@
+# Maintainer: Alfredo Montesinos <alfredo.montesinos@kubereva.com>
+
+# Bumped together with the engine package by .github/workflows/publish-aur.yml.
+# _tag must match the engine package's _tag: the two are versioned in lockstep so
+# that the config shipped here always matches the engine that reads it.
+_tag=v1.4.0.5366-alpha
+pkgname=keeperfx-linux-alpha-data
+pkgver=1.4.0.5366
+pkgrel=1
+pkgdesc="Game data for KeeperFX Tux Edition (campaigns, graphics, sounds) — you still supply your own Dungeon Keeper files"
+arch=('any')
+url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
+license=('GPL-2.0-or-later')
+makedepends=('p7zip')
+optdepends=('keeperfx-linux-alpha: the engine that reads this data')
+# ~630 MB installed. Nothing here is executable, so there is nothing to strip
+# and no debug info to split out.
+options=('!strip' '!debug')
+source=("keeperfx-linux-alpha-${pkgver}-full.7z::${url}/releases/download/${_tag}/keeperfx-linux-alpha-x86_64-full.7z")
+sha256sums=('788adcacbc86451a1d5d45026f3d79196e5f25ef7f85be12b8df73fa20d2ca98')
+noextract=("keeperfx-linux-alpha-${pkgver}-full.7z")
+
+# Trees taken from the archive. The archive also contains the engine binary, the
+# Qt launcher, a bundled 7z.so, keeperfx.cfg and version.txt -- all of which are
+# either the engine package's job or user state, so they are deliberately skipped.
+_trees=(data sound ldata campgns levels lang fxdata creatrs mods music)
+
+prepare() {
+  cd "${srcdir}"
+  7z x -y "keeperfx-linux-alpha-${pkgver}-full.7z" -o"extracted" > /dev/null
+}
+
+package() {
+  local _share="${pkgdir}/usr/share/${pkgname}"
+  install -dm755 "${_share}"
+
+  local _d
+  for _d in "${_trees[@]}"; do
+    if [ ! -d "${srcdir}/extracted/${_d}" ]; then
+      # music/ is legitimately empty in some releases; anything else missing means
+      # the archive layout changed and this PKGBUILD needs revisiting.
+      if [ "${_d}" = music ]; then continue; fi
+      echo "error: expected directory '${_d}' is missing from the release archive" >&2
+      return 1
+    fi
+    cp -r "${srcdir}/extracted/${_d}" "${_share}/"
+  done
+
+  # The archive ships no files from the original Dungeon Keeper (see
+  # docs/files_required_from_original_dk.txt); the user supplies those, and the
+  # engine's wrapper merges them into data/ and sound/ at runtime.
+  find "${_share}" -type d -exec chmod 755 {} +
+  find "${_share}" -type f -exec chmod 644 {} +
+
+  install -Dm644 "${srcdir}/extracted/README.txt" \
+    "${pkgdir}/usr/share/doc/${pkgname}/README.txt" 2>/dev/null || true
+}

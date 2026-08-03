@@ -54,22 +54,28 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 the engine is compiled from source against your system's own libraries and updates with everything else.
 
 ```bash
-yay -S keeperfx-linux-alpha      # or: paru -S keeperfx-linux-alpha
+yay -S keeperfx-linux-alpha keeperfx-linux-alpha-data
 ```
 
 Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-alpha`. Updates arrive with your
 normal `yay -Syu` — no self-updater, no re-downloading half a gigabyte.
 
+Two packages: the engine (18 MB, compiled on your machine) and the game data (412 MB — campaigns,
+graphics, sounds). Install both for a complete setup; skip the data package only if you already have a
+KeeperFX data tree you want to point at.
+
 <details>
 <summary><b>What the package does and doesn't include</b></summary>
 
-> It installs the engine, campaigns, levels and configuration — about 18 MB, because it links your system's
-> SDL2/ffmpeg/OpenAL instead of bundling copies, and because it does not ship the ~400 MB game-data tree.
+> `keeperfx-linux-alpha` is the engine — about 18 MB, because it is compiled against your system's
+> SDL2/ffmpeg/OpenAL rather than bundling copies. `keeperfx-linux-alpha-data` is everything KeeperFX itself
+> provides: campaigns, graphics, sounds and language files.
 >
-> On first launch it assembles your game directory at `~/.local/share/keeperfx-alpha` (set `KEEPERFX_HOME`
-> to put it elsewhere) and tells you how to supply the *Dungeon Keeper* `data/` and `sound/` files — the
-> launcher can fetch and assemble them for you, exactly as with the AppImage. **You still need to own the
-> original game**, same as every other install method here.
+> On first launch the game directory is assembled at `~/.local/share/keeperfx-alpha` (set `KEEPERFX_HOME`
+> to put it elsewhere). **You still need to own the original game**, same as every other install method
+> here: 14 files from your *Dungeon Keeper* CD or GOG/Steam/EA copy are not redistributable, so they are
+> not in any package. If they are missing the game names them exactly and stops, and the Qt launcher can
+> find an installation and copy them for you.
 >
 > Prefer to build it yourself from this repo rather than the AUR:
 > ```bash

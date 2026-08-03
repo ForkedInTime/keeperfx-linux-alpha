@@ -23,6 +23,7 @@ pkgbase = keeperfx-linux-alpha
 	depends = libnatpmp
 	depends = openssl
 	depends = zstd
+	optdepends = keeperfx-linux-alpha-data: the game data KeeperFX provides (campaigns, graphics, sounds)
 	optdepends = p7zip: extract the upstream full.7z game-data archive
 	optdepends = keeperfx-launcher-qt-linux: native Qt launcher, mod manager and data installer
 	provides = keeperfx-linux-alpha=1.4.0.5366
@@ -34,7 +35,7 @@ pkgbase = keeperfx-linux-alpha
 	source = keeperfx-alpha.sh
 	source = keeperfx-alpha.desktop
 	sha256sums = SKIP
-	sha256sums = 969fb9f2ede255076e1d8c0917e56e64a453c932f379e37c3e63ab5ab380e64f
+	sha256sums = 463788979a242dcc5c2fa72462b8642b07cf308403d7ee13fad50434ce4ebe5a
 	sha256sums = 09fee03b712bf75e4bd343e3f1560fd97ddd2c86f8f366cc60f3ef30949a5fa1
 
 pkgname = keeperfx-linux-alpha

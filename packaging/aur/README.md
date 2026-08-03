@@ -9,7 +9,34 @@ builds whatever `_tag` points at, so `yay -Syu` shows an update like any other
 package instead of requiring `--devel`. The cost is one bump per release, which
 `.github/workflows/publish-aur.yml` does automatically.
 
-## What the package does and does not ship
+## Two packages
+
+| Package | Source | Size | Contents |
+|---|---|---|---|
+| `keeperfx-linux-alpha` | this repo at `_tag` | 16 MB | engine compiled from source, text config, wrapper, desktop entry, icons |
+| `keeperfx-linux-alpha-data` (`data/`) | the release's `full.7z` | 412 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` |
+
+Both carry the same `_tag`/`pkgver` and are bumped together, deliberately: the data
+package holds the config the engine reads, and a version mismatch between them is
+precisely the staleness that once shipped a frozen config against a newer engine.
+Since 1.4.0.5273 the release archive carries freshly-overlaid config — verified for
+1.4.0.5366, where all 65 `fxdata`/`creatrs` files are byte-identical to the repo at
+that tag — so the data package's copies are authoritative and the wrapper prefers
+them.
+
+The data package deliberately drops the archive's `keeperfx` binary, the Qt
+launcher, the bundled `7z.so`, `keeperfx.cfg` and `version.txt`: those are either
+the engine package's job or user state.
+
+**Redistribution note.** The archive contains no files from the original Dungeon
+Keeper except `data/main.pal` and `data/mapfadeg.dat`, which do appear in
+`docs/files_required_from_original_dk.txt`. They arrive via the KeeperFX data tree
+that upstream distributes, and the AUR hosts nothing itself — it points users at
+the same release asset this project already publishes — so this package adds no
+exposure that the AppImage and `full.7z` do not already carry. The other 14 listed
+files are absent, and the wrapper names them individually when they are missing.
+
+## What the engine package does and does not ship
 
 Ships: the engine built from source against system libraries, the generated
 UTF-8 fonts, and the text/config data that tracks the engine version

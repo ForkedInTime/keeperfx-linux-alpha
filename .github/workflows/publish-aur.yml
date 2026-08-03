@@ -54,13 +54,32 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Bump the PKGBUILD to this release
+      - name: Bump both PKGBUILDs to this release
         working-directory: packaging/aur
         run: |
-          sed -i "s|^_tag=.*|_tag=${{ steps.tag.outputs.tag }}|" PKGBUILD
-          sed -i "s|^pkgver=.*|pkgver=${{ steps.tag.outputs.pkgver }}|" PKGBUILD
-          sed -i "s|^pkgrel=.*|pkgrel=1|" PKGBUILD
-          grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
+          # The two packages are versioned in lockstep: the data package carries the
+          # config the engine reads, and a mismatch between them is exactly the
+          # staleness that once shipped a frozen config against a newer engine.
+          for d in . data; do
+            sed -i "s|^_tag=.*|_tag=${{ steps.tag.outputs.tag }}|" "$d/PKGBUILD"
+            sed -i "s|^pkgver=.*|pkgver=${{ steps.tag.outputs.pkgver }}|" "$d/PKGBUILD"
+            sed -i "s|^pkgrel=.*|pkgrel=1|" "$d/PKGBUILD"
+            echo "--- $d/PKGBUILD"; grep -E '^(_tag|pkgver|pkgrel)=' "$d/PKGBUILD"
+          done
+
+      - name: Recompute the data archive checksum
+        working-directory: packaging/aur/data
+        run: |
+          # The data package pins the release asset by hash, so the hash has to be
+          # recomputed for each release. Downloaded once, here, rather than trusting
+          # a value copied by hand.
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.tag }}/keeperfx-linux-alpha-x86_64-full.7z"
+          curl -fsSL --retry 3 -o /tmp/full.7z "$URL"
+          SUM=$(sha256sum /tmp/full.7z | cut -d' ' -f1)
+          echo "full.7z sha256 = $SUM"
+          sed -i "s|^sha256sums=('.*')|sha256sums=('$SUM')|" PKGBUILD
+          grep '^sha256sums' PKGBUILD
+          rm -f /tmp/full.7z
 
       - name: Verify the tag actually exists upstream
         working-directory: packaging/aur
