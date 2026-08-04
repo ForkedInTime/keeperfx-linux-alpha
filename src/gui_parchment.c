@@ -17,6 +17,9 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <stdlib.h>
+#include <string.h>
+
 #include "pre_inc.h"
 #include "gui_parchment.h"
 
@@ -67,6 +70,33 @@ unsigned short engine_remap_texture_blocks(long stl_x, long stl_y, unsigned shor
 /******************************************************************************/
 int parchment_loaded;
 unsigned char *hires_parchment;
+
+/**
+ * Cache of the scaled parchment background.
+ *
+ * parchment_copy_background_at() stretches a 640x480 (or 320x200) image to the
+ * full screen and rewrites every pixel of the destination, margins included. The
+ * result depends only on the screen size, the scale, where the map area sits and
+ * the source image -- none of which change between frames -- yet it was being
+ * recomputed for every frame the map view was up. At 3440x1440 that is about five
+ * million pixels rescaled per frame, and profiling a running game put 46% of all
+ * CPU time in that one function. The cost scales with screen area, so it is far
+ * more visible on a wide display than at the 1080p this is usually tested at.
+ *
+ * So keep the finished image and copy it back instead, rebuilding only when one
+ * of those inputs actually changes.
+ */
+static unsigned char *parchment_bg_cache = NULL;
+static long parchment_bg_cache_len = 0;
+static int parchment_bg_scanline, parchment_bg_nlines;
+static int parchment_bg_dst_width, parchment_bg_dst_height;
+static int parchment_bg_left, parchment_bg_top;
+static const unsigned char *parchment_bg_src = NULL;
+
+void invalidate_parchment_background_cache(void)
+{
+    parchment_bg_src = NULL;
+}
 /******************************************************************************/
 void load_parchment_file(void)
 {
@@ -97,6 +127,8 @@ void reload_parchment_file(TbBool hires)
       LbFileLoadAt(fname, poly_pool);
   }
   parchment_loaded = 1;
+  // The cached background was scaled from the image just replaced.
+  invalidate_parchment_background_cache();
 }
 
 long get_parchment_background_area_rect(struct TbRect *bkgnd_area)
@@ -189,8 +221,42 @@ TbBool parchment_copy_background_at(const struct TbRect *bkgnd_area, int units_p
     if (LbGraphicsScreenBPP() != 8)
         return false;
     // Do the drawing
-    copy_raw8_image_buffer(lbDisplay.WScreen,LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
-        img_width*units_per_px/16,img_height*units_per_px/16,bkgnd_area->left,bkgnd_area->top,srcbuf,img_width,img_height);
+    const int scanline = LbGraphicsScreenWidth();
+    const int nlines = LbGraphicsScreenHeight();
+    const int dst_width = img_width*units_per_px/16;
+    const int dst_height = img_height*units_per_px/16;
+    const long buf_len = (long)scanline * (long)nlines;
+    if ((parchment_bg_cache != NULL) && (parchment_bg_cache_len == buf_len)
+     && (parchment_bg_src == srcbuf)
+     && (parchment_bg_scanline == scanline) && (parchment_bg_nlines == nlines)
+     && (parchment_bg_dst_width == dst_width) && (parchment_bg_dst_height == dst_height)
+     && (parchment_bg_left == bkgnd_area->left) && (parchment_bg_top == bkgnd_area->top))
+    {
+        memcpy(lbDisplay.WScreen, parchment_bg_cache, buf_len);
+    } else
+    {
+        copy_raw8_image_buffer(lbDisplay.WScreen,scanline,nlines,
+            dst_width,dst_height,bkgnd_area->left,bkgnd_area->top,srcbuf,img_width,img_height);
+        if (parchment_bg_cache_len != buf_len)
+        {
+            free(parchment_bg_cache);
+            parchment_bg_cache = (unsigned char *)malloc(buf_len);
+            parchment_bg_cache_len = (parchment_bg_cache != NULL) ? buf_len : 0;
+        }
+        if (parchment_bg_cache != NULL)
+        {
+            // Keeping the cache is an optimisation, so a failed allocation above
+            // simply means every frame is drawn the slow way, as it was before.
+            memcpy(parchment_bg_cache, lbDisplay.WScreen, buf_len);
+            parchment_bg_src = srcbuf;
+            parchment_bg_scanline = scanline;
+            parchment_bg_nlines = nlines;
+            parchment_bg_dst_width = dst_width;
+            parchment_bg_dst_height = dst_height;
+            parchment_bg_left = bkgnd_area->left;
+            parchment_bg_top = bkgnd_area->top;
+        }
+    }
     // Burning candle flames
     const struct TbSprite* spr = get_button_sprite(GBS_parchment_map_screen_flame_1 + (get_gameturn() & 3));
     LbSpriteDrawScaled(bkgnd_area->left+(36*units_per_px/(pixel_size << shift)),(bkgnd_area->top+0*units_per_px/(16*pixel_size)), spr, spr->SWidth*units_per_px/16, spr->SHeight*units_per_px/16);

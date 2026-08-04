@@ -43,6 +43,7 @@ TbBool parchment_copy_background_at(const struct TbRect *bkgnd_area, int m);
 
 void load_parchment_file(void);
 void reload_parchment_file(TbBool hires);
+void invalidate_parchment_background_cache(void);
 
 void redraw_parchment_view(void);
 void redraw_minimal_overhead_view(void);
