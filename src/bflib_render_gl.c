@@ -820,9 +820,29 @@ TbBool gl_present_init(SDL_Window *window, int fb_width, int fb_height)
         gl_present_shutdown();
         return false;
     }
-    /* Enable vsync; not fatal if unavailable. */
-    if (SDL_GL_SetSwapInterval(1) != 0) {
-        LbWarnLog("gl_present: vsync (SDL_GL_SetSwapInterval) unavailable: %s\n", SDL_GetError());
+    /* Presentation pacing, overridable with KFX_VSYNC:
+     *    1 (default) vsync on -- SwapWindow blocks until the next vblank.
+     *   -1           adaptive -- vsync when a frame is on time, tear instead of
+     *                waiting a whole extra refresh when it is late.
+     *    0           off      -- never block, tears freely.
+     *
+     * This matters because SwapWindow's wait lands inside the frame's measured
+     * draw time. With plain vsync a frame that misses its vblank by a fraction
+     * of a millisecond waits for the whole next one, which at 144Hz turns a
+     * marginal frame into a visible ~7ms stall. Adaptive trades a tear for that
+     * stall. The default is unchanged; this only makes the alternatives testable
+     * without a rebuild.
+     */
+    {
+        int want = gl_env_int("KFX_VSYNC", 1);
+        if (SDL_GL_SetSwapInterval(want) != 0) {
+            LbWarnLog("gl_present: swap interval %d unavailable: %s\n", want, SDL_GetError());
+            if ((want != 1) && (SDL_GL_SetSwapInterval(1) != 0)) {
+                LbWarnLog("gl_present: vsync (SDL_GL_SetSwapInterval) unavailable: %s\n", SDL_GetError());
+            }
+        }
+        LbSyncLog("gl_present: swap interval requested %d, in effect %d\n",
+            want, SDL_GL_GetSwapInterval());
     }
 
     /* Report the GL version / renderer string (confirms hardware GPU path). */

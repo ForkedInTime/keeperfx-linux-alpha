@@ -480,6 +480,13 @@ void gameplay_loop_draw()
     frametime_end_measurement(Frametime_Draw);
 
     if ( do_draw ) {
+        // Feed the drawn frame's cost to the adaptive cap. Only frames that were
+        // actually drawn say anything about whether this machine can sustain the
+        // rate; skipped ones would otherwise look like free headroom.
+        fps_adaptive_sample(frametime_measurements.frametime_current[Frametime_Draw]);
+    }
+
+    if ( do_draw ) {
         update_gameplay_delta_time();
         const long double delta = time_since_last_draw - average_frame_draw_time;
         average_frame_draw_time += delta * max(average_frame_draw_time, .05L) / 20;
