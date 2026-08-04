@@ -58,7 +58,7 @@ sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "$PREFIX/version.txt"
 echo "    version: $(cat "$PREFIX/version.txt")"
 # config/TEXT data tracks the engine version (sound config, creatures, campaigns)
 for d in fxdata creatrs mods; do mkdir -p "$PREFIX/$d"; cp -rf "config/$d/." "$PREFIX/$d/" 2>/dev/null || true; done
-for d in campgns levels lang; do [ -d "$d" ] && { mkdir -p "$PREFIX/$d"; cp -rf "$d/." "$PREFIX/$d/" 2>/dev/null || true; }; done
+for d in campgns levels lang multiplayer; do [ -d "$d" ] && { mkdir -p "$PREFIX/$d"; cp -rf "$d/." "$PREFIX/$d/" 2>/dev/null || true; }; done
 # the generated unifont binaries live alongside the text config in fxdata/
 cp -f tools/fxfontmaker/*.fxfont "$PREFIX/fxdata/" 2>/dev/null || true
 

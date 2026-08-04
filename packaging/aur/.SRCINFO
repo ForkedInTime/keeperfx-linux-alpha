@@ -29,7 +29,7 @@ pkgbase = keeperfx-tux
 	depends = hicolor-icon-theme
 	optdepends = keeperfx-tux-data: the game data KeeperFX provides (campaigns, graphics, sounds)
 	optdepends = p7zip: extract the upstream full.7z game-data archive
-	optdepends = keeperfx-launcher-qt-linux: native Qt launcher, mod manager and data installer
+	optdepends = keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you
 	provides = keeperfx-tux=1.4.0.5366
 	conflicts = keeperfx-linux-alpha
 	conflicts = keeperfx-linux-alpha-git
@@ -40,7 +40,7 @@ pkgbase = keeperfx-tux
 	source = keeperfx-tux.sh
 	source = keeperfx-tux.desktop
 	sha256sums = SKIP
-	sha256sums = d50e131e5381c663e5e9a95cb0dd7646b559ccd609bb258f6250ce8d1a4b337e
+	sha256sums = ff8e5649653c3f2e36f53210fefda5095ed139be5315179877a8f5376580fb0e
 	sha256sums = 36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd
 
 pkgname = keeperfx-tux

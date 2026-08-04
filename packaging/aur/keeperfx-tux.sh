@@ -18,7 +18,7 @@ GAMEDIR="${KEEPERFX_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/keeperfx-alpha}"
 # are supersets of the engine package's (which ships only the text config), and
 # since 1.4.0.5273 the release archive carries freshly-overlaid config, so there is
 # no staleness to work around -- the two are byte-identical at the same tag.
-RO_DIRS=(campgns levels lang fxdata creatrs ldata)
+RO_DIRS=(campgns levels lang fxdata creatrs ldata multiplayer)
 # The user drops their own Dungeon Keeper files into these alongside ours, so they
 # must be real directories. Packaged files are linked in individually.
 MERGE_DIRS=(data sound)
@@ -74,6 +74,14 @@ done
 
 ln -sfn "$BINDIR/keeperfx" "$GAMEDIR/keeperfx"
 [ -e "$PREFIX/version.txt" ] && cp -f "$PREFIX/version.txt" "$GAMEDIR/version.txt"
+
+# The engine will not start without keeperfx.cfg. Seed it once from the packaged
+# template and then leave it alone: it holds the user's graphics and sound
+# settings, so an upgrade must never overwrite it.
+if [ ! -e "$GAMEDIR/keeperfx.cfg" ] && [ -e "$PREFIX/keeperfx.cfg" ]; then
+    cp "$PREFIX/keeperfx.cfg" "$GAMEDIR/keeperfx.cfg"
+    chmod u+w "$GAMEDIR/keeperfx.cfg"
+fi
 
 # Report what is missing in terms of what the user has to do about it, rather than
 # as an empty directory.

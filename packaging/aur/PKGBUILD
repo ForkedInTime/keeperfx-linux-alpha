@@ -23,7 +23,7 @@ makedepends=('git' 'python' 'curl')
 optdepends=(
   'keeperfx-tux-data: the game data KeeperFX provides (campaigns, graphics, sounds)'
   'p7zip: extract the upstream full.7z game-data archive'
-  'keeperfx-launcher-qt-linux: native Qt launcher, mod manager and data installer'
+  'keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you'
 )
 conflicts=('keeperfx-linux-alpha' 'keeperfx-linux-alpha-git')
 provides=("keeperfx-tux=${pkgver}")
@@ -40,7 +40,7 @@ source=(
 )
 sha256sums=(
   'SKIP'
-  'd50e131e5381c663e5e9a95cb0dd7646b559ccd609bb258f6250ce8d1a4b337e'
+  'ff8e5649653c3f2e36f53210fefda5095ed139be5315179877a8f5376580fb0e'
   '36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd'
 )
 
@@ -106,7 +106,7 @@ package() {
     install -dm755 "${_share}/${_d}"
     cp -r "config/${_d}/." "${_share}/${_d}/"
   done
-  for _d in campgns levels lang; do
+  for _d in campgns levels lang multiplayer; do
     [ -d "${_d}" ] || continue
     install -dm755 "${_share}/${_d}"
     cp -r "${_d}/." "${_share}/${_d}/"
@@ -114,6 +114,11 @@ package() {
 
   # Generated fonts live alongside the text config, as the engine expects.
   install -m644 tools/fxfontmaker/*.fxfont "${_share}/fxdata/"
+
+  # The engine refuses to start without keeperfx.cfg ("Configuration load error").
+  # Shipped as a template the wrapper copies into the game directory, because the
+  # user edits it and it must not be overwritten by an upgrade.
+  install -m644 config/keeperfx.cfg "${_share}/keeperfx.cfg"
 
   install -Dm755 "${srcdir}/keeperfx-tux.sh" "${pkgdir}/usr/bin/keeperfx-tux"
   install -Dm644 "${srcdir}/keeperfx-tux.desktop" \
