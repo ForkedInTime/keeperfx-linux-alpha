@@ -129,8 +129,21 @@ jobs:
             "$APPDIR/usr/share/icons/hicolor/256x256/apps/keeperfx-launcher-qt.png"
           install -Dm644 packaging/keeperfx-launcher-qt.desktop \
             "$APPDIR/usr/share/applications/keeperfx-launcher-qt.desktop"
-          wget -q https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/keeperfx-linux-alpha-x86_64-full.7z
-          7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
+          # payload base = UPSTREAM's current data package, for the same reason as the
+          # launcher repo's build-appimage.yml: building from our own previous payload
+          # meant a copy of a copy, so the multiplayer map data was never present and
+          # fxdata/gtext_*.dat could never update. Their data is the authority; our
+          # engine and config are overlaid on top. The asset name carries the version.
+          UP_URL=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/dkfans/keeperfx/releases/latest \
+            | python3 -c "import sys,json; print(next(a['browser_download_url'] for a in json.load(sys.stdin)['assets'] if a['name'].endswith('_complete.7z')))")
+          echo "upstream data package: $UP_URL"
+          wget -q -O upstream-complete.7z "$UP_URL"
+          7z x -bso0 upstream-complete.7z -opkg
+          # That package is the Windows distribution, so drop its binaries and debug maps.
+          find pkg -maxdepth 1 -type f \( -iname '*.exe' -o -iname '*.dll' \
+            -o -iname '*.map' -o -iname 'launch.sh' \) -delete
+          echo "payload base: $(du -sh pkg | cut -f1), $(find pkg -type f | wc -l) files"
           P="$APPDIR/payload"
           mkdir -p "$P"
           cp -rf pkg/. "$P/"
@@ -157,6 +170,9 @@ jobs:
               cp -rf "../$d/." "$P/$d/"
             fi
           done
+          # keeperfx.cfg tracks the engine too: this repo's copy carries options the
+          # upstream tagged package predates.
+          [ -f ../config/keeperfx.cfg ] && cp -f ../config/keeperfx.cfg "$P/keeperfx.cfg"
           # Fonts are re-applied AFTER the overlay: they live in fxdata/ but are
           # generated, not part of config/, so the overlay would otherwise remove them.
           cp -f ../tools/fxfontmaker/*.fxfont "$P/fxdata/"
