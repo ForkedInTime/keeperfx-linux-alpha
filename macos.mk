@@ -73,11 +73,31 @@ KFX_INCLUDES := \
 
 COMMON_FLAGS := -g -DDEBUG -DBFDEBUG_LEVEL=0 -O2 $(ARCH_FLAGS) -fsigned-char \
 	$(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter \
-	-Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare \
+	-Wno-unknown-pragmas -Wno-sign-compare \
 	-Wno-deprecated-declarations
 
 KFX_CFLAGS   += $(COMMON_FLAGS) -Wno-absolute-value
 KFX_CXXFLAGS += $(COMMON_FLAGS)
+
+# Version header. linux.mk generates this from version.mk and it is NOT in git,
+# so without it every translation unit dies at globals.h -> version.h before the
+# compiler reaches a single line of real code. The first run of this spike hit
+# exactly that and learned nothing about macOS as a result.
+include version.mk
+# BUILD_NUMBER and VER_SUFFIX must be set BEFORE VER_STRING expands it, or the
+# version comes out as "1.4.0. " with an empty build number.
+BUILD_NUMBER ?= $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
+VER_SUFFIX ?= macos-spike
+VER_STRING := $(VER_MAJOR).$(VER_MINOR).$(VER_RELEASE).$(BUILD_NUMBER) $(VER_SUFFIX)
+
+src/ver_defs.h: version.mk
+	@echo "#define VER_MAJOR   $(VER_MAJOR)"                       >  $@
+	@echo "#define VER_MINOR   $(VER_MINOR)"                       >> $@
+	@echo "#define VER_RELEASE $(VER_RELEASE)"                     >> $@
+	@echo "#define VER_BUILD   $(BUILD_NUMBER)"                    >> $@
+	@echo "#define VER_STRING  \"$(VER_STRING)\""                  >> $@
+	@echo "#define PACKAGE_SUFFIX  \"$(VER_SUFFIX)\""              >> $@
+	@echo "#define GIT_REVISION  \"$(shell git describe --always 2>/dev/null || echo unknown)\"" >> $@
 
 KFX_LDFLAGS += \
 	-g -rdynamic \
@@ -105,6 +125,11 @@ TOML_CFLAGS += -O2 $(ARCH_FLAGS) -fsigned-char -Ideps/centijson/include \
 
 .PHONY: all clean probe
 all: bin-macos/keeperfx
+
+# Every object needs the generated version header. Listing it as a prerequisite
+# of `all` is not enough: make does not order the prerequisites of a target, so
+# under -j the first compile can start before the header exists.
+$(KFX_C_OBJECTS) $(KFX_CXX_OBJECTS): src/ver_defs.h
 
 probe:
 	@echo "uname -m      : $(UNAME_M)"
