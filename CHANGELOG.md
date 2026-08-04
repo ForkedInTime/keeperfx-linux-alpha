@@ -3,6 +3,27 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5384 — 2026-08-03
+- **Multiplayer map packs work.** Classic, Modern and Original now appear in the multiplayer menu with
+  their maps, in every install method. They are declared by text files this repository tracks, but the
+  maps themselves live in the game data — and the update archive is assembled from the *previous*
+  release's archive, so a directory that did not exist when that chain began could never join it. The
+  mappacks arrived upstream a month after the 1.3.2 data this fork first packaged, which is exactly the
+  gap they fell into. The archive is now layered over the KeeperFX team's current data package on every
+  build, so their new content arrives on its own instead of waiting to be noticed.
+- **The multiplayer service list reads correctly again.** It offered "Serial", "Modem" and "IPX" — the
+  1997 game's options — where the engine actually builds "Online", "LAN" and "Skirmish". The names come
+  from a string table that had drifted out of step with the engine reading it, for the same reason as
+  above. Same fix, and it keeps the rest of the interface's text current too.
+- **Campaigns and levels are current again.** Their configuration had been frozen at whatever the archive
+  first shipped: 14 of 60 campaign files and 22 of 60 level files were behind the engine, including
+  changes the team made in July. Nothing you need to do — an update simply brings them in step.
+- **Install from the AUR on Arch.** `yay -S keeperfx-tux` builds the engine against your own system's
+  libraries and pulls the game data in with it, so one command is the whole install and `yay -Syu` keeps
+  it current. The AppImage stays for everything else, and the Flatpak still updates monthly.
+- **The game window has an icon and a name.** It showed a generic placeholder in taskbars and docks under
+  both X11 and Wayland; the launcher window did too.
+
 ## 1.4.0.5366 — 2026-08-03
 - **`KFX_NONINTERACTIVE=1` for scripts and CI.** A startup problem — an unrecognised command-line option,
   say — raised a message box and waited for a click. Fine for a person, fatal for anything automated: CI,
