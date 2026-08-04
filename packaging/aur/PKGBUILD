@@ -9,10 +9,10 @@
 #
 # _tag and pkgver are bumped by .github/workflows/publish-aur.yml when a release
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
-_tag=v1.4.0.5366-alpha
+_tag=v1.4.0.5384-alpha
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data')
-pkgver=1.4.0.5366
+pkgver=1.4.0.5384
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
@@ -33,7 +33,7 @@ source=(
 noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
-  '788adcacbc86451a1d5d45026f3d79196e5f25ef7f85be12b8df73fa20d2ca98'
+  'd3d416cf5698ad738134ebf37eeebea417ce302a9739face0b19a86cdf2a136a'
   'fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127'
   '36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd'
 )
@@ -41,7 +41,7 @@ sha256sums=(
 # Data trees taken from the release archive. It also contains the engine binary,
 # the Qt launcher, a bundled 7z.so, keeperfx.cfg and version.txt: those are either
 # the engine package's job or user state, so they are deliberately skipped.
-_data_trees=(data sound ldata campgns levels lang fxdata creatrs mods music)
+_data_trees=(data sound ldata campgns levels lang fxdata creatrs mods music multiplayer)
 
 prepare() {
   cd "${srcdir}/${pkgbase}"

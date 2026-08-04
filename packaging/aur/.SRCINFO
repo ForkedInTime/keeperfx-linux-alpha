@@ -1,5 +1,5 @@
 pkgbase = keeperfx-tux
-	pkgver = 1.4.0.5366
+	pkgver = 1.4.0.5384
 	pkgrel = 1
 	url = https://github.com/ForkedInTime/keeperfx-linux-alpha
 	arch = x86_64
@@ -8,16 +8,16 @@ pkgbase = keeperfx-tux
 	makedepends = python
 	makedepends = curl
 	makedepends = p7zip
-	noextract = keeperfx-tux-1.4.0.5366-full.7z
+	noextract = keeperfx-tux-1.4.0.5384-full.7z
 	options = !strip
 	options = !debug
 	options = !lto
-	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5366-alpha
-	source = keeperfx-tux-1.4.0.5366-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5366-alpha/keeperfx-linux-alpha-x86_64-full.7z
+	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5384-alpha
+	source = keeperfx-tux-1.4.0.5384-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5384-alpha/keeperfx-linux-alpha-x86_64-full.7z
 	source = keeperfx-tux.sh
 	source = keeperfx-tux.desktop
 	sha256sums = SKIP
-	sha256sums = 788adcacbc86451a1d5d45026f3d79196e5f25ef7f85be12b8df73fa20d2ca98
+	sha256sums = d3d416cf5698ad738134ebf37eeebea417ce302a9739face0b19a86cdf2a136a
 	sha256sums = fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127
 	sha256sums = 36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd
 
@@ -42,9 +42,9 @@ pkgname = keeperfx-tux
 	depends = gcc-libs
 	depends = bash
 	depends = hicolor-icon-theme
-	depends = keeperfx-tux-data=1.4.0.5366-1
+	depends = keeperfx-tux-data=1.4.0.5384-1
 	optdepends = keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you
-	provides = keeperfx-tux=1.4.0.5366
+	provides = keeperfx-tux=1.4.0.5384
 	conflicts = keeperfx-linux-alpha
 	conflicts = keeperfx-linux-alpha-git
 
