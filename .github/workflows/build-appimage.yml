@@ -1,0 +1,312 @@
+# Builds the self-contained AppImage and the full.7z update package, and attaches
+# both to the release that triggered it.
+#
+# This lives in the ENGINE repo rather than the launcher repo, for the same reason
+# build-flatpak.yml does: a workflow only sees releases in its own repository, and
+# the default GITHUB_TOKEN can only upload to its own repository's releases. Run
+# from the launcher repo it could neither be triggered by an engine release nor
+# attach anything to one, which is why those assets used to be uploaded by hand.
+# The build itself still needs both repos, so the launcher is cloned below -- the
+# two repos simply swap checkout/clone roles.
+#
+# The Flatpak (build-flatpak.yml) stays monthly and separate: it is slow to build
+# and self-updates on launch, so it does not need cutting every release.
+name: Build AppImage
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to attach the bundle to the release
+
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+  LAUNCHER_REPO: https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git
+  LAUNCHER_BRANCH: alpha
+
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the engine
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # full history, so the build number (git commit count) is correct
+
+      # Cloned before the cache steps below, which hash files from inside it.
+      - name: Clone the launcher (its packaging/ provides the desktop entry and icon)
+        run: git clone --branch "$LAUNCHER_BRANCH" --depth 1 "$LAUNCHER_REPO" launcher
+
+      - name: Install dependencies (launcher build + engine runtime libs + appimage tools)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache cmake ninja-build git pkg-config file wget desktop-file-utils python3 python3-pip p7zip-full \
+            elfutils \
+            libgl1-mesa-dev zlib1g-dev \
+            libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 \
+            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev libepoxy-dev \
+            libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+
+      - name: Cache compiled objects (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-appimage-${{ github.run_id }}
+          restore-keys: ccache-appimage-
+
+      - name: Cache CPM dependency sources (LIEF, etc.)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ hashFiles('launcher/CMakeLists.txt', 'launcher/cmake/**', 'launcher/cpm-package-lock.cmake') }}
+          restore-keys: cpm-
+
+      - name: Cache Qt 6.8
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-6.8.3-linux-gcc64
+
+      - name: Install Qt 6.8 (the launcher needs Qt >=6.7; 24.04 only has 6.4)
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          pip install --break-system-packages aqtinstall
+          python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 -O "$RUNNER_TEMP/Qt"
+
+      - name: Set up Qt + ccache environment
+        run: |
+          QT="$RUNNER_TEMP/Qt/6.8.3/gcc_64"
+          echo "$QT/bin" >> "$GITHUB_PATH"
+          echo "CMAKE_PREFIX_PATH=$QT" >> "$GITHUB_ENV"
+          echo "QMAKE=$QT/bin/qmake" >> "$GITHUB_ENV"
+          ccache --max-size=1G --zero-stats
+
+      - name: Build the launcher
+        run: |
+          cmake -S launcher -B launcher/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build launcher/build -j"$(nproc)"
+
+      - name: Build the engine on 24.04 (the released Arch engine won't run on Ubuntu)
+        run: |
+          make -f linux.mk deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
+                           deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
+          BN="$(git rev-list --count HEAD)"
+          echo "Build number: $BN"
+          rm -f src/ver_defs.h
+          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
+          cd tools/fxfontmaker
+          python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
+          python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
+          python3 merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
+          python3 unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
+          python3 unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
+          python3 unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
+          python3 unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+
+      # The AppDir is assembled inside launcher/ because the desktop entry and icon
+      # linuxdeploy needs live in launcher/packaging/, and the linuxdeploy steps below
+      # run from there.
+      - name: Assemble the AppDir (launcher + engine + payload data)
+        working-directory: launcher
+        run: |
+          APPDIR="$PWD/AppDir"
+          mkdir -p "$APPDIR/usr/bin"
+          cp build/keeperfx-launcher-qt "$APPDIR/usr/bin/"
+          cp ext/7z.so "$APPDIR/usr/bin/"
+          install -Dm644 packaging/keeperfx-launcher-qt.png \
+            "$APPDIR/usr/share/icons/hicolor/256x256/apps/keeperfx-launcher-qt.png"
+          install -Dm644 packaging/keeperfx-launcher-qt.desktop \
+            "$APPDIR/usr/share/applications/keeperfx-launcher-qt.desktop"
+          # payload = our previous release's data, with UPSTREAM's current data
+          # overlaid on top. Mirrors the launcher repo's build-appimage.yml.
+          #
+          # Ours alone was a copy of a copy, so the multiplayer map data was never
+          # present and fxdata/gtext_*.dat could never update -- the latter being why
+          # the multiplayer service menu showed the original game's
+          # "Serial / Modem / IPX" instead of "Online / LAN / Skirmish". But upstream's
+          # package is not a superset of ours: it lacks the campgns/burdnimp level pack
+          # and its ldata movies are the original 320x200 Smacker files where ours are
+          # H.264 re-encodes. So ours is the base, upstream layers over it, and our
+          # movies are restored afterwards.
+          wget -q https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/keeperfx-linux-alpha-x86_64-full.7z
+          7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
+
+          UP_URL=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/dkfans/keeperfx/releases/latest \
+            | python3 -c "import sys,json; print(next(a['browser_download_url'] for a in json.load(sys.stdin)['assets'] if a['name'].endswith('_complete.7z')))")
+          echo "upstream data package: $UP_URL"
+          wget -q -O upstream-complete.7z "$UP_URL"
+          7z x -bso0 upstream-complete.7z -oupstream
+          find upstream -maxdepth 1 -type f \( -iname '*.exe' -o -iname '*.dll' \
+            -o -iname '*.map' -o -iname 'launch.sh' \) -delete
+          mkdir -p /tmp/ourmovies
+          find pkg/ldata -maxdepth 1 -iname '*.smk' -exec cp -f {} /tmp/ourmovies/ \; 2>/dev/null || true
+          cp -rf upstream/. pkg/
+          if [ -n "$(ls -A /tmp/ourmovies 2>/dev/null)" ]; then
+            cp -f /tmp/ourmovies/*.smk pkg/ldata/
+            echo "restored $(ls /tmp/ourmovies | wc -l) re-encoded movie(s)"
+          fi
+          echo "payload base: $(du -sh pkg | cut -f1), $(find pkg -type f | wc -l) files"
+          P="$APPDIR/payload"
+          mkdir -p "$P"
+          cp -rf pkg/. "$P/"
+          cp -f ../bin/keeperfx "$P/keeperfx"
+          # Overlay the freshly-built engine's game data over the downloaded payload.
+          # This overlay is what stops the payload freezing: it never received the
+          # config fix the AppImage got: every payload is assembled from the PREVIOUS
+          # release's payload, so anything not overlaid stays frozen at whatever it
+          # first shipped. config/ holds fxdata/creatrs/mods/music; campgns, levels,
+          # lang and multiplayer live at the engine repo's top level. multiplayer/ was
+          # never in any payload at all, which is why the engine reported no multiplayer
+          # mappacks. These trees also carry large binary assets that exist only in the
+          # payload, so this overlays text onto them rather than replacing them.
+          # Mirrors the launcher repo's build-appimage.yml.
+          for d in fxdata creatrs mods music; do
+            if [ -d "../config/$d" ]; then
+              mkdir -p "$P/$d"
+              cp -rf "../config/$d/." "$P/$d/"
+            fi
+          done
+          for d in campgns levels lang multiplayer; do
+            if [ -d "../$d" ]; then
+              mkdir -p "$P/$d"
+              cp -rf "../$d/." "$P/$d/"
+            fi
+          done
+          # keeperfx.cfg tracks the engine too: this repo's copy carries options the
+          # upstream tagged package predates.
+          [ -f ../config/keeperfx.cfg ] && cp -f ../config/keeperfx.cfg "$P/keeperfx.cfg"
+          # Fonts are re-applied AFTER the overlay: they live in fxdata/ but are
+          # generated, not part of config/, so the overlay would otherwise remove them.
+          cp -f ../tools/fxfontmaker/*.fxfont "$P/fxdata/"
+          sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
+          echo "Stamped version: $(cat "$P/version.txt")"
+          cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"
+          cp -f ext/7z.so "$P/7z.so"
+          cp -f ../bin/keeperfx "$APPDIR/usr/bin/keeperfx"   # for linuxdeploy lib scan
+          # Repackage that exact payload as the in-launcher update archive. This is what
+          # the launcher's self-updater downloads, so it carries the same freshly built
+          # engine, launcher and data the AppImage does.
+          ( cd "$P" && 7z a -bso0 "$GITHUB_WORKSPACE/keeperfx-linux-alpha-x86_64-full.7z" . )
+          ls -la "$GITHUB_WORKSPACE/keeperfx-linux-alpha-x86_64-full.7z"
+
+      - name: Get linuxdeploy + Qt plugin + appimagetool
+        working-directory: launcher
+        run: |
+          base=https://github.com/linuxdeploy
+          wget -q "$base/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          wget -q "$base/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool-x86_64.AppImage
+
+      - name: Bundle ALL libraries (launcher Qt + engine SDL2/ffmpeg/OpenAL/…)
+        working-directory: launcher
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            -d packaging/keeperfx-launcher-qt.desktop \
+            -i packaging/keeperfx-launcher-qt.png \
+            --plugin qt
+          # the engine runs from the payload, not usr/bin — drop the duplicate
+          rm -f AppDir/usr/bin/keeperfx
+
+      - name: Install the custom AppRun (deploy payload to a writable install dir)
+        working-directory: launcher
+        run: |
+          # linuxdeploy leaves AppRun as a SYMLINK into usr/bin; writing through it would
+          # clobber the launcher binary, so remove it and write a real script at the root.
+          rm -f AppDir/AppRun
+          cat > AppDir/AppRun <<'EOF'
+          #!/bin/bash
+          HERE="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+          export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
+          export QT_PLUGIN_PATH="$HERE/usr/plugins"
+          export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/plugins/platforms"
+          # We only bundle the xcb platform plugin; use it (via XWayland on Wayland) to
+          # avoid the "Could not find the Qt platform plugin wayland" warning.
+          export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+          INSTALL="${KFX_ALPHA_PREFIX:-$HOME/.local/share/keeperfx-alpha}"
+          mkdir -p "$INSTALL"
+          # Don't let our bundled glib load the SYSTEM gvfs/gio modules (symbol mismatch
+          # on newer distros: 'g_variant_builder_init_static' undefined). Point GIO at an
+          # empty dir so it loads none — Qt's own file dialogs are unaffected.
+          mkdir -p "$INSTALL/.gio-modules"
+          export GIO_MODULE_DIR="$INSTALL/.gio-modules"
+          # deploy the bundled game once (or when the version changes)
+          NEWVER="$(cat "$HERE/payload/version.txt" 2>/dev/null)"
+          if [ "$(cat "$INSTALL/.bundled-version" 2>/dev/null)" != "$NEWVER" ]; then
+            cp -rf "$HERE/payload/." "$INSTALL/"
+            echo "$NEWVER" > "$INSTALL/.bundled-version"
+          fi
+          # The launcher + 7z.so live in the payload (deployed above), so an in-launcher
+          # update can replace them. Only place them if MISSING — never clobber, or we'd
+          # revert a launcher that the in-launcher update just upgraded.
+          [ -x "$INSTALL/keeperfx-launcher-qt" ] || cp -f "$HERE/payload/keeperfx-launcher-qt" "$INSTALL/keeperfx-launcher-qt"
+          [ -f "$INSTALL/7z.so" ] || cp -f "$HERE/payload/7z.so" "$INSTALL/7z.so" 2>/dev/null || true
+          # Add an applications-menu entry so it's launchable like any installed game,
+          # not just by finding the AppImage file. $APPIMAGE is the AppImage's own path.
+          if [ -n "$APPIMAGE" ]; then
+            appdir="$HOME/.local/share/applications"; icondir="$HOME/.local/share/icons"
+            mkdir -p "$appdir" "$icondir"
+            cp -f "$HERE/usr/share/icons/hicolor/256x256/apps/keeperfx-launcher-qt.png" "$icondir/keeperfx-linux-alpha.png" 2>/dev/null || true
+            {
+              echo "[Desktop Entry]"
+              echo "Type=Application"
+              echo "Name=KeeperFX Tux Edition"
+              echo "Comment=Dungeon Keeper, native on Linux"
+              echo "Exec=\"$APPIMAGE\""
+              echo "Icon=$icondir/keeperfx-linux-alpha.png"
+              echo "Terminal=false"
+              echo "Categories=Game;StrategyGame;"
+            } > "$appdir/keeperfx-linux-alpha.desktop"
+            update-desktop-database "$appdir" 2>/dev/null || true
+          fi
+          cd "$INSTALL"
+          exec "$INSTALL/keeperfx-launcher-qt" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+      - name: Package the AppImage
+        working-directory: launcher
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          ARCH: x86_64
+        run: |
+          ./appimagetool-x86_64.AppImage AppDir "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.AppImage"
+          ls -la "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.AppImage"
+
+      - name: Upload the AppImage (downloadable from this CI run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeeperFX-Linux-Alpha-AppImage
+          path: KeeperFX-Linux-Alpha-x86_64.AppImage
+
+      - name: Upload the full.7z update package (downloadable from this CI run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: keeperfx-linux-alpha-full-7z
+          path: keeperfx-linux-alpha-x86_64-full.7z
+
+      # Same-repo upload: the default GITHUB_TOKEN is scoped to this repo, so this
+      # needs no PAT. This is the whole reason the workflow lives here rather than in
+      # the launcher repo, where it could neither see this repo's releases nor be
+      # triggered by them.
+      - name: Attach the AppImage + full.7z to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            KeeperFX-Linux-Alpha-x86_64.AppImage \
+            keeperfx-linux-alpha-x86_64-full.7z --clobber
