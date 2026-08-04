@@ -65,13 +65,21 @@ jobs:
           grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
 
       - name: Recompute the data archive checksum
+        id: sums
         working-directory: packaging/aur
         run: |
           # The data package pins the release asset by hash, so the hash has to be
           # recomputed for each release. Downloaded once, here, rather than trusting
           # a value copied by hand.
           URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.tag }}/keeperfx-linux-alpha-x86_64-full.7z"
-          curl -fsSL --retry 3 -o /tmp/full.7z "$URL"
+          # The data package pins this archive by hash, but it is attached to the
+          # release by the AppImage build, which runs after the release is published.
+          # On a fresh release it is therefore legitimately not there yet.
+          if ! curl -fsSL --retry 3 -o /tmp/full.7z "$URL"; then
+            echo "::notice::$URL is not attached yet — re-run this workflow once the AppImage build has uploaded it"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           SUM=$(sha256sum /tmp/full.7z | cut -d' ' -f1)
           echo "full.7z sha256 = $SUM"
           # The archive is the second source entry, so replace the second hash.
@@ -88,6 +96,7 @@ jobs:
           rm -f /tmp/full.7z
 
       - name: Verify the tag actually exists upstream
+        if: steps.sums.outputs.skip != '1'
         working-directory: packaging/aur
         run: |
           # Catches a release published before its tag propagated, which would
@@ -97,6 +106,7 @@ jobs:
             "refs/tags/${{ steps.tag.outputs.tag }}"
 
       - name: Regenerate .SRCINFO
+        if: steps.sums.outputs.skip != '1'
         working-directory: packaging/aur
         run: |
           # makepkg refuses to run as root, so do this as a normal user.
@@ -107,6 +117,7 @@ jobs:
           head -6 .SRCINFO
 
       - name: Sanity-check the generated metadata
+        if: steps.sums.outputs.skip != '1'
         working-directory: packaging/aur
         run: |
           grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" .SRCINFO \
@@ -121,7 +132,7 @@ jobs:
           echo "split package at ${{ steps.tag.outputs.tag }} declares both outputs"
 
       - name: Commit the bump back to this repo
-        if: ${{ !inputs.dry_run }}
+        if: steps.sums.outputs.skip != '1' && !inputs.dry_run
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  'github-actions[bot]'
@@ -135,7 +146,7 @@ jobs:
           fi
 
       - name: Push to the AUR
-        if: ${{ !inputs.dry_run }}
+        if: steps.sums.outputs.skip != '1' && !inputs.dry_run
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
@@ -183,7 +194,7 @@ jobs:
           fi
 
       - name: Dry-run summary
-        if: ${{ inputs.dry_run }}
+        if: steps.sums.outputs.skip != '1' && inputs.dry_run
         working-directory: packaging/aur
         run: |
           echo "Dry run — nothing pushed. Generated metadata:"
