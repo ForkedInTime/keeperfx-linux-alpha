@@ -1,5 +1,4 @@
 pkgbase = keeperfx-tux
-	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)
 	pkgver = 1.4.0.5366
 	pkgrel = 1
 	url = https://github.com/ForkedInTime/keeperfx-linux-alpha
@@ -8,6 +7,22 @@ pkgbase = keeperfx-tux
 	makedepends = git
 	makedepends = python
 	makedepends = curl
+	makedepends = p7zip
+	noextract = keeperfx-tux-1.4.0.5366-full.7z
+	options = !strip
+	options = !debug
+	options = !lto
+	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5366-alpha
+	source = keeperfx-tux-1.4.0.5366-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5366-alpha/keeperfx-linux-alpha-x86_64-full.7z
+	source = keeperfx-tux.sh
+	source = keeperfx-tux.desktop
+	sha256sums = SKIP
+	sha256sums = 788adcacbc86451a1d5d45026f3d79196e5f25ef7f85be12b8df73fa20d2ca98
+	sha256sums = fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127
+	sha256sums = 36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd
+
+pkgname = keeperfx-tux
+	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)
 	depends = sdl2-compat
 	depends = sdl2_mixer
 	depends = sdl2_net
@@ -27,20 +42,14 @@ pkgbase = keeperfx-tux
 	depends = gcc-libs
 	depends = bash
 	depends = hicolor-icon-theme
-	optdepends = keeperfx-tux-data: the game data KeeperFX provides (campaigns, graphics, sounds)
-	optdepends = p7zip: extract the upstream full.7z game-data archive
+	depends = keeperfx-tux-data=1.4.0.5366-1
 	optdepends = keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you
 	provides = keeperfx-tux=1.4.0.5366
 	conflicts = keeperfx-linux-alpha
 	conflicts = keeperfx-linux-alpha-git
+
+pkgname = keeperfx-tux-data
+	pkgdesc = Game data for KeeperFX Tux Edition (campaigns, graphics, sounds) — you still supply your own Dungeon Keeper files
+	arch = any
 	options = !strip
 	options = !debug
-	options = !lto
-	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5366-alpha
-	source = keeperfx-tux.sh
-	source = keeperfx-tux.desktop
-	sha256sums = SKIP
-	sha256sums = ff8e5649653c3f2e36f53210fefda5095ed139be5315179877a8f5376580fb0e
-	sha256sums = 36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd
-
-pkgname = keeperfx-tux

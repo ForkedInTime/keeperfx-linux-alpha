@@ -54,22 +54,22 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 the engine is compiled from source against your system's own libraries and updates with everything else.
 
 ```bash
-yay -S keeperfx-tux keeperfx-tux-data
+yay -S keeperfx-tux
 ```
 
 Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-tux`. Updates arrive with your
 normal `yay -Syu` — no self-updater, no re-downloading half a gigabyte.
 
-Two packages: the engine (18 MB, compiled on your machine) and the game data (412 MB — campaigns,
-graphics, sounds). Install both for a complete setup; skip the data package only if you already have a
-KeeperFX data tree you want to point at.
+That one command is the whole install: it builds the engine on your machine and pulls in
+`keeperfx-tux-data` (the campaigns, graphics and sounds) automatically.
 
 <details>
 <summary><b>What the package does and doesn't include</b></summary>
 
-> `keeperfx-tux` is the engine — about 18 MB, because it is compiled against your system's
-> SDL2/ffmpeg/OpenAL rather than bundling copies. `keeperfx-tux-data` is everything KeeperFX itself
-> provides: campaigns, graphics, sounds and language files.
+> It installs as two pieces from one recipe: `keeperfx-tux`, the engine, compiled against your system's
+> SDL2/ffmpeg/OpenAL rather than bundling copies; and `keeperfx-tux-data`, everything KeeperFX itself
+> provides — campaigns, graphics, sounds and language files. You only ever ask for the first; pacman
+> brings the second.
 >
 > On first launch the game directory is assembled at `~/.local/share/keeperfx-alpha` (set `KEEPERFX_HOME`
 > to put it elsewhere). **You still need to own the original game**, same as every other install method

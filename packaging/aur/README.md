@@ -1,24 +1,29 @@
 # AUR packaging
 
-Source for the `keeperfx-tux` AUR package. This directory is the
-canonical copy; the AUR repository is a mirror of these three files plus a
-generated `.SRCINFO`.
+Source for the `keeperfx-tux` AUR package. This directory is the canonical copy;
+the AUR repository is a mirror of these four files plus a generated `.SRCINFO`.
 
 The package is **versioned against release tags**, not a `-git` package: it
 builds whatever `_tag` points at, so `yay -Syu` shows an update like any other
 package instead of requiring `--devel`. The cost is one bump per release, which
 `.github/workflows/publish-aur.yml` does automatically.
 
-## Two packages
+## One recipe, two packages
 
-| Package | Source | Size | Contents |
+It is a **split package**: a single `pkgbase` in a single AUR repository that
+produces two outputs.
+
+| Output | Source | Size | Contents |
 |---|---|---|---|
-| `keeperfx-tux` | this repo at `_tag` | 16 MB | engine compiled from source, text config, wrapper, desktop entry, icons |
-| `keeperfx-tux-data` (`data/`) | the release's `full.7z` | 412 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` |
+| `keeperfx-tux` | this repo at `_tag` | 12 MB | engine compiled from source, text config, `multiplayer/`, wrapper, desktop entry, icons |
+| `keeperfx-tux-data` | the release's `full.7z` | 412 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` |
 
-Both carry the same `_tag`/`pkgver` and are bumped together, deliberately: the data
-package holds the config the engine reads, and a version mismatch between them is
-precisely the staleness that once shipped a frozen config against a newer engine.
+Users run `yay -S keeperfx-tux` and pacman pulls the data in as a dependency, so
+there is one name to remember. Building both from one `pkgbase` also makes a
+version mismatch between engine and data impossible by construction rather than
+something CI has to police — and a mismatch is precisely the staleness that once
+shipped a frozen config against a newer engine.
+
 Since 1.4.0.5273 the release archive carries freshly-overlaid config — verified for
 1.4.0.5366, where all 65 `fxdata`/`creatrs` files are byte-identical to the repo at
 that tag — so the data package's copies are authoritative and the wrapper prefers
@@ -72,7 +77,7 @@ and the engine package second:
 
 | Kind | Directories | Behaviour |
 |---|---|---|
-| Read-only | `campgns` `levels` `lang` `fxdata` `creatrs` `ldata` | Symlinked whole, refreshed each launch so a pacman upgrade takes effect |
+| Read-only | `campgns` `levels` `lang` `fxdata` `creatrs` `ldata` `multiplayer` | Symlinked whole, refreshed each launch so a pacman upgrade takes effect |
 | Merged | `data` `sound` | Real directories; packaged files linked in **individually** so the user's own Dungeon Keeper files sit beside them. A real file already in place always wins |
 | User-owned | `mods` `music` | Seeded once with `cp -rn`, never clobbered |
 | Writable state | `save` `scrshots` | Created if absent |
@@ -97,20 +102,18 @@ updpkgsums
 makepkg --printsrcinfo > .SRCINFO
 ```
 
-**First publish** (one-off, before the workflow can take over — the AUR creates
-a package repo on first push):
+**First publish** (one-off — the AUR creates a package repo on first push, which
+CI cannot do because it clones an existing one):
 
 ```bash
-git clone ssh://aur@aur.archlinux.org/keeperfx-tux.git aur-pkg
-cp PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop aur-pkg/
-cd aur-pkg && git add -A && git commit -m "Initial import" && git push
+./import-to-aur.sh
 ```
 
 Building locally to test a change:
 
 ```bash
 makepkg -f                       # build only
-KEEPERFX_HOME=~/kfx-aur-test makepkg -si   # build, install, then run keeperfx-alpha
+KEEPERFX_HOME=~/kfx-aur-test makepkg -si   # build, install, then run keeperfx-tux
 ```
 
 Use `KEEPERFX_HOME` when testing on a machine that already has a
@@ -140,8 +143,11 @@ Done:
   deliberate, FULL RELRO is absent because `linux.mk` sets its own `LDFLAGS`
   rather than honouring makepkg's, and the `gcc-libs`/`libstdc++`/`libgcc`
   triplet is namcap contradicting itself about a dependency that is correct.
-- **Data package build**: 412 MB, every expected tree, no engine binary or
-  launcher, none of the 14 restricted original-DK files.
+- **Data output**: 412 MB, every expected tree, no engine binary or launcher,
+  none of the 14 restricted original-DK files.
+- **End to end**: both outputs installed with `pacman -U` on an Arch desktop and
+  the game reached "Started level 1 from Dungeon Keeper original campaign" on the
+  OpenGL 3.3 backend, using a real Dungeon Keeper copy for the 14 files.
 - **Wrapper**: game-directory assembly, idempotency, preservation of user-edited
   mods and of a real directory replacing a symlink, a user file overriding a
   packaged one, the engine-only fallback, the missing-originals message, and

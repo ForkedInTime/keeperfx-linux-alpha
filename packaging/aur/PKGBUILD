@@ -1,51 +1,50 @@
 # Maintainer: Alfredo Montesinos <alfredo.montesinos@kubereva.com>
 
-# Version and tag are bumped together by .github/workflows/publish-aur.yml when a
-# release is published. Keep _tag and pkgver in step: _tag is the release tag,
-# pkgver is that tag without the leading "v" or the "-alpha" suffix.
+# A split package: one recipe, one AUR repository, two outputs. Users install
+# `keeperfx-tux` and pacman pulls the data in as a dependency, so there is one
+# name to remember and one command to run. Building both from a single pkgbase
+# also makes a version mismatch between engine and data impossible rather than
+# something CI has to police -- and a mismatch is exactly what once shipped a
+# frozen config against a newer engine.
+#
+# _tag and pkgver are bumped by .github/workflows/publish-aur.yml when a release
+# is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
 _tag=v1.4.0.5366-alpha
-pkgname=keeperfx-tux
+pkgbase=keeperfx-tux
+pkgname=('keeperfx-tux' 'keeperfx-tux-data')
 pkgver=1.4.0.5366
 pkgrel=1
-pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)"
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
 license=('GPL-2.0-or-later')
-depends=(
-  'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
-  'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
-  'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
-  # Implicit but real: the engine links these, the wrapper is a bash script, and
-  # the icons need the hicolor theme hierarchy to exist.
-  'glibc' 'gcc-libs' 'bash' 'hicolor-icon-theme'
-)
-makedepends=('git' 'python' 'curl')
-optdepends=(
-  'keeperfx-tux-data: the game data KeeperFX provides (campaigns, graphics, sounds)'
-  'p7zip: extract the upstream full.7z game-data archive'
-  'keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you'
-)
-conflicts=('keeperfx-linux-alpha' 'keeperfx-linux-alpha-git')
-provides=("keeperfx-tux=${pkgver}")
+makedepends=('git' 'python' 'curl' 'p7zip')
 # !strip: this is an alpha -- usable backtraces in bug reports beat the saved MBs.
 # !debug: without it, !strip leaves the debug sources in the main package.
 # !lto:   linux.mk manages its own optimisation flags and LTO is unvalidated here;
-#         letting makepkg inject it risks the kind of silent miscompile that already
-#         forced a -march revert.
+#         letting makepkg inject it risks the kind of silent miscompile that
+#         already forced a -march revert.
 options=('!strip' '!debug' '!lto')
 source=(
   "keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=${_tag}"
+  "keeperfx-tux-${pkgver}-full.7z::${url}/releases/download/${_tag}/keeperfx-linux-alpha-x86_64-full.7z"
   'keeperfx-tux.sh'
   'keeperfx-tux.desktop'
 )
+noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
-  'ff8e5649653c3f2e36f53210fefda5095ed139be5315179877a8f5376580fb0e'
+  '788adcacbc86451a1d5d45026f3d79196e5f25ef7f85be12b8df73fa20d2ca98'
+  'fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127'
   '36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd'
 )
 
+# Data trees taken from the release archive. It also contains the engine binary,
+# the Qt launcher, a bundled 7z.so, keeperfx.cfg and version.txt: those are either
+# the engine package's job or user state, so they are deliberately skipped.
+_data_trees=(data sound ldata campgns levels lang fxdata creatrs mods music)
+
 prepare() {
-  cd "${srcdir}/${pkgname}"
+  cd "${srcdir}/${pkgbase}"
   # These four deps are fetched by the makefile rather than vendored. Doing it in
   # prepare() keeps the network access out of build(), which is where makepkg
   # expects an already-populated source tree.
@@ -54,13 +53,16 @@ prepare() {
     deps/astronomy/include/astronomy.h \
     deps/enet6/include/enet6/enet.h \
     deps/libcurl/lib/libcurl.a
+
+  cd "${srcdir}"
+  7z x -y "keeperfx-tux-${pkgver}-full.7z" -o"extracted" > /dev/null
 }
 
 build() {
-  cd "${srcdir}/${pkgname}"
+  cd "${srcdir}/${pkgbase}"
 
   # ver_defs.h is only regenerated when version.mk changes, so a stale build
-  # number would otherwise be baked in — and the launcher gates settings on it.
+  # number would otherwise be baked in -- and the launcher gates settings on it.
   rm -f src/ver_defs.h
   make -f linux.mk \
     BUILD_NUMBER="$(git rev-list --count HEAD)" \
@@ -83,17 +85,32 @@ build() {
   )
 }
 
-package() {
-  cd "${srcdir}/${pkgname}"
-  local _share="${pkgdir}/usr/share/${pkgname}"
+package_keeperfx-tux() {
+  pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)"
+  depends=(
+    'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
+    'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
+    'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
+    # Implicit but real: the engine links these, the wrapper is a bash script,
+    # and the icons need the hicolor theme hierarchy to exist.
+    'glibc' 'gcc-libs' 'bash' 'hicolor-icon-theme'
+    # Pulled in automatically, so installing this one name gives a complete,
+    # playable install rather than an engine with nothing to run.
+    "keeperfx-tux-data=${pkgver}-${pkgrel}"
+  )
+  optdepends=(
+    'keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you'
+  )
+  conflicts=('keeperfx-linux-alpha' 'keeperfx-linux-alpha-git')
+  provides=("keeperfx-tux=${pkgver}")
+
+  cd "${srcdir}/${pkgbase}"
+  local _share="${pkgdir}/usr/share/${pkgbase}"
 
   # /usr/share is for architecture-independent files, so the ELF lives in
   # /usr/lib. Its location is free: the wrapper links it into the game directory
   # and the engine roots itself at argv[0], not at the binary's real path.
-  install -Dm755 bin/keeperfx "${pkgdir}/usr/lib/${pkgname}/keeperfx"
-
-  # The engine used to be installed here, which created this directory as a side
-  # effect; it now has to be created explicitly.
+  install -Dm755 bin/keeperfx "${pkgdir}/usr/lib/${pkgbase}/keeperfx"
   install -dm755 "${_share}"
 
   # The launcher reads the engine version from version.txt: a native ELF carries
@@ -136,6 +153,34 @@ package() {
       "${pkgdir}/usr/share/icons/hicolor/${_px}x${_px}/apps/keeperfx-tux.png"
   done
 
-  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgbase}/LICENSE"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgbase}/README.md"
+}
+
+package_keeperfx-tux-data() {
+  pkgdesc="Game data for KeeperFX Tux Edition (campaigns, graphics, sounds) — you still supply your own Dungeon Keeper files"
+  arch=('any')
+  # Nothing here is executable: nothing to strip, no debug info to split out.
+  options=('!strip' '!debug')
+
+  local _share="${pkgdir}/usr/share/${pkgbase}-data"
+  install -dm755 "${_share}"
+
+  local _d
+  for _d in "${_data_trees[@]}"; do
+    if [ ! -d "${srcdir}/extracted/${_d}" ]; then
+      # music/ is legitimately empty in some releases; anything else missing means
+      # the archive layout changed and this PKGBUILD needs revisiting.
+      if [ "${_d}" = music ]; then continue; fi
+      echo "error: expected directory '${_d}' is missing from the release archive" >&2
+      return 1
+    fi
+    cp -r "${srcdir}/extracted/${_d}" "${_share}/"
+  done
+
+  find "${_share}" -type d -exec chmod 755 {} +
+  find "${_share}" -type f -exec chmod 644 {} +
+
+  install -Dm644 "${srcdir}/extracted/README.txt" \
+    "${pkgdir}/usr/share/doc/${pkgbase}-data/README.txt" 2>/dev/null || true
 }

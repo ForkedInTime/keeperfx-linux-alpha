@@ -11,7 +11,7 @@ set -euo pipefail
 
 BINDIR=/usr/lib/keeperfx-tux                # the engine ELF
 PREFIX=/usr/share/keeperfx-tux              # engine package's config trees
-DATA_PREFIX=/usr/share/keeperfx-tux-data    # optional data package
+DATA_PREFIX=/usr/share/keeperfx-tux-data    # data package (a dependency)
 GAMEDIR="${KEEPERFX_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/keeperfx-alpha}"
 
 # Read-only trees, linked wholesale. The data package's copies are preferred: they
@@ -97,8 +97,8 @@ KeeperFX cannot start: the game data is missing.
 
   Game directory: $GAMEDIR
 
-This package ships the engine and configuration only. Install the data package
-for everything KeeperFX itself provides:
+The keeperfx-tux-data package normally provides this and is installed
+automatically; if it was removed, reinstall it:
 
   yay -S keeperfx-tux-data
 

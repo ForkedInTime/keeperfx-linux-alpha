@@ -54,21 +54,18 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Bump both PKGBUILDs to this release
+      - name: Bump the PKGBUILD to this release
         working-directory: packaging/aur
         run: |
-          # The two packages are versioned in lockstep: the data package carries the
-          # config the engine reads, and a mismatch between them is exactly the
-          # staleness that once shipped a frozen config against a newer engine.
-          for d in . data; do
-            sed -i "s|^_tag=.*|_tag=${{ steps.tag.outputs.tag }}|" "$d/PKGBUILD"
-            sed -i "s|^pkgver=.*|pkgver=${{ steps.tag.outputs.pkgver }}|" "$d/PKGBUILD"
-            sed -i "s|^pkgrel=.*|pkgrel=1|" "$d/PKGBUILD"
-            echo "--- $d/PKGBUILD"; grep -E '^(_tag|pkgver|pkgrel)=' "$d/PKGBUILD"
-          done
+          # One split package builds both outputs, so there is a single version to
+          # bump and engine/data cannot drift apart.
+          sed -i "s|^_tag=.*|_tag=${{ steps.tag.outputs.tag }}|" PKGBUILD
+          sed -i "s|^pkgver=.*|pkgver=${{ steps.tag.outputs.pkgver }}|" PKGBUILD
+          sed -i "s|^pkgrel=.*|pkgrel=1|" PKGBUILD
+          grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
 
       - name: Recompute the data archive checksum
-        working-directory: packaging/aur/data
+        working-directory: packaging/aur
         run: |
           # The data package pins the release asset by hash, so the hash has to be
           # recomputed for each release. Downloaded once, here, rather than trusting
@@ -77,8 +74,17 @@ jobs:
           curl -fsSL --retry 3 -o /tmp/full.7z "$URL"
           SUM=$(sha256sum /tmp/full.7z | cut -d' ' -f1)
           echo "full.7z sha256 = $SUM"
-          sed -i "s|^sha256sums=('.*')|sha256sums=('$SUM')|" PKGBUILD
-          grep '^sha256sums' PKGBUILD
+          # The archive is the second source entry, so replace the second hash.
+          python3 - "$SUM" <<'EOF'
+          import re, sys
+          s = open('PKGBUILD').read()
+          head, rest = s.split("sha256sums=(\n", 1)
+          body, tail = rest.split(")\n", 1)
+          parts = [l.strip() for l in body.strip().split("\n")]
+          parts[1] = "'" + sys.argv[1] + "'"
+          open('PKGBUILD','w').write(head + "sha256sums=(\n" + "\n".join("  "+p for p in parts) + "\n)\n" + tail)
+          EOF
+          grep -A5 '^sha256sums' PKGBUILD
           rm -f /tmp/full.7z
 
       - name: Verify the tag actually exists upstream
@@ -90,31 +96,29 @@ jobs:
             https://github.com/${{ github.repository }}.git \
             "refs/tags/${{ steps.tag.outputs.tag }}"
 
-      - name: Regenerate .SRCINFO for both packages
+      - name: Regenerate .SRCINFO
         working-directory: packaging/aur
         run: |
           # makepkg refuses to run as root, so do this as a normal user.
           useradd -m builder
           chown -R builder .
-          for d in . data; do
-            ( cd "$d" && su builder -c 'makepkg --printsrcinfo' > .SRCINFO )
-            chown root "$d/.SRCINFO"
-            echo "--- $d/.SRCINFO"; head -4 "$d/.SRCINFO"
-          done
+          su builder -c 'makepkg --printsrcinfo' > .SRCINFO
+          chown root .SRCINFO
+          head -6 .SRCINFO
 
       - name: Sanity-check the generated metadata
         working-directory: packaging/aur
         run: |
-          for d in . data; do
-            grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" "$d/.SRCINFO" \
-              || { echo "::error::$d/.SRCINFO pkgver does not match the release"; exit 1; }
-            grep -q "${{ steps.tag.outputs.tag }}" "$d/.SRCINFO" \
-              || { echo "::error::$d/.SRCINFO does not reference the release tag"; exit 1; }
+          grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" .SRCINFO \
+            || { echo "::error::.SRCINFO pkgver does not match the release"; exit 1; }
+          grep -q "${{ steps.tag.outputs.tag }}" .SRCINFO \
+            || { echo "::error::.SRCINFO does not reference the release tag"; exit 1; }
+          # Both outputs must still be declared, or users lose one silently.
+          for n in keeperfx-tux keeperfx-tux-data; do
+            grep -q "^pkgname = $n\$" .SRCINFO \
+              || { echo "::error::.SRCINFO no longer declares $n"; exit 1; }
           done
-          # The two packages must never drift apart.
-          [ "$(grep '^_tag=' PKGBUILD)" = "$(grep '^_tag=' data/PKGBUILD)" ] \
-            || { echo "::error::engine and data PKGBUILD _tag differ"; exit 1; }
-          echo "both packages agree on ${{ steps.tag.outputs.tag }}"
+          echo "split package at ${{ steps.tag.outputs.tag }} declares both outputs"
 
       - name: Commit the bump back to this repo
         if: ${{ !inputs.dry_run }}
@@ -122,12 +126,11 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
-                  packaging/aur/data/PKGBUILD packaging/aur/data/.SRCINFO
+          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
           if git diff --cached --quiet; then
             echo "PKGBUILDs already at this version; nothing to commit"
           else
-            git commit -m "packaging: AUR packages to ${{ steps.tag.outputs.tag }}"
+            git commit -m "packaging: AUR package to ${{ steps.tag.outputs.tag }}"
             git push origin HEAD:${{ github.event.repository.default_branch }}
           fi
 
@@ -154,37 +157,26 @@ jobs:
           git config --global user.name  'KeeperFX Tux Edition CI'
           git config --global user.email 'noreply@users.noreply.github.com'
 
-          # Two AUR repositories, one per package. push_pkg <aur-name> <src-dir> <files...>
-          push_pkg() {
-            local name=$1 src=$2; shift 2
-            local dst="/tmp/aur-$name"
-            git clone "ssh://aur@aur.archlinux.org/$name.git" "$dst"
-            if [ ! -e "$dst/.git" ]; then
-              echo "::error::could not clone $name — has it been imported to the AUR yet?"
-              return 1
-            fi
-            local f; for f in "$@"; do cp "$src/$f" "$dst/"; done
-            ( cd "$dst"
-              git add -A
-              if git diff --cached --quiet; then
-                echo "$name already up to date"
-              else
-                git commit -m "Update to ${{ steps.tag.outputs.pkgver }}"
-                git push
-              fi )
-          }
-
-          push_pkg keeperfx-tux           packaging/aur \
-                   PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop
-          push_pkg keeperfx-tux-data      packaging/aur/data \
-                   PKGBUILD .SRCINFO
+          # One AUR repository: the split package serves both outputs from it.
+          git clone ssh://aur@aur.archlinux.org/keeperfx-tux.git /tmp/aur
+          if [ ! -e /tmp/aur/.git ]; then
+            echo "::error::could not clone keeperfx-tux — run packaging/aur/import-to-aur.sh once first"
+            exit 1
+          fi
+          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
+             packaging/aur/keeperfx-tux.sh packaging/aur/keeperfx-tux.desktop /tmp/aur/
+          cd /tmp/aur
+          git add -A
+          if git diff --cached --quiet; then
+            echo "AUR already up to date"
+          else
+            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}"
+            git push
+          fi
 
       - name: Dry-run summary
         if: ${{ inputs.dry_run }}
         working-directory: packaging/aur
         run: |
           echo "Dry run — nothing pushed. Generated metadata:"
-          echo "=== keeperfx-tux ==="
           cat .SRCINFO
-          echo "=== keeperfx-tux-data ==="
-          cat data/.SRCINFO

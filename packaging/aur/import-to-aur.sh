@@ -33,9 +33,10 @@ import_pkg() {
     local f
     for f in "$@"; do cp "$src/$f" "$WORK/$pkg/"; done
 
-    # The AUR rejects a push whose .SRCINFO disagrees with the repository name.
-    grep -q "^pkgname = ${pkg}\$" "$WORK/$pkg/.SRCINFO" || {
-        echo "    .SRCINFO pkgname does not match '$pkg'" >&2; return 1; }
+    # The AUR keys the repository on pkgbase, which for a split package is not
+    # every pkgname -- check pkgbase, not pkgname.
+    grep -q "^pkgbase = ${pkg}\$" "$WORK/$pkg/.SRCINFO" || {
+        echo "    .SRCINFO pkgbase does not match '$pkg'" >&2; return 1; }
 
     cd "$WORK/$pkg"
     git add -A
@@ -52,14 +53,13 @@ import_pkg() {
 }
 
 rc=0
-import_pkg keeperfx-tux      "$HERE"      "KeeperFX Tux Edition engine"    \
+# One repository: the split package serves keeperfx-tux and keeperfx-tux-data.
+import_pkg keeperfx-tux "$HERE" "KeeperFX Tux Edition" \
            PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop || rc=1
-import_pkg keeperfx-tux-data "$HERE/data" "KeeperFX Tux Edition game data" \
-           PKGBUILD .SRCINFO || rc=1
 
 if [ "$rc" = 0 ]; then
     echo
-    echo "Both packages are on the AUR. From here publish-aur.yml keeps them"
-    echo "current: it bumps both on every release and pushes."
+    echo "keeperfx-tux is on the AUR, serving both it and keeperfx-tux-data."
+    echo "From here publish-aur.yml keeps it current on every release."
 fi
 exit "$rc"
