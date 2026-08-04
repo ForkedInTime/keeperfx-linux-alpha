@@ -135,6 +135,30 @@ jobs:
           mkdir -p "$P"
           cp -rf pkg/. "$P/"
           cp -f ../bin/keeperfx "$P/keeperfx"
+          # Overlay the freshly-built engine's game data over the downloaded payload.
+          # This step was missing entirely here, so the Flatpak never even received the
+          # config fix the AppImage got: every payload is assembled from the PREVIOUS
+          # release's payload, so anything not overlaid stays frozen at whatever it
+          # first shipped. config/ holds fxdata/creatrs/mods/music; campgns, levels,
+          # lang and multiplayer live at the engine repo's top level. multiplayer/ was
+          # never in any payload at all, which is why the engine reported no multiplayer
+          # mappacks. These trees also carry large binary assets that exist only in the
+          # payload, so this overlays text onto them rather than replacing them.
+          # Mirrors the launcher repo's build-appimage.yml.
+          for d in fxdata creatrs mods music; do
+            if [ -d "../config/$d" ]; then
+              mkdir -p "$P/$d"
+              cp -rf "../config/$d/." "$P/$d/"
+            fi
+          done
+          for d in campgns levels lang multiplayer; do
+            if [ -d "../$d" ]; then
+              mkdir -p "$P/$d"
+              cp -rf "../$d/." "$P/$d/"
+            fi
+          done
+          # Fonts are re-applied AFTER the overlay: they live in fxdata/ but are
+          # generated, not part of config/, so the overlay would otherwise remove them.
           cp -f ../tools/fxfontmaker/*.fxfont "$P/fxdata/"
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
           echo "Stamped version: $(cat "$P/version.txt")"
