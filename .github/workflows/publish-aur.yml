@@ -158,10 +158,18 @@ jobs:
           git config --global user.email 'noreply@users.noreply.github.com'
 
           # One AUR repository: the split package serves both outputs from it.
-          git clone ssh://aur@aur.archlinux.org/keeperfx-tux.git /tmp/aur
-          if [ ! -e /tmp/aur/.git ]; then
-            echo "::error::could not clone keeperfx-tux — run packaging/aur/import-to-aur.sh once first"
-            exit 1
+          if ! git clone ssh://aur@aur.archlinux.org/keeperfx-tux.git /tmp/aur 2>/tmp/aurerr; then
+            cat /tmp/aurerr
+            # Two states are expected rather than broken: the package has not been
+            # imported yet (that first push has to be done by hand, CI only updates an
+            # existing repo), and the AUR being in maintenance. Neither means this
+            # release failed, so report and stop rather than failing the run.
+            if grep -qi 'maintenance' /tmp/aurerr; then
+              echo "::notice::the AUR is in maintenance; skipping the AUR publish for this release"
+            else
+              echo "::notice::keeperfx-tux is not on the AUR yet; run packaging/aur/import-to-aur.sh once, then re-run this workflow"
+            fi
+            exit 0
           fi
           cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
              packaging/aur/keeperfx-tux.sh packaging/aur/keeperfx-tux.desktop /tmp/aur/
