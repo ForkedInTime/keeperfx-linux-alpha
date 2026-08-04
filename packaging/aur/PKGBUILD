@@ -10,14 +10,27 @@
 # _tag and pkgver are bumped by .github/workflows/publish-aur.yml when a release
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
 _tag=v1.4.0.5384-alpha
+# The launcher is a separate repository with no tags, so it is pinned by commit.
+_launcher_commit=391c192f893d3ac19495ad11a8f1c214403b3772
 pkgbase=keeperfx-tux
-pkgname=('keeperfx-tux' 'keeperfx-tux-data')
+pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
 pkgver=1.4.0.5384
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
 license=('GPL-2.0-or-later')
-makedepends=('git' 'python' 'curl' 'p7zip')
+# In a split package, only makedepends (and any pkgbase-level depends) are
+# installed to build with -- a depends= array inside package_*() is metadata for
+# the built package and does nothing at build time. The engine's libraries are
+# therefore listed here as well as on the output that runs against them; without
+# that a clean chroot has no SDL2 headers and the engine will not compile.
+makedepends=('git' 'python' 'curl' 'p7zip'
+             # engine
+             'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
+             'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
+             'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
+             # Qt launcher
+             'cmake' 'ninja' 'qt6-base' 'qt6-tools')
 # !strip: this is an alpha -- usable backtraces in bug reports beat the saved MBs.
 # !debug: without it, !strip leaves the debug sources in the main package.
 # !lto:   linux.mk manages its own optimisation flags and LTO is unvalidated here;
@@ -27,15 +40,19 @@ options=('!strip' '!debug' '!lto')
 source=(
   "keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=${_tag}"
   "keeperfx-tux-${pkgver}-full.7z::${url}/releases/download/${_tag}/keeperfx-linux-alpha-x86_64-full.7z"
+  "keeperfx-tux-launcher::git+https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git#commit=${_launcher_commit}"
   'keeperfx-tux.sh'
   'keeperfx-tux.desktop'
+  'keeperfx-tux-launcher.sh'
 )
 noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
   'd3d416cf5698ad738134ebf37eeebea417ce302a9739face0b19a86cdf2a136a'
+  'SKIP'
   'fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127'
-  '36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd'
+  '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'
+  '0aba4b46c2f8989f4beb067e126a5dd2fa899df04290844be8c9a5d9df2618d7'
 )
 
 # Data trees taken from the release archive. It also contains the engine binary,
@@ -83,6 +100,31 @@ build() {
     "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
     rm -f merged12.hex wenquanyi.hex unifont12.hex
   )
+
+  # The Qt launcher. CMake pulls bit7z and LIEF from GitHub via CPM at configure
+  # time and builds them in-tree. Neither can come from the system:
+  # bit7z is packaged nowhere for Arch, and lief-bin ships only the shared
+  # library while this build asks for COMPONENTS STATIC. CPM_USE_LOCAL_PACKAGES
+  # was tried and is deliberately not used -- besides failing on LIEF, it picked
+  # up an unpackaged bit7z from /usr/local on the build machine, which would have
+  # produced a package that only builds where that stray copy exists.
+  cd "${srcdir}/keeperfx-tux-launcher"
+  # A stale CMakeCache.txt survives makepkg -f, and it remembers the flags of the
+  # previous configure, so start clean. CPM_DOWNLOAD_ALL then stops CPM probing the
+  # system at all: it must fetch and build both dependencies in-tree, which is what
+  # keeps the result independent of whatever happens to be on the build machine.
+  # CMAKE_SKIP_RPATH stops the build tree's own paths being written into the
+  # binary: CPM builds zlib in-tree, and its build directory otherwise ends up as
+  # a RUNPATH that namcap rejects and that would not exist on a user's machine.
+  # Nothing is lost -- zlib, Qt and OpenSSL all resolve from the system.
+  rm -rf build
+  cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCPM_USE_LOCAL_PACKAGES=OFF \
+    -DCPM_DOWNLOAD_ALL=ON \
+    -DCMAKE_SKIP_RPATH=ON
+  cmake --build build
 }
 
 package_keeperfx-tux() {
@@ -97,9 +139,10 @@ package_keeperfx-tux() {
     # Pulled in automatically, so installing this one name gives a complete,
     # playable install rather than an engine with nothing to run.
     "keeperfx-tux-data=${pkgver}-${pkgrel}"
-  )
-  optdepends=(
-    'keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you'
+    # The launcher is the front door: it finds your Dungeon Keeper installation,
+    # copies the files it needs, and configures the game. Installing the engine
+    # without it would lose the only route a new player has to a playable install.
+    "keeperfx-tux-launcher=${pkgver}-${pkgrel}"
   )
   conflicts=('keeperfx-linux-alpha' 'keeperfx-linux-alpha-git')
   provides=("keeperfx-tux=${pkgver}")
@@ -183,4 +226,41 @@ package_keeperfx-tux-data() {
 
   install -Dm644 "${srcdir}/extracted/README.txt" \
     "${pkgdir}/usr/share/doc/${pkgbase}-data/README.txt" 2>/dev/null || true
+}
+
+package_keeperfx-tux-launcher() {
+  pkgdesc="Qt launcher for KeeperFX Tux Edition — finds your Dungeon Keeper install, copies the files in, configures and plays"
+  depends=('qt6-base' 'zlib' 'openssl' 'glibc' 'gcc-libs' 'bash' 'hicolor-icon-theme')
+  optdepends=('keeperfx-tux: the game it launches')
+
+  cd "${srcdir}/keeperfx-tux-launcher"
+
+  # The launcher resolves its config and the game binary against
+  # QCoreApplication::applicationDirPath(), and Qt reads /proc/self/exe, so a
+  # symlink reports the target's directory rather than the game directory. It
+  # therefore cannot live in /usr/bin and be linked in; the wrapper copies it.
+  install -Dm755 build/keeperfx-launcher-qt "${pkgdir}/usr/lib/${pkgbase}/keeperfx-launcher-qt"
+  install -Dm755 "${srcdir}/keeperfx-tux-launcher.sh" "${pkgdir}/usr/bin/keeperfx-tux-launcher"
+
+  install -Dm644 packaging/keeperfx-launcher-qt.png \
+    "${pkgdir}/usr/share/icons/hicolor/256x256/apps/keeperfx-tux-launcher.png"
+
+  # This is the front door, so it takes the plain name; the engine's own entry is
+  # the "play directly" shortcut for once the game is set up.
+  install -dm755 "${pkgdir}/usr/share/applications"
+  cat > "${pkgdir}/usr/share/applications/keeperfx-tux-launcher.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=KeeperFX
+GenericName=Dungeon Keeper
+Comment=Install, configure and play KeeperFX (Dungeon Keeper) on Linux
+Exec=keeperfx-tux-launcher
+Icon=keeperfx-tux-launcher
+Terminal=false
+Categories=Game;StrategyGame;
+Keywords=dungeon;keeper;keeperfx;
+StartupWMClass=keeperfx-launcher-qt
+EOF
+
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE" 2>/dev/null || true
 }

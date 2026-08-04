@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=KeeperFX (Tux Edition)
+Name=KeeperFX (play directly)
 GenericName=Dungeon Keeper
-Comment=Native Linux build of the Dungeon Keeper engine remake
+Comment=Start KeeperFX straight away, skipping the launcher
 Exec=keeperfx-tux
 Icon=keeperfx-tux
 Terminal=false

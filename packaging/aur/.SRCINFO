@@ -8,18 +8,41 @@ pkgbase = keeperfx-tux
 	makedepends = python
 	makedepends = curl
 	makedepends = p7zip
+	makedepends = sdl2-compat
+	makedepends = sdl2_mixer
+	makedepends = sdl2_net
+	makedepends = sdl2_image
+	makedepends = ffmpeg
+	makedepends = openal
+	makedepends = luajit
+	makedepends = libspng
+	makedepends = minizip
+	makedepends = zlib
+	makedepends = libepoxy
+	makedepends = miniupnpc
+	makedepends = libnatpmp
+	makedepends = openssl
+	makedepends = zstd
+	makedepends = cmake
+	makedepends = ninja
+	makedepends = qt6-base
+	makedepends = qt6-tools
 	noextract = keeperfx-tux-1.4.0.5384-full.7z
 	options = !strip
 	options = !debug
 	options = !lto
 	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5384-alpha
 	source = keeperfx-tux-1.4.0.5384-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5384-alpha/keeperfx-linux-alpha-x86_64-full.7z
+	source = keeperfx-tux-launcher::git+https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git#commit=391c192f893d3ac19495ad11a8f1c214403b3772
 	source = keeperfx-tux.sh
 	source = keeperfx-tux.desktop
+	source = keeperfx-tux-launcher.sh
 	sha256sums = SKIP
 	sha256sums = d3d416cf5698ad738134ebf37eeebea417ce302a9739face0b19a86cdf2a136a
+	sha256sums = SKIP
 	sha256sums = fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127
-	sha256sums = 36e539a5e409a059ddd6eedca32649473d41d3994454d286006e742adb00cacd
+	sha256sums = 72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4
+	sha256sums = 0aba4b46c2f8989f4beb067e126a5dd2fa899df04290844be8c9a5d9df2618d7
 
 pkgname = keeperfx-tux
 	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)
@@ -43,7 +66,7 @@ pkgname = keeperfx-tux
 	depends = bash
 	depends = hicolor-icon-theme
 	depends = keeperfx-tux-data=1.4.0.5384-1
-	optdepends = keeperfx-tux-launcher: Qt launcher — settings, mod manager, and it copies your Dungeon Keeper files in for you
+	depends = keeperfx-tux-launcher=1.4.0.5384-1
 	provides = keeperfx-tux=1.4.0.5384
 	conflicts = keeperfx-linux-alpha
 	conflicts = keeperfx-linux-alpha-git
@@ -53,3 +76,14 @@ pkgname = keeperfx-tux-data
 	arch = any
 	options = !strip
 	options = !debug
+
+pkgname = keeperfx-tux-launcher
+	pkgdesc = Qt launcher for KeeperFX Tux Edition — finds your Dungeon Keeper install, copies the files in, configures and plays
+	depends = qt6-base
+	depends = zlib
+	depends = openssl
+	depends = glibc
+	depends = gcc-libs
+	depends = bash
+	depends = hicolor-icon-theme
+	optdepends = keeperfx-tux: the game it launches
