@@ -8,18 +8,43 @@ builds whatever `_tag` points at, so `yay -Syu` shows an update like any other
 package instead of requiring `--devel`. The cost is one bump per release, which
 `.github/workflows/publish-aur.yml` does automatically.
 
-## One recipe, two packages
+## One recipe, three packages
 
 It is a **split package**: a single `pkgbase` in a single AUR repository that
-produces two outputs.
+produces three outputs.
 
 | Output | Source | Size | Contents |
 |---|---|---|---|
 | `keeperfx-tux` | this repo at `_tag` | 12 MB | engine compiled from source, text config, `multiplayer/`, wrapper, desktop entry, icons |
-| `keeperfx-tux-data` | the release's `full.7z` | 412 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` |
+| `keeperfx-tux-data` | the release's `full.7z` | 393 MB | `data` `sound` `ldata` `campgns` `levels` `lang` `fxdata` `creatrs` `mods` `music` `multiplayer` |
+| `keeperfx-tux-launcher` | the launcher repo at `_launcher_commit` | 2 MB | Qt launcher, its wrapper, desktop entry, icon |
 
-Users run `yay -S keeperfx-tux` and pacman pulls the data in as a dependency, so
-there is one name to remember. Building both from one `pkgbase` also makes a
+Users run `yay -S keeperfx-tux` and pacman pulls the other two in as
+dependencies, so there is one name to remember. The launcher is a hard
+dependency rather than optional because it is what finds a Dungeon Keeper
+installation and copies the files in — without it a new player has a game they
+cannot set up.
+
+**Two menu entries, deliberately.** `KeeperFX` runs the launcher (the front
+door: find, install, configure, play) and `KeeperFX (play directly)` runs the
+engine, for once the game is set up. That mirrors the AppImage, whose entry
+point is also the launcher.
+
+**The launcher is copied into the game directory, not symlinked.** It resolves
+`keeperfx.cfg` and the game binary against
+`QCoreApplication::applicationDirPath()`, and Qt reads `/proc/self/exe` — so a
+symlink reports the *target's* directory, not the game directory. The engine's
+`argv[0]` trick does not transfer. Its wrapper copies the binary in and
+refreshes it when the packaged build differs, exactly as the AppImage's AppRun
+does.
+
+**Do not try to satisfy the launcher's dependencies from the system.**
+`CPM_USE_LOCAL_PACKAGES` was tried: it fails on LIEF, because `lief-bin` ships
+only the shared library while this build asks for `COMPONENTS STATIC`, and it
+silently satisfied `bit7z` from an unpackaged `/usr/local` copy on the build
+machine — which would have produced a package that builds nowhere else. CPM
+fetches both, and `CMAKE_SKIP_RPATH` keeps the in-tree zlib build directory out
+of the shipped binary. Building both from one `pkgbase` also makes a
 version mismatch between engine and data impossible by construction rather than
 something CI has to police — and a mismatch is precisely the staleness that once
 shipped a frozen config against a newer engine.
