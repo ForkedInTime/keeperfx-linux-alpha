@@ -57,6 +57,12 @@ the engine is compiled from source against your system's own libraries and updat
 yay -S keeperfx-tux
 ```
 
+> ⏳ **Being published — not on the AUR yet.** Until it lands, build it straight from this repo:
+> ```bash
+> git clone https://github.com/ForkedInTime/keeperfx-linux-alpha.git
+> cd keeperfx-linux-alpha/packaging/aur && makepkg -si
+> ```
+
 Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-tux`. Updates arrive with your
 normal `yay -Syu` — no self-updater, no re-downloading half a gigabyte.
 
@@ -362,10 +368,12 @@ trimmed independently, so we adopted theirs and dropped ours — and we keep our
 better fit. The result is a fork that stays current with the team's work while remaining a deliberate,
 reviewed selection rather than an automatic mirror.
 
-After the sync PR is merged, a release is cut: the launcher repo's CI builds the AppImage and the game
-package (`full.7z`), and publishing the release attaches the portable tarball automatically. The Flatpak is
-rebuilt on a monthly schedule (it self-updates its game package on launch, so it catches up in between).
-Existing installs are offered the new build by the launcher's built-in updater.
+After the sync PR is merged, a release is cut, and publishing it is the whole job: CI builds the AppImage,
+the game package (`full.7z`) and the portable tarball, and attaches all three to the release. Each build
+layers the KeeperFX team's current data package over ours, so their new content arrives on its own rather
+than waiting to be noticed. The Flatpak is rebuilt on a monthly schedule (it self-updates its game package
+on launch, so it catches up in between). Existing installs are offered the new build by the launcher's
+built-in updater.
 
 The same sync can still be done by hand:
 ```bash
