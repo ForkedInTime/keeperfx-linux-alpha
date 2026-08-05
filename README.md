@@ -430,8 +430,10 @@ The native launcher is its own repo:
 `master` for new commits and:
 
 - **nothing new** → exits quietly;
-- **merges cleanly and compiles** → opens a pull request into `alpha` listing every upstream change —
-  a human reviews and clicks **Merge** (it never ships anything by itself);
+- **merges cleanly and compiles** → opens a pull request into `alpha` listing every upstream change. Nothing
+  merges itself: I read the diff before clicking **Merge** — closely where it touches the Linux path (engine
+  internals, the SDL/OpenGL layer, the build, packaging), lightly where it's Windows-only churn that can
+  never reach this build;
 - **merge conflicts, or the build breaks** → opens an issue for manual attention instead.
 
 <details>
@@ -445,6 +447,14 @@ own*: e.g. their #5047 "Memset optimization" removed a wasteful per-frame buffer
 trimmed independently, so we adopted theirs and dropped ours — and we keep our Linux layer where it's the
 better fit. The result is a fork that stays current with the team's work while remaining a deliberate,
 reviewed selection rather than an automatic mirror.
+
+**The Windows half doesn't come along for the ride.** Upstream builds for Windows — their CI cross-compiles
+with MinGW and signs `.exe` patches — so those five workflows are deleted here and this repo's CI is
+Linux-only; a sync that tries to restore them gets resolved by hand. What we deliberately *don't* do is rip
+the Windows code paths out of the engine: they sit behind `#ifdef _WIN32` in a handful of files, cost this
+build nothing, and tearing them out would mean re-fighting the same merge conflict every single week. Cut
+the Windows *plumbing*, leave the shared *source* alone — that's what keeps the weekly merge cheap enough to
+actually keep doing.
 
 After the sync PR is merged, a release is cut, and publishing it is the whole job: CI builds the AppImage,
 the game package (`full.7z`) and the portable tarball, and attaches all three to the release. Each build
