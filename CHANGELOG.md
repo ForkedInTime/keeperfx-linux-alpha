@@ -4,7 +4,7 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
-## 1.4.0.5409 — 2026-08-05 — first stable
+## 1.4.0.5411 — 2026-08-05 — first stable
 
 **The first stable release of the Tux Edition.** Everything here has already shipped
 through the alpha channel; what is new is the promise. The alpha channel keeps moving —
