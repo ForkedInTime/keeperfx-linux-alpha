@@ -30,6 +30,13 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # The bump to PKGBUILD/.SRCINFO is committed back to this repository, and the
+    # default token is read-only for `release` events. Without this the whole job
+    # fails at the push with "Permission to ... denied to github-actions[bot]",
+    # after having done all the work -- which is how v1.4.0.5397-alpha shipped
+    # with the recipe still pinned to the previous release.
+    permissions:
+      contents: write
     # makepkg --printsrcinfo is the only supported way to generate .SRCINFO, and it
     # only exists on Arch, so the whole job runs in an Arch container.
     container: archlinux:base-devel
