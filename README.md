@@ -274,6 +274,70 @@ first.)
 
 </details>
 
+## 🤖 On AI-assisted development
+
+**Yes, AI assistance is used here, and it's used a lot.** Saying so up front seems better than letting
+people guess. If that alone disqualifies the work for you, that's a fair thing to decide — but here's the
+part worth knowing before you do.
+
+**The "AI slop" complaint is a real complaint, and it's not about tools.** It's about *unverified output
+being pushed onto other people*. Contributions nobody read, bug reports nobody reproduced, patches whose
+author can't answer a question about them. That problem is genuine and well documented: curl
+[shut down its six-year bug bounty in January 2026](https://www.theregister.com/2026/01/21/curl_ends_bug_bounty/)
+after the share of valid reports collapsed, and researchers have measured the resulting
+["AI-DDoS"](https://arxiv.org/abs/2607.04003) on maintainers — plausible-looking submissions that cost
+minutes to generate and hours to disprove. Maintainer time is the scarce resource, and wasting it is the
+actual harm.
+
+**That harm is externalised review cost — and this fork externalises none of it.** Nothing from here is
+sent to the KeeperFX team; not a PR, not an issue (see [Credit](#credit)). The sync only runs *inbound*.
+Every line of the delta above is compiled, and then **run in the actual game on real Linux hardware**
+before it ships, by the person whose name is on the commit. When something here breaks, it costs *you* an
+alpha build and *me* a debugging session — it never lands in someone else's review queue. Every item in
+the list above points at a commit you can read.
+
+**How the wider industry actually handles this, as of 2026 — including the strictest C projects alive:**
+
+| Project | Position on AI-assisted contributions |
+|---|---|
+| **Linux kernel** | [Permitted](https://docs.kernel.org/process/coding-assistants.html), tagged `Assisted-by:`. AI agents **must not** add `Signed-off-by` — only a human can certify the DCO and take "full responsibility for the contribution". |
+| **LLVM** | [Permitted](https://llvm.org/docs/AIToolPolicy.html) with a mandatory human in the loop: "The contributor is always the author and is fully accountable… able to answer questions about their work." |
+| **curl** | Ended its bounty over slop — and still states: "[We can accept code written with the help of AI into the project](https://curl.se/dev/contribute.html), but the code must still follow coding standards… A basic rule of thumb is that if someone can spot that the contribution was made with the help of AI, you have more work to do." |
+| **Fedora / Apache / OpenInfra / LLVM** | All converged on the same shape: disclose it, a human owns it. |
+
+Across 118 open-source repositories that have written an AI policy at all,
+[78% permit AI-assisted contributions](https://arxiv.org/abs/2605.16706) (51% explicitly welcome them);
+74% require a human in the loop. The near-universal rule is **accountability, not abstinence**. Nobody
+serious is banning the tool; they're banning submitting work you don't understand.
+
+**And at scale, the results are measured, not hypothetical:**
+
+- **Google** published a year-long case study of LLM-assisted migrations: 39 migrations, 3 developers,
+  595 code changes / 93,574 edits, of which **74.45% of the changes were LLM-generated**, with a reported
+  **~50% reduction in migration time** ([arXiv:2504.09691](https://arxiv.org/abs/2504.09691),
+  [research.google](https://research.google/blog/accelerating-code-migrations-with-ai/)). Google itself now
+  says [**about 75% of its new code is AI-generated and then reviewed by engineers**](https://www.techspot.com/news/112152-google-ai-now-generates-75-new-code-up.html)
+  — up from roughly 25% in October 2024.
+- **Amazon** upgraded **30,000+ Java applications** with Amazon Q, an estimated **4,500 developer-years**
+  and **$260M** in annualised savings — work that took "a few hours instead of 50 developer days" per app
+  ([AWS](https://aws.amazon.com/blogs/devops/amazon-q-developer-just-reached-a-260-million-dollar-milestone)).
+- **DORA's 2025 report** (Google, ~5,000 professionals) found **90% of developers now use AI** to write,
+  refactor or optimise code ([dora.dev](https://dora.dev/dora-report-2025/)).
+
+**The honest other half, because a one-sided case isn't worth reading:** the same DORA report found AI
+adoption correlates with *higher* instability — more change failures and rework — and concluded AI is an
+**amplifier**: it magnifies good engineering practice and bad practice alike. A
+[METR randomised trial](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) found
+experienced open-source developers were **19% slower** with AI tools while believing they were 20% faster.
+Both findings point the same direction: the tool is not the variable that matters. **The verification gate
+behind it is.** That is exactly why the gate here is "it compiles, it runs, I played it, and I'll own the
+bug report" rather than "the model said it was fine."
+
+**So: judge the diff, not the toolchain.** The source is right here, the commits are small and readable,
+and every claim in the list above is falsifiable by running the build. If you find something wrong —
+sloppy, broken, or plain wrong-headed — [open an issue](https://github.com/ForkedInTime/keeperfx-linux-alpha/issues).
+That's a better use of everyone's time than a verdict on how it was typed.
+
 ## 🚧 Work in progress
 
 - **Truecolor GPU / Vulkan world renderer + hi-res asset pipeline.** Design docs, a frozen prototype
