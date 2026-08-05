@@ -34,7 +34,39 @@ env:
   LAUNCHER_BRANCH: alpha
 
 jobs:
+  # A release published with its assets already attached (the normal flow: build by
+  # dispatch, attach to a draft, publish) does not need rebuilding. Rebuilding it
+  # produces the same binaries from the same commit, but recompresses the archive,
+  # so the payload's checksum changes -- which silently invalidates the sha256 the
+  # AUR recipe pinned moments earlier, and every `makepkg` then fails its integrity
+  # check. Skip the rebuild when there is nothing missing to attach.
+  check-assets:
+    runs-on: ubuntu-24.04
+    outputs:
+      skip: ${{ steps.probe.outputs.skip }}
+    steps:
+      - name: Does the release already carry both assets?
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "release" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          NAMES=$(gh release view "${{ github.event.release.tag_name }}" \
+                    --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' || true)
+          echo "$NAMES"
+          if echo "$NAMES" | grep -q 'KeeperFX-Linux-Alpha-x86_64\.AppImage' \
+             && echo "$NAMES" | grep -q 'keeperfx-linux-alpha-x86_64-full\.7z'; then
+            echo "Both assets are already attached -- skipping the rebuild."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   appimage:
+    needs: check-assets
+    if: needs.check-assets.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out the engine

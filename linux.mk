@@ -2,7 +2,7 @@ include version.mk
 
 BUILD_NUMBER ?= $(VER_BUILD)
 VER_SUFFIX ?= Prototype
-VER_STRING = $(VER_MAJOR).$(VER_MINOR).$(VER_RELEASE).$(BUILD_NUMBER) $(VER_SUFFIX)
+VER_STRING = $(strip $(VER_MAJOR).$(VER_MINOR).$(VER_RELEASE).$(BUILD_NUMBER) $(VER_SUFFIX))
 
 MKDIR ?= mkdir -p
 STRIP ?= strip

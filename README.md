@@ -1,6 +1,6 @@
 # KeeperFX — Tux Edition
 
-*The native Linux build of KeeperFX — built for penguins. 🐧 &nbsp;Unofficial, community-maintained, and continuously re-synced with the upstream team's work. (Alpha.)*
+*The native Linux build of KeeperFX — built for penguins. 🐧 &nbsp;Unofficial, community-maintained, and continuously re-synced with the upstream team's work.*
 
 ![KeeperFX Tux Edition](docs/assets/readme-banner.png)
 
@@ -15,7 +15,12 @@
 
 ### **[⬇ KeeperFX-Linux-Alpha-x86_64.AppImage](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/KeeperFX-Linux-Alpha-x86_64.AppImage)** &nbsp;·&nbsp; ~500 MB &nbsp;·&nbsp; any current 64-bit Linux
 
-<sub>↳ The link above always grabs the newest build. To see every version, the changelogs, or an older build, browse **[all releases »](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)**.</sub>
+<sub>↳ The link above always grabs the newest **stable** build. To see every version, the changelogs, or an older build, browse **[all releases »](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)**.</sub>
+
+> 🧭 **Two channels: stable and alpha.** The download above is **stable** — it only moves once a build has
+> been played and left alone for a while. **Alpha** is where the work happens and can change under you;
+> its releases are tagged `-alpha`. The launcher has a release-channel setting in its Settings dialog, and
+> it only ever offers you releases from the channel you picked. Not sure? Stay on stable.
 
 ```bash
 chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
@@ -109,7 +114,7 @@ That is the whole install: it builds the engine on your machine and pulls in
 > **Short version: use the AppImage unless you specifically want Flatpak.**
 </details>
 
-> ⚠️ *Unofficial personal alpha — **not** affiliated with the KeeperFX team. Please don't report issues from
+> ⚠️ *Unofficial personal fork — **not** affiliated with the KeeperFX team. Please don't report issues from
 > this fork upstream. The game itself is [their work](#credit). Prefer to compile it yourself, or want the
 > details? Read on.*
 
