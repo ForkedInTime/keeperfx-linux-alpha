@@ -48,7 +48,7 @@ source=(
 noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
-  'd9b3e3ae40cbe2fafcf065b201cacf0babdb051db3055121dfb9ebb33796f942'
+  '5d869097cc3bd662c0edc9e23e9bda3ac3edb38d6f91cba6dfef71eb7afcdfd2'
   'SKIP'
   'fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127'
   '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'
