@@ -112,10 +112,23 @@ extern "C" TbFileFind * LbFileFindFirst(const char * filespec, TbFileEntry * fe)
 				if (!de) {
 					break;
 				}
-				if (strcmp(de->d_name, ".") == 0) {
-					continue;
-				}
-				if (strcmp(de->d_name, "..") == 0) {
+				// Hidden entries are not the user's content on Unix, and
+				// readdir() hands them over because the fnmatch() call below
+				// omits FNM_PERIOD: a filespec of "*" or "*.cfg" matches
+				// "._campaign.cfg" as readily as the real file. That matters
+				// because campaigns, mods and workshop content reach a Linux
+				// install as archives built on macOS or Windows, which
+				// routinely carry AppleDouble sidecars ("._x.cfg", "._x.zip")
+				// beside every real file. Enumerated, they get parsed as
+				// campaigns, fed to the sprite loader as zips, counted as
+				// levels, and reported on-screen as a mod to install -- and
+				// since '.' sorts before ordinary letters, they land ahead of
+				// the file they shadow, so any caller keying on position picks
+				// the sidecar. build_music_index() already filters them for
+				// music/; doing it here covers every caller instead.
+				//
+				// This subsumes the "." and ".." skips it replaces.
+				if (de->d_name[0] == '.') {
 					continue;
 				}
 				const std::string file_path = path + "/" + de->d_name;
