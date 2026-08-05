@@ -313,10 +313,9 @@ KFX_LDFLAGS += \
 	-Ldeps/centijson -ljson \
 	-Ldeps/enet6 -lenet6 \
 	$(shell pkg-config --libs-only-l epoxy) \
-	$(shell pkg-config --libs-only-l sdl2) \
-	$(shell pkg-config --libs-only-l SDL2_mixer) \
-	$(shell pkg-config --libs-only-l SDL2_net) \
-	$(shell pkg-config --libs-only-l SDL2_image) \
+	$(shell pkg-config --libs-only-l sdl3) \
+	$(shell pkg-config --libs-only-l sdl3-mixer) \
+	$(shell pkg-config --libs-only-l sdl3-image) \
 	$(shell pkg-config --libs-only-l libavformat) \
 	$(shell pkg-config --libs-only-l libavcodec) \
 	$(shell pkg-config --libs-only-l libswresample) \

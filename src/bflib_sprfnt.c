@@ -1487,13 +1487,13 @@ static short load_unifont_file(struct AsianFont * dbcfont)
         return 3;
     }
     LbFileClose(fhandle);
-    // NOTE (keeperfx-alpha local fix): fpath comes from prepare_file_fmtpath() ->
+    // Do not free fpath here. It comes from prepare_file_fmtpath() ->
     // get_mod_file_path(), which returns a pointer into a STATIC buffer
-    // (static char ffullpath[4096]) — it must NOT be freed. The original free()
-    // here corrupts the heap and aborts on glibc the moment the .fxfont files
-    // exist (before they exist, the function returns early at the size check and
-    // never reaches this line). Upstream UTF-8 (#4920) bug; not reported per
-    // our no-contribution policy.
+    // (static char ffullpath[4096]). Freeing it corrupts the heap and aborts on
+    // glibc the moment the .fxfont files exist -- before they do, the function
+    // returns early at the size check and never reaches this line, which is what
+    // made it look harmless. Upstream now omits the free as well; this note
+    // stays as a tripwire against it coming back.
 
     unsigned short *widths = (unsigned short *)malloc(UNIFONT_INDEX_COUNT * sizeof(*widths));
     unsigned int *offsets = (unsigned int *)malloc(UNIFONT_INDEX_COUNT * sizeof(*offsets));
@@ -1509,9 +1509,8 @@ static short load_unifont_file(struct AsianFont * dbcfont)
     for (unsigned int i = 0; i < UNIFONT_INDEX_COUNT; ++i)
     {
         unsigned int pos = i * UNIFONT_INDEX_SIZE;
-        widths[i] = (unsigned short)index_buf[pos] | ((unsigned short)index_buf[pos + 1] << 8);
-        offsets[i] = (unsigned int)index_buf[pos + 2] | ((unsigned int)index_buf[pos + 3] << 8)
-                     | ((unsigned int)index_buf[pos + 4] << 16) | ((unsigned int)index_buf[pos + 5] << 24);
+        widths[i] = (unsigned short)lword(&index_buf[pos]);
+        offsets[i] = (unsigned int)llong(&index_buf[pos + 2]);
         if (widths[i] != 0)
         {
             unsigned int row_bytes = (widths[i] + 7) >> 3;
@@ -1536,6 +1535,7 @@ static short load_unifont_file(struct AsianFont * dbcfont)
 
 short load_unifont_files()
 {
+    SYNCDBG(7,"Starting");
     for (int i = 0; i < sizeof(dbcfonts) / sizeof(dbcfonts[0]); ++i)
     {
         load_unifont_file(&dbcfonts[i]);
