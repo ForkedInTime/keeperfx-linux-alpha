@@ -450,7 +450,9 @@ reviewed selection rather than an automatic mirror.
 
 **The Windows half doesn't come along for the ride.** Upstream builds for Windows — their CI cross-compiles
 with MinGW and signs `.exe` patches — so those five workflows are deleted here and this repo's CI is
-Linux-only; a sync that tries to restore them gets resolved by hand. What we deliberately *don't* do is rip
+Linux-only. That's the standing rule, not a one-off tidy-up: a file that exists purely to build, sign or
+ship the Windows product isn't applicable to this fork and doesn't get carried in, and a sync that tries to
+restore one gets resolved by hand. What we deliberately *don't* do is rip
 the Windows code paths out of the engine: they sit behind `#ifdef _WIN32` in a handful of files, cost this
 build nothing, and tearing them out would mean re-fighting the same merge conflict every single week. Cut
 the Windows *plumbing*, leave the shared *source* alone — that's what keeps the weekly merge cheap enough to
