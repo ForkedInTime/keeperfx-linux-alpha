@@ -121,9 +121,9 @@ That is the whole install: it builds the engine on your machine and pulls in
 
 **KeeperFX is the work of the KeeperFX team and the Keeper Klan community**, built up over many years: the
 complete decompilation-and-rewrite of *Dungeon Keeper* into modern code, the gameplay, the tooling — **and the
-native Linux support that this alpha stands on.** The overwhelming majority of everything you run here is
+native Linux support this edition stands on.** The overwhelming majority of everything you run here is
 theirs. This repository is a thin layer of personal tweaks on top of their `master`, re-synced with their
-latest **weekly** (see [how](#how-this-alpha-stays-current-with-upstream)). All the real progress comes from them.
+latest **weekly** (see [how](#how-the-tux-edition-stays-current-with-upstream)). All the real progress comes from them.
 
 - **Upstream / source of truth:** https://github.com/dkfans/keeperfx
 - **Website:** https://keeperfx.net
@@ -131,25 +131,36 @@ latest **weekly** (see [how](#how-this-alpha-stays-current-with-upstream)). All 
 
 If you enjoy this, support **the upstream project** — that's where the game is actually made.
 
-## What this alpha adds on top of upstream
+## What the Tux Edition adds on top of upstream
 
-Everything below is the only delta from the team's `master`; the rest is 100% theirs.
+**Upstream supports Linux — as source code.** `linux.mk` is theirs and it works; you can compile KeeperFX
+on Linux today. What you can't do is *download* it. Their release pipeline cross-compiles to Windows with
+MinGW, and every release from 2024 to the current **v1.4.0** ships exactly one file:
+`keeperfx_1_4_0_complete.7z`, a Windows package. There is no Linux build, no installer, no launcher — the
+Linux path ends at a compiler.
 
-> **At a glance — a full native Linux port plus 48+ Linux-specific fixes and improvements**, every one
-> traceable to a commit in this repo. We don't chase upstream's headline count; the team ships the *game*, and
-> our job is the curated Linux layer they don't. That layer is real, and it's verifiable:
+**This edition is that missing half, and only that half.** Every week a bot merges the team's latest
+`master` here, compile-checks it and opens a pull request, so the *game* is theirs and stays current —
+never a stale snapshot frozen at whatever built cleanly once. On top of it sits the part nobody else
+maintains: a ready-to-run **AppImage, Flatpak and Arch package**, a native Qt launcher that doesn't touch
+Wine, and the Linux-specific fixes, hardening and performance work below.
+
+> **At a glance — everything here is a curated Linux layer, not a rewrite of the game.** We don't chase
+> upstream's headline count; the team ships the *game*, and our job is the platform work they don't do.
+> That layer is real, and every line of it is traceable to a commit in this repo:
 >
 > | | What we added | Roughly |
 > |---|---|---|
-> | 🐧 | **Native Linux port** — engine + Qt launcher + one-file AppImage / Flatpak installer (upstream ships none of this) | the whole platform |
+> | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit: out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs | ~29 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, creature-list corruption guard | ~6 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 9 wins |
-> | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3 | 3 features |
+> | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, music download + recovery, single-instance lock, weekly sync bot | 10+ items |
 >
-> <sub>Count it yourself: `git log --oneline upstream/master..HEAD`. The sections below are the line items.</sub>
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 123 commits of ours on top
+> of theirs, on top of 9 weekly upstream merges. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -169,6 +180,10 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   track number are placed by it; the rest are used in alphabetical order. Existing installs are untouched —
   `keeperNN` names are still looked up first and still win. And when something doesn't play, `keeperfx.log`
   now names every file the game skipped and why, instead of failing silently.
+- **A real window icon and desktop identity.** The game window came up with a generic placeholder icon in
+  the taskbar and dock. It now sets its own icon *and* a matching desktop entry — Wayland ignores the icon
+  a window asks for and instead matches the window's app ID to an installed `.desktop` file, so both halves
+  are needed for the icon to actually appear. Fixed for X11 and Wayland alike, in every install method.
 
 **Native Linux launcher** *(the KeeperFX team's `keeperfx-launcher-qt`, made to run natively)*
 - The team's Qt settings launcher compiles cross-platform but was written Windows-first (it launched the game
@@ -261,7 +276,7 @@ first.)
 
 **Tooling**
 - **Weekly upstream-sync bot** — a GitHub Action merges the team's latest `master`, compile-checks it, and
-  opens a pull request for review (details [below](#how-this-alpha-stays-current-with-upstream)).
+  opens a pull request for review (details [below](#how-the-tux-edition-stays-current-with-upstream)).
 - **`refresh-alpha.sh`** — pulls upstream, builds with the correct version number, generates the UTF-8
   fonts, and deploys locally.
 - **`make` builds Linux.** A bare `make` ran upstream's Windows/mingw target, which also overwrote a shared
@@ -277,10 +292,10 @@ first.)
 ## 🤖 On AI-assisted development
 
 **Yes, AI assistance is used here, heavily.** What people rightly call "AI slop" is *unverified output
-pushed onto other people* — and none of that happens here: **nothing from this fork is ever sent to the
-KeeperFX team** (the sync runs inbound only), and every line of the delta above is compiled and **played
-on real Linux hardware** before it ships. A mistake here costs me a debugging session, never someone
-else's review queue. **Judge the diff, not the toolchain** — it's all right there, one commit at a time.
+pushed onto other people* — and none of that happens here: **no patches from this fork are pushed at the
+KeeperFX team** (the weekly sync runs inbound only), and every line of the delta above is compiled and
+**played on real Linux hardware** before it ships. A mistake here costs me a debugging session, never
+someone else's review queue. **Judge the diff, not the toolchain** — it's all right there, one commit at a time.
 
 <details>
 <summary><b>The longer answer — what the strictest C projects actually do, with sources</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -409,7 +424,7 @@ The native launcher is its own repo:
 [**keeperfx-launcher-qt-linux**](https://github.com/ForkedInTime/keeperfx-launcher-qt-linux).
 </details>
 
-## How this alpha stays current with upstream
+## How the Tux Edition stays current with upstream
 
 **A weekly sync bot does it automatically.** Every Monday a GitHub Action checks the KeeperFX team's
 `master` for new commits and:
