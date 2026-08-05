@@ -1,7 +1,33 @@
 # Changelog — KeeperFX Linux Alpha
 
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
-Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
+Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
+`alpha` appended on the alpha channel and nothing appended on the stable one.
+
+## 1.4.0.5409 — 2026-08-05 — first stable
+
+**The first stable release of the Tux Edition.** Everything here has already shipped
+through the alpha channel; what is new is the promise. The alpha channel keeps moving —
+the SDL3 migration is being prepared there now — while stable stays put until a release
+has been played and left alone for a while.
+
+- **Same engine as 1.4.0.5397**, which had been soaked in ordinary play with nothing to
+  report, and which starts and runs every one of the 13 installed campaigns — checked one
+  at a time, each on its own first level.
+- **Two update channels, kept apart.** The launcher now asks for the newest release *of
+  its own channel* rather than the newest release overall. Choose stable and alphas will
+  not be offered to you; choose alpha and you keep getting them. Previously there was one
+  list and whichever release was newest won, which would have made a stable channel
+  meaningless the moment the next alpha appeared.
+- **Stable releases keep their build number.** A stable was being read as `1.4.0`, dropping
+  the part that actually identifies the build, so an install compared older than the very
+  release it was running and was offered an endless update to itself. Version ordering was
+  also wrong in a way that could have offered a downgrade: a large build number on an older
+  base counted as newer.
+- **The launcher no longer offers updates it cannot install.** On a package-managed install
+  — the Arch package, where the engine and data are root-owned system files — it now says so
+  and points you at your package manager, instead of downloading 400 MB and failing with a
+  permission error that explained nothing.
 
 ## 1.4.0.5397 — 2026-08-05
 - **The game now paces itself to your monitor instead of running flat out.** A new install drew frames as

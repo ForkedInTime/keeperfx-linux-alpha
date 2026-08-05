@@ -102,8 +102,22 @@ jobs:
                            deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
           BN="$(git rev-list --count HEAD)"
           echo "Build number: $BN"
+          # The suffix comes from the tag, not a hardcoded "alpha". The launcher
+          # reads version.txt and treats a version with no suffix as STABLE and
+          # anything containing "alpha" as ALPHA -- so a stable release built with
+          # VER_SUFFIX=alpha would stamp itself alpha and be classified as one,
+          # which defeats the point of tagging it stable. Tags look like
+          # v1.4.0.5409-alpha or v1.4.0.5409.
+          TAG="${GITHUB_REF_NAME:-}"
+          case "$TAG" in
+            *-alpha)     VER_SUFFIX=alpha ;;
+            *-prototype) VER_SUFFIX=Prototype ;;
+            v[0-9]*)     VER_SUFFIX= ;;
+            *)           VER_SUFFIX=alpha ;;   # manual dispatch: assume alpha
+          esac
+          echo "Tag '$TAG' -> VER_SUFFIX='$VER_SUFFIX'"
           rm -f src/ver_defs.h
-          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
+          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX="$VER_SUFFIX" -j"$(nproc)"
           cd tools/fxfontmaker
           python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
           python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
