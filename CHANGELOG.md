@@ -4,6 +4,36 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5423 — 2026-08-05 — stable
+
+**Replaces 1.4.0.5411 as the stable release.** The engine is unchanged; all of this is
+the launcher. A review of it after 5411 went out found thirteen faults, and the ones that
+mattered were in the two things people do most: updating, and installing add-ons.
+
+- **Add-ons from the Workshop install again.** Every file whose name contains a space —
+  a large share of the catalogue — failed to download, because the site hands out a link
+  its own server rejects. And a campaign, which ships as a bare `name.cfg` beside a
+  `name/` folder, was not recognised at all: it was mistaken for a loose map pack, so its
+  levels were scattered into Personal Levels, its campaign file and creature, land and
+  media folders were dropped, and it reported success. Campaigns, map packs, single maps,
+  creature mods and graphics packs were each tested against a real download from the
+  Workshop, and each now lands where it belongs.
+- **Where an add-on goes is read from the add-on itself.** Its configuration says whether
+  it is a campaign or a map pack, which the folder layout cannot tell apart — and which
+  the Workshop's own category sometimes gets wrong.
+- **A failed install says so.** Copying into a folder it could not write to reported a
+  successful install and wrote nothing. On an Arch install the game's data folders belong
+  to the package manager, so that was every add-on install. Those folders now allow your
+  own content alongside the packaged content, and a genuine failure explains itself.
+- **Uninstall and Restore no longer fail silently — and Restore cannot lose your add-on.**
+  It moved files back, ignored whether the move worked, then deleted the backup and its
+  record regardless. If it could not write, the add-on was gone from the game and gone
+  from the backup. The backup is now kept whenever anything fails.
+- **A damaged download is noticed.** The check for a corrupt archive could never fire, so
+  a truncated file went straight to being unpacked.
+- **Opening Settings with four or more resolutions configured is no longer undefined.**
+- **When something fails, it tells you why.** "Could not download" now includes the reason.
+
 ## 1.4.0.5411 — 2026-08-05 — first stable
 
 **The first stable release of the Tux Edition.** Everything here has already shipped
