@@ -136,8 +136,10 @@ If you enjoy this, support **the upstream project** — that's where the game is
 **Upstream supports Linux — as source code.** `linux.mk` is theirs and it works; you can compile KeeperFX
 on Linux today. What you can't do is *download* it. Their release pipeline cross-compiles to Windows with
 MinGW, and every release from 2024 to the current **v1.4.0** ships exactly one file:
-`keeperfx_1_4_0_complete.7z`, a Windows package. There is no Linux build, no installer, no launcher — the
-Linux path ends at a compiler.
+`keeperfx_1_4_0_complete.7z`, a Windows package. Their download page lists Linux as *"Not available yet —
+coming soon"*, and there's an open pull request to build an AppImage on their CI
+([#4990](https://github.com/dkfans/keeperfx/pull/4990)) — good news, and we'll happily stand down the day
+it lands. Until then the Linux path ends at a compiler: no build, no installer, no launcher.
 
 **This edition is that missing half, and only that half.** Every week a bot merges the team's latest
 `master` here, compile-checks it and opens a pull request, so the *game* is theirs and stays current —
