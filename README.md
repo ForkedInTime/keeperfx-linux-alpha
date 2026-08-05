@@ -9,7 +9,7 @@
 ![Render](https://img.shields.io/badge/display-GPU%20OpenGL%203.3-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--2.0-blue?style=flat-square)
 
-**Dungeon Keeper, native on Linux.** One file on most distros — a proper `yay -S` package on Arch.
+**Dungeon Keeper, native on Linux.** One file on most distros — a proper source-built package on Arch.
 
 ## ▶ Download &amp; play
 
@@ -48,25 +48,27 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 > That's the AppImage *runtime*, not our app — everything our game needs is already bundled.
 </details>
 
-## 🏛 Arch Linux — install from the AUR
+## 🏛 Arch Linux — a proper package
 
 **Arch, CachyOS, EndeavourOS, Manjaro:** there's a proper package. No blob to download, no `chmod +x` —
-the engine is compiled from source against your system's own libraries and updates with everything else.
+the engine is compiled from source against your system's own libraries.
 
 ```bash
-yay -S keeperfx-tux
+git clone https://github.com/ForkedInTime/keeperfx-linux-alpha.git
+cd keeperfx-linux-alpha/packaging/aur && makepkg -si
 ```
 
-> ⏳ **Being published — not on the AUR yet.** Until it lands, build it straight from this repo:
-> ```bash
-> git clone https://github.com/ForkedInTime/keeperfx-linux-alpha.git
-> cd keeperfx-linux-alpha/packaging/aur && makepkg -si
-> ```
+> ⏳ **Not on the AUR yet — `yay -S keeperfx-tux` will not find it.** The recipe is finished and verified in
+> a clean chroot; what is missing is the upload. The Arch team
+> [disabled pushes to the AUR on 1 August 2026](https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/message/YPJ3FQYJTJXXY3RUXCYLMHUKHLIUNVFF/)
+> while they deal with a wave of malicious package takeovers, so nobody can submit anything at the moment.
+> It goes up when they reopen. The two commands above work today and produce the same package.
 
-Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-tux`. Updates arrive with your
-normal `yay -Syu` — no self-updater, no re-downloading half a gigabyte.
+Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-tux`. Re-run those two commands to
+update — no self-updater, no re-downloading half a gigabyte. Once the package is on the AUR, `yay -Syu`
+will keep it current along with everything else.
 
-That one command is the whole install: it builds the engine on your machine and pulls in
+That is the whole install: it builds the engine on your machine and pulls in
 `keeperfx-tux-data` (the campaigns, graphics and sounds) automatically.
 
 <details>
@@ -83,11 +85,8 @@ That one command is the whole install: it builds the engine on your machine and 
 > not in any package. If they are missing the game names them exactly and stops, and the Qt launcher can
 > find an installation and copy them for you.
 >
-> Prefer to build it yourself from this repo rather than the AUR:
-> ```bash
-> git clone https://github.com/ForkedInTime/keeperfx-linux-alpha.git
-> cd keeperfx-linux-alpha/packaging/aur && makepkg -si
-> ```
+> The recipe lives in `packaging/aur/` in this repository, so what you build with `makepkg` above is
+> exactly what will be published to the AUR — same PKGBUILD, same two packages, same paths.
 
 </details>
 
@@ -272,7 +271,7 @@ first.)
 
 ## Other ways to install
 
-<sub>On Arch or a derivative? Use the **[AUR package](#-arch-linux--install-from-the-aur)** above instead of
+<sub>On Arch or a derivative? Use the **[Arch package](#-arch-linux--a-proper-package)** above instead of
 any of these.</sub>
 
 <details>
