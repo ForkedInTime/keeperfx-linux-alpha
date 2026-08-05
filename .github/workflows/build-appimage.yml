@@ -17,6 +17,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Which channel to stamp the build as (a release trigger takes this from its tag)'
+        type: choice
+        options: [alpha, stable]
+        default: alpha
 
 permissions:
   contents: write        # needed to attach the bundle to the release
@@ -108,14 +114,25 @@ jobs:
           # VER_SUFFIX=alpha would stamp itself alpha and be classified as one,
           # which defeats the point of tagging it stable. Tags look like
           # v1.4.0.5409-alpha or v1.4.0.5409.
-          TAG="${GITHUB_REF_NAME:-}"
-          case "$TAG" in
-            *-alpha)     VER_SUFFIX=alpha ;;
-            *-prototype) VER_SUFFIX=Prototype ;;
-            v[0-9]*)     VER_SUFFIX= ;;
-            *)           VER_SUFFIX=alpha ;;   # manual dispatch: assume alpha
-          esac
-          echo "Tag '$TAG' -> VER_SUFFIX='$VER_SUFFIX'"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # A dispatch has no tag -- GITHUB_REF_NAME is the branch, so the tag
+            # rules below would read "alpha" and stamp every manual build as an
+            # alpha, including the one built to become a stable release.
+            case "${{ inputs.channel }}" in
+              stable) VER_SUFFIX= ;;
+              *)      VER_SUFFIX=alpha ;;
+            esac
+            echo "Manual build, channel '${{ inputs.channel }}' -> VER_SUFFIX='$VER_SUFFIX'"
+          else
+            TAG="${GITHUB_REF_NAME:-}"
+            case "$TAG" in
+              *-alpha)     VER_SUFFIX=alpha ;;
+              *-prototype) VER_SUFFIX=Prototype ;;
+              v[0-9]*)     VER_SUFFIX= ;;
+              *)           VER_SUFFIX=alpha ;;
+            esac
+            echo "Tag '$TAG' -> VER_SUFFIX='$VER_SUFFIX'"
+          fi
           rm -f src/ver_defs.h
           make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX="$VER_SUFFIX" -j"$(nproc)"
           cd tools/fxfontmaker
