@@ -81,9 +81,19 @@ build() {
   # ver_defs.h is only regenerated when version.mk changes, so a stale build
   # number would otherwise be baked in -- and the launcher gates settings on it.
   rm -f src/ver_defs.h
+  # The suffix follows the tag being packaged, exactly as the release workflows do.
+  # Hardcoding "alpha" here stamped version.txt as an alpha even when building a
+  # stable tag, and the launcher reads that file to decide which update channel an
+  # install is on -- so every Arch user of a stable release would have been put on
+  # the alpha channel and offered alpha updates.
+  local _ver_suffix=
+  case "${_tag}" in
+    *-alpha)     _ver_suffix=alpha ;;
+    *-prototype) _ver_suffix=Prototype ;;
+  esac
   make -f linux.mk \
     BUILD_NUMBER="$(git rev-list --count HEAD)" \
-    VER_SUFFIX=alpha \
+    VER_SUFFIX="${_ver_suffix}" \
     -j"$(nproc)"
 
   # The UTF-8 fonts are required since upstream #4920 but linux.mk does not build
@@ -128,7 +138,7 @@ build() {
 }
 
 package_keeperfx-tux() {
-  pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)"
+  pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake"
   depends=(
     'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
     'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'

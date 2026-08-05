@@ -45,7 +45,7 @@ pkgbase = keeperfx-tux
 	sha256sums = 1001a296fc71263c3a64d22f9bdfc398954119f80df89f49a4b42f2769e169a1
 
 pkgname = keeperfx-tux
-	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake (alpha)
+	pkgdesc = KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake
 	depends = sdl2-compat
 	depends = sdl2_mixer
 	depends = sdl2_net
