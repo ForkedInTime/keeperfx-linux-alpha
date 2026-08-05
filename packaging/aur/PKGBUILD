@@ -9,12 +9,12 @@
 #
 # _tag and pkgver are bumped by .github/workflows/publish-aur.yml when a release
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
-_tag=v1.4.0.5384-alpha
+_tag=v1.4.0.5397-alpha
 # The launcher is a separate repository with no tags, so it is pinned by commit.
 _launcher_commit=391c192f893d3ac19495ad11a8f1c214403b3772
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
-pkgver=1.4.0.5384
+pkgver=1.4.0.5397
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
@@ -48,7 +48,7 @@ source=(
 noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
-  'd3d416cf5698ad738134ebf37eeebea417ce302a9739face0b19a86cdf2a136a'
+  '81c29ad58994be179139879c7750bcf8210c6cfa003a257698d170fc870cc1da'
   'SKIP'
   'fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127'
   '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'
