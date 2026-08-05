@@ -11,7 +11,7 @@
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
 _tag=v1.4.0.5411
 # The launcher is a separate repository with no tags, so it is pinned by commit.
-_launcher_commit=e9b6f3b66f88ec49c3ce8cd53beca92e4508ab89
+_launcher_commit=a2f9ec1c6334291f77859e1a1f94c1966fe4518e
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
 pkgver=1.4.0.5411
