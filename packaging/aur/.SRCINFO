@@ -33,7 +33,7 @@ pkgbase = keeperfx-tux
 	options = !lto
 	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5411
 	source = keeperfx-tux-1.4.0.5411-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5411/keeperfx-linux-alpha-x86_64-full.7z
-	source = keeperfx-tux-launcher::git+https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git#commit=1ec5714e563ddbd4cdd8ab395e54490f74a08d10
+	source = keeperfx-tux-launcher::git+https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git#commit=c490bf1d61b7e464d57f0c3ead58d5b9455f55b8
 	source = keeperfx-tux.sh
 	source = keeperfx-tux.desktop
 	source = keeperfx-tux-launcher.sh
