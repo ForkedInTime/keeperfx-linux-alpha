@@ -28,7 +28,16 @@ if [ ! -e "$GAMEDIR/keeperfx.cfg" ] && [ -e /usr/share/keeperfx-tux/keeperfx.cfg
     cp /usr/share/keeperfx-tux/keeperfx.cfg "$GAMEDIR/keeperfx.cfg"
     chmod u+w "$GAMEDIR/keeperfx.cfg"
 fi
-[ -e "$GAMEDIR/version.txt" ] || cp -f /usr/share/keeperfx-tux/version.txt "$GAMEDIR/version.txt" 2>/dev/null || true
+# Refresh it every time, not just when missing. pacman upgrades the engine
+# without touching the game directory, so a seed-once copy leaves version.txt
+# reporting whatever was installed the first time the launcher ever ran. The
+# launcher compares that file against the newest release to decide whether to
+# offer an update -- so a stale copy makes it offer one that is already
+# installed, download the whole payload, and fail trying to extract it over
+# root-owned package files. The engine's own wrapper (keeperfx-tux.sh) already
+# refreshes it on every run; this only ever ran first because the launcher is
+# what users open.
+cp -f /usr/share/keeperfx-tux/version.txt "$GAMEDIR/version.txt" 2>/dev/null || true
 
 if [ ! -e "$DST" ] || ! cmp -s "$SRC" "$DST"; then
     cp -f "$SRC" "$DST"
