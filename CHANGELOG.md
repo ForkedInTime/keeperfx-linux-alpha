@@ -3,6 +3,28 @@
 This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build> alpha`).
 
+## 1.4.0.5397 — 2026-08-05
+- **The game now paces itself to your monitor instead of running flat out.** A new install drew frames as
+  fast as the processor allowed — frames the display never showed, with one core pinned at 100%. Worse, it
+  left nothing in reserve: the game runs on a single thread, so a frame that needed more work than usual
+  overran and was dropped. That is the intermittent stutter with no obvious cause. Drawing is now capped at
+  the refresh rate your display reports, and when the machine cannot hold that rate the cap steps down to a
+  whole fraction of it (144 → 72 → 48), which turns a dropped frame into one that still arrives on time. It
+  settles rather than hunting, and steps back up once the headroom returns. A rate you set yourself in the
+  configuration is an instruction and is never overridden. Multiplayer and replays are unaffected — the game
+  advances at its own pace regardless of how often the screen is drawn.
+- **The map view no longer costs a whole processor core.** With the map open, 46% of all CPU time went on
+  stretching the parchment background to fill the screen — five million pixels at 3440×1440, every frame, on
+  the one thread the game runs on — only to discard the result and do it again. That image is static; only
+  what is drawn on top of it moves. It is now scaled once and kept, and rebuilt only when something it
+  depends on genuinely changes. The wider your display, the more you get back.
+- **Files that came along for the ride no longer appear as campaigns, mods and levels.** Archives built on
+  macOS or Windows carry a small hidden companion file beside every real one, and campaigns and mods reach a
+  Linux install as archives. The game was treating those companions as content: reading them as campaigns,
+  handing them to the graphics loader, counting them as levels, and telling you on-screen to install one as
+  a mod. They also sort ahead of the file they shadow, so anything choosing by position chose the wrong one.
+  Hidden files are now ignored everywhere the game looks for content.
+
 ## 1.4.0.5384 — 2026-08-03
 - **Multiplayer map packs work.** Classic, Modern and Original now appear in the multiplayer menu with
   their maps, in every install method. They are declared by text files this repository tracks, but the
