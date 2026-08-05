@@ -102,6 +102,33 @@ jobs:
           grep -A5 '^sha256sums' PKGBUILD
           rm -f /tmp/full.7z
 
+          # The three files packaged alongside the archive (the wrapper scripts and
+          # the desktop entry) are pinned by hash too, and nothing was recomputing
+          # them: editing one and forgetting its hash publishes a recipe that fails
+          # `makepkg` for everyone, with the release itself looking perfectly fine.
+          # That is exactly what shipped with v1.4.0.5411 -- the launcher wrapper had
+          # been changed that morning. Recompute them from the files being published.
+          python3 - <<'EOF'
+          import hashlib, re
+          s = open('PKGBUILD').read()
+          # source entries that are plain filenames (no "::" URL form) are local files
+          src_block = s.split("source=(\n", 1)[1].split(")\n", 1)[0]
+          names = [l.strip().strip("'\"") for l in src_block.strip().split("\n")]
+          head, rest = s.split("sha256sums=(\n", 1)
+          body, tail = rest.split(")\n", 1)
+          sums = [l.strip() for l in body.strip().split("\n")]
+          for i, n in enumerate(names):
+              if "::" in n or "/" in n or n.startswith("$"):
+                  continue          # remote source or VCS entry: SKIP or handled above
+              digest = hashlib.sha256(open(n, 'rb').read()).hexdigest()
+              if sums[i].strip("'\"") != digest:
+                  print(f"re-pinning {n}: {sums[i]} -> {digest}")
+                  sums[i] = "'" + digest + "'"
+          open('PKGBUILD', 'w').write(
+              head + "sha256sums=(\n" + "\n".join("  " + p for p in sums) + "\n)\n" + tail)
+          EOF
+          grep -A7 '^sha256sums' PKGBUILD
+
       - name: Verify the tag actually exists upstream
         if: steps.sums.outputs.skip != '1'
         working-directory: packaging/aur

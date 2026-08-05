@@ -52,7 +52,7 @@ sha256sums=(
   'SKIP'
   'fc9fa87c8419cadea2fef0d27eb3acdc85726007209263c4108151e348221127'
   '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'
-  '0aba4b46c2f8989f4beb067e126a5dd2fa899df04290844be8c9a5d9df2618d7'
+  '1001a296fc71263c3a64d22f9bdfc398954119f80df89f49a4b42f2769e169a1'
 )
 
 # Data trees taken from the release archive. It also contains the engine binary,
