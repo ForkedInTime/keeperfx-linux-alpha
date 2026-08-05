@@ -135,7 +135,7 @@ If you enjoy this, support **the upstream project** — that's where the game is
 
 Everything below is the only delta from the team's `master`; the rest is 100% theirs.
 
-> **At a glance — a full native Linux port plus 45+ Linux-specific fixes and improvements**, every one
+> **At a glance — a full native Linux port plus 48+ Linux-specific fixes and improvements**, every one
 > traceable to a commit in this repo. We don't chase upstream's headline count; the team ships the *game*, and
 > our job is the curated Linux layer they don't. That layer is real, and it's verifiable:
 >
@@ -144,7 +144,7 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
 > | 🐧 | **Native Linux port** — engine + Qt launcher + one-file AppImage / Flatpak installer (upstream ships none of this) | the whole platform |
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit: out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs | ~29 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, creature-list corruption guard | ~6 fixes |
-> | ⚡ | **Performance** — GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 7 wins |
+> | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 9 wins |
 > | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3 | 3 features |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, music download + recovery, single-instance lock, weekly sync bot | 10+ items |
@@ -197,6 +197,20 @@ Everything below is the only delta from the team's `master`; the rest is 100% th
   readability.
 
 **Linux performance** *(engine-level optimizations specific to this native build — upstream is Windows-first and does not tune the GCC/Linux path, so these are ours)*
+- **Frame pacing matched to your monitor.** The shipped default draws as fast as the processor allows —
+  frames your display never shows, one core pinned at 100%, and, because the game runs on a single thread,
+  nothing held in reserve for a frame that needs extra work. Such a frame overruns and is dropped: an
+  intermittent stutter with no single cause. New installs now cap drawing at the refresh rate the display
+  reports, and when the machine can't hold that rate the cap steps down to a whole fraction of it
+  (144 → 72 → 48) so a frame that would have been dropped arrives on time instead. It has hysteresis in
+  both directions, so it settles rather than hunts. A rate you set yourself is an instruction and is never
+  overridden, and the simulation is untouched — multiplayer and replays advance at their own pace no matter
+  how often the screen is drawn.
+- **The map view no longer costs a processor core.** With the map open, 46% of all CPU time went on
+  stretching the parchment background to fill the screen — about five million pixels at 3440×1440, every
+  frame, on the one thread the game loop runs on — only to discard it and start over. The image is static.
+  It's now scaled once and kept, rebuilt only when the screen size, scale, map geometry or the image itself
+  actually changes. The cost scaled with screen area, so the wider your display the more this gives back.
 - **No redundant GPU palette re-upload.** The OpenGL present path re-uploaded the 256-colour palette every
   frame — a CPU expansion, a texture upload, and a driver sync — even though it changes only on fades,
   flashes and movies. It's now guarded so it uploads only when the palette actually changes.
@@ -214,7 +228,14 @@ they can be proven safe under replay testing; and a wider `-march=x86-64-v2` bui
 reverted because GCC's auto-vectorizer miscompiles a loop in the 25-year-old pathfinding code. Correctness
 first.)
 
-**Stability & security fixes** *(genuine upstream bugs, fixed locally; the security ones reported upstream)*
+**Stability & security fixes** *(genuine upstream bugs fixed locally, plus faults in this fork's own Linux layer; the security ones reported upstream)*
+- **Files that came along for the ride are no longer treated as content.** Archives built on macOS or
+  Windows carry a small hidden companion file beside every real one, and campaigns, mods and map packs
+  reach a Linux install as archives. This fork's own directory scanner handed those companions to the game
+  as content: it read them as campaigns, passed them to the graphics loader, counted them as levels, and
+  told you on screen to install one as a mod. They also sort ahead of the file they shadow, so anything
+  choosing by position chose the wrong one. Hidden files are now ignored everywhere the game looks for
+  content, and the scanner has tests that run it against a real directory.
 - **Creature-list corruption guard** — a corrupted creature-list link (a "next" pointer aimed at a slot
   that isn't a creature) could abort the whole game when advancing between campaign levels. The engine now
   validates each creature in a list before using it across ~18 walks that previously lacked the check,
