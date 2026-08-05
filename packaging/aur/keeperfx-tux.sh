@@ -18,10 +18,17 @@ GAMEDIR="${KEEPERFX_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/keeperfx-alpha}"
 # are supersets of the engine package's (which ships only the text config), and
 # since 1.4.0.5273 the release archive carries freshly-overlaid config, so there is
 # no staleness to work around -- the two are byte-identical at the same tag.
-RO_DIRS=(campgns levels lang fxdata creatrs ldata multiplayer)
+RO_DIRS=(lang fxdata creatrs ldata multiplayer)
 # The user drops their own Dungeon Keeper files into these alongside ours, so they
 # must be real directories. Packaged files are linked in individually.
-MERGE_DIRS=(data sound)
+#
+# campgns and levels are here rather than in RO_DIRS because add-ons land in them.
+# Linked as whole directories they resolved to root-owned /usr trees, so the
+# launcher's Workshop and Mod Manager could not write a campaign or map pack into
+# them at all -- "Install" failed on a package install and could never succeed.
+# Merged, the directory itself is the user's and each packaged campaign is a
+# symlink inside it, so downloaded content simply sits alongside.
+MERGE_DIRS=(data sound campgns levels)
 # User-owned: seeded once, never clobbered afterwards.
 RW_DIRS=(mods music)
 
@@ -53,6 +60,13 @@ done
 for d in "${MERGE_DIRS[@]}"; do
     src=$(_src_for "$d") || true
     [ -n "$src" ] || continue
+    # Migration: campgns and levels used to be linked as whole directories, which
+    # made them read-only /usr trees. Replace such a link with a real directory --
+    # removing a symlink never touches what it points at, and the loop below links
+    # the packaged content straight back in.
+    if [ -L "$GAMEDIR/$d" ]; then
+        rm -f "$GAMEDIR/$d"
+    fi
     mkdir -p "$GAMEDIR/$d"
     # Link each packaged file individually so the user's own files can sit beside
     # them. A real file already in place always wins and is left untouched.
