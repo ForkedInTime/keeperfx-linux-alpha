@@ -659,7 +659,15 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
 
     TbScreenModeInfo* mdinfo = LbScreenGetModeInfo(mode); // The desired mode has already been checked
     const TbBool want_fullscreen = (mdinfo->sdlFlags & SDL_WINDOW_FULLSCREEN) != 0;
-    const TbBool want_exclusive  = want_fullscreen && !(mdinfo->VideoFlags & Lb_VF_DESKTOP);
+    // Lb_VF_BORDERLESS is the discriminator, not Lb_VF_DESKTOP. Both DESKTOP and
+    // DESKTOP_FULL carry Lb_VF_DESKTOP -- it means "at whatever the desktop
+    // resolution is", not "don't change the video mode" -- so keying on it made
+    // the two modes identical and silently cost DESKTOP_FULL the real mode switch
+    // it had under SDL2, where the absence of Lb_VF_BORDERLESS was exactly what
+    // selected SDL_WINDOW_FULLSCREEN over SDL_WINDOW_FULLSCREEN_DESKTOP.
+    // Width/Height are already resolved to the desktop resolution for these modes
+    // by LbHwCheckIsModeAvailable(), which runs before any mode is set.
+    const TbBool want_exclusive  = want_fullscreen && !(mdinfo->VideoFlags & Lb_VF_BORDERLESS);
     if (lbWindow != NULL)
     {
         const TbBool cur_fullscreen = (SDL_GetWindowFlags(lbWindow) & SDL_WINDOW_FULLSCREEN) != 0;
