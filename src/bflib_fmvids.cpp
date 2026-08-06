@@ -638,9 +638,12 @@ struct movie_t {
 		}
 		SDL_Color palette[PALETTE_COLORS];
 		for (size_t i = 0; i < PALETTE_COLORS; ++i) {
+			// Read through vf, not m_frame: for a non-PAL8 source vf points at the
+			// converted frame, and m_frame's data[1] is not a palette at all.
 			palette[i].b = vf->data[1][(i * 4) + 0]; // blue
 			palette[i].g = vf->data[1][(i * 4) + 1]; // green
 			palette[i].r = vf->data[1][(i * 4) + 2]; // red
+			palette[i].a = SDL_ALPHA_OPAQUE;
 		}
 		LbScreenWaitVbi(); // this is a no-op today
 		// LbPaletteSet expects values in range 0-63 for reasons, nuking 75% of the color range
