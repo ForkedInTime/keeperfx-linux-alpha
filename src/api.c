@@ -261,7 +261,14 @@ int api_init_server()
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // localhost only, as SDL_net bound NULL host
+    // Loopback only, deliberately. This is NOT what the SDL_net code it replaced
+    // did: SDLNet_ResolveHost(&ip, NULL, port) resolves to INADDR_ANY, so the API
+    // server used to accept connections from any host on the network. Binding a
+    // game's scripting port to every interface by default is not a good default,
+    // so the narrower behaviour is kept -- but it IS a behaviour change, and
+    // tooling that drove the API from another host, container or VM will now get
+    // connection refused rather than a timeout.
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((unsigned short)api_port);
 
     if (bind(srv, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
