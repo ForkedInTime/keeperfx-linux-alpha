@@ -70,7 +70,94 @@ echo "==> generating UTF-8 unifont .fxfont files (needed since #4920; not built 
   rm -f merged12.hex wenquanyi.hex unifont12.hex )
 
 echo "==> installing engine + config into $PREFIX (binaries/saves untouched)"
-[ -d "$PREFIX" ] || { echo "install dir $PREFIX missing — run a first install first"; exit 1; }
+
+# This script UPDATES an existing install; it cannot create one, and it must not
+# pretend otherwise. The repository carries configuration, not content:
+#
+#   * no maps -- zero .lif files are tracked (verified: `git ls-files '*.lif'`
+#     is empty). campgns/, levels/ and multiplayer/ hold the .cfg files that
+#     DESCRIBE map packs, while the maps themselves ship in the data payload.
+#   * no generated language data -- config/fxdata/*.dat and *.fon are build
+#     outputs of pkg_lang.mk, correctly gitignored.
+#   * no ldata/ at all -- GUI strings and the intro movies live in the payload.
+#
+# Copying the repo trees over an empty directory therefore yields an install
+# that either dies at startup with "Setting up game failed" (no GUI strings) or
+# starts with an empty Free Play list and no multiplayer map packs. Both look
+# like engine bugs and are not, which is exactly why this check is worth the
+# lines: a plain `[ -d ]` test passes for `mkdir newdir` and the breakage only
+# surfaces later, in-game.
+missing=""
+[ -d "$PREFIX" ] || missing="$missing\n   - the directory itself does not exist"
+[ -e "$PREFIX/ldata" ] || missing="$missing\n   - ldata/        (GUI strings + intro movies; without it the game will not start)"
+ls "$PREFIX"/fxdata/gtext_*.dat >/dev/null 2>&1 || \
+  missing="$missing\n   - fxdata/gtext_*.dat  (generated language data; without it the game will not start)"
+[ -e "$PREFIX/data" ] || missing="$missing\n   - data/         (your own original Dungeon Keeper files)"
+if [ -d "$PREFIX" ] && [ "$(find -L "$PREFIX" -iname '*.lif' 2>/dev/null | head -1)" = "" ]; then
+  missing="$missing\n   - any .lif maps (Free Play and the multiplayer map packs would be empty)"
+fi
+if [ -n "$missing" ] && [ -n "${SEED_FROM:-}" ]; then
+  # Seeding makes a complete install out of an incomplete one by taking the
+  # content the repository cannot supply from a game directory that already has
+  # it. --ignore-existing (or cp -n) is the important part: anything this script
+  # is about to install fresh must win, so seeding only ever FILLS GAPS.
+  [ -d "$SEED_FROM" ] || { echo "!! SEED_FROM=$SEED_FROM is not a directory"; exit 1; }
+  [ -e "$SEED_FROM/ldata" ] || { echo "!! SEED_FROM=$SEED_FROM is not a complete install either (no ldata/)"; exit 1; }
+  echo "==> seeding $PREFIX from $SEED_FROM (filling gaps only)"
+  mkdir -p "$PREFIX"
+  if command -v rsync >/dev/null; then
+    # -L resolves symlinks into packaged trees, so the result does not depend on
+    # the seed install (or its distro package) still being there afterwards.
+    rsync -aL --ignore-existing \
+      --exclude 'keeperfx' --exclude 'keeperfx.log*' --exclude '*.bak-*' \
+      --exclude '*.orig-*' --exclude '*.tmp' --exclude 'keeperfx-launcher-qt*' \
+      "$SEED_FROM/" "$PREFIX/"
+  else
+    echo "   (rsync not found; falling back to cp -a, which is slower)"
+    for e in "$SEED_FROM"/*; do
+      b=$(basename "$e")
+      case "$b" in keeperfx|keeperfx.log*|*.bak-*|*.orig-*|*.tmp|keeperfx-launcher-qt*) continue;; esac
+      [ -e "$PREFIX/$b" ] || cp -aL "$e" "$PREFIX/$b"
+    done
+  fi
+  # Re-run the same checks against the seeded directory rather than assuming the
+  # copy fixed everything.
+  missing=""
+  [ -e "$PREFIX/ldata" ] || missing="$missing\n   - ldata/"
+  ls "$PREFIX"/fxdata/gtext_*.dat >/dev/null 2>&1 || missing="$missing\n   - fxdata/gtext_*.dat"
+  [ -e "$PREFIX/data" ] || missing="$missing\n   - data/"
+  [ "$(find -L "$PREFIX" -iname '*.lif' 2>/dev/null | head -1)" = "" ] && missing="$missing\n   - any .lif maps"
+  if [ -n "$missing" ]; then
+    printf '!! seeding from %s did not produce a complete install; still missing:%b\n' "$SEED_FROM" "$missing"
+    exit 1
+  fi
+  echo "    seeded: $(find -L "$PREFIX" -iname '*.lif' 2>/dev/null | wc -l) maps, $(ls "$PREFIX"/fxdata/gtext_*.dat 2>/dev/null | wc -l) language files"
+fi
+
+if [ -n "$missing" ]; then
+  printf '!! %s does not look like a complete KeeperFX install.\n' "$PREFIX"
+  printf '   Missing:%b\n' "$missing"
+  cat <<'MSG'
+
+   The maps, ldata/ and generated language data ship in the data payload and are
+   not in git, so this repository alone cannot produce a playable install. Point
+   SEED_FROM at a game directory that already has them and this script will fill
+   the gaps for you:
+
+       SEED_FROM=~/.local/share/keeperfx-alpha PREFIX=~/kfx-dev ./refresh-alpha.sh
+
+   Any existing install works as a seed -- the AppImage's, the packaged one, or
+   another dev copy. Nothing in the seed is modified.
+MSG
+  # Name a candidate rather than making them go looking for one.
+  for cand in "$HOME/.local/share/keeperfx-alpha" "$HOME/.local/share/keeperfx-tux-alpha"; do
+    if [ "$cand" != "$PREFIX" ] && [ -e "$cand/ldata" ]; then
+      echo "   Found a usable seed on this machine: $cand"
+      break
+    fi
+  done
+  exit 1
+fi
 # If the keeperfx-tux package has been installed, its wrapper links the packaged
 # engine into this directory from a read-only /usr prefix, and the copy below
 # either fails outright or would clobber a packaged file. That install belongs to
