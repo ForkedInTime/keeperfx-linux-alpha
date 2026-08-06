@@ -775,16 +775,28 @@ extern "C" TbBool play_music(const char * fname) {
 		WARNLOG("Cannot load music from %s: %s", game.music_fname, SDL_GetError());
 		return false;
 	}
-	// MIX_SetTrackAudio replaces any currently-bound audio; the old audio is no
-	// longer referenced by the track afterwards, so it is safe to destroy.
+	// MIX_SetTrackAudio replaces any currently-bound audio, but do NOT retire the
+	// previous audio yet: until the new track is actually playing, the old one is
+	// still the best thing we have to fall back to.
 	MIX_SetTrackAudio(g_music_track, new_audio);
+	if (!MIX_PlayTrack(g_music_track, 0)) {
+		WARNLOG("Cannot play music from %s: %s", game.music_fname, SDL_GetError());
+		// Destroying the old audio before knowing the new track would start left
+		// nothing playing while g_current_music_fname still named the OLD track.
+		// The early-out at the top of this function then matched that stale name
+		// and returned success without doing anything, so the previous track
+		// could never be restarted and music stayed dead for the rest of the
+		// session. Unbind, keep the previous audio alive, and clear the cache so
+		// the next request genuinely retries.
+		MIX_SetTrackAudio(g_music_track, g_music_audio); // NULL is documented as allowed
+		MIX_DestroyAudio(new_audio);
+		g_current_music_fname.clear();
+		return false;
+	}
+	// Playing now, so the previous audio is genuinely unreferenced.
 	MIX_Audio* old_audio = std::exchange(g_music_audio, new_audio);
 	if (old_audio) {
 		MIX_DestroyAudio(old_audio);
-	}
-	if (!MIX_PlayTrack(g_music_track, 0)) {
-		WARNLOG("Cannot play music from %s: %s", game.music_fname, SDL_GetError());
-		return false;
 	}
 	MIX_SetTrackLoops(g_music_track, -1); // loop forever (was Mix_PlayMusic(music, -1))
 	g_current_music_fname = fname;
