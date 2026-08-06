@@ -53,10 +53,16 @@ PREFIX_DEFAULT="$PWD/deps/sdl3"
 # linux.mk about a layout that only CI ever sees.
 if [ "${1:-}" = "--env" ]; then
   PREFIX="$(cd "${2:-$PREFIX_DEFAULT}" 2>/dev/null && pwd || echo "${2:-$PREFIX_DEFAULT}")"
-  echo "export PKG_CONFIG_PATH=\"$PREFIX/lib/pkgconfig:\${PKG_CONFIG_PATH:-}\""
-  echo "export CPATH=\"$PREFIX/include:\${CPATH:-}\""
-  echo "export LIBRARY_PATH=\"$PREFIX/lib:\${LIBRARY_PATH:-}\""
-  echo "export LD_LIBRARY_PATH=\"$PREFIX/lib:\${LD_LIBRARY_PATH:-}\""
+  # ${VAR:+:$VAR} appends the previous value only when there IS one. The obvious
+  # "$new:${VAR:-}" instead leaves a trailing colon whenever the variable was
+  # unset -- which is the normal CI case -- and an empty element in any of these
+  # search paths means the current directory. That would silently put the repo
+  # root ahead of /usr/include for every "#include <...>" in the build.
+  emit() { echo "export $1=\"$2\${$1:+:\$$1}\""; }
+  emit PKG_CONFIG_PATH "$PREFIX/lib/pkgconfig"
+  emit CPATH           "$PREFIX/include"
+  emit LIBRARY_PATH    "$PREFIX/lib"
+  emit LD_LIBRARY_PATH "$PREFIX/lib"
   exit 0
 fi
 
