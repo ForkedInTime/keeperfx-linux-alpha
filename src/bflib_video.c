@@ -689,6 +689,11 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
                 ERRORLOG("SDL_SetWindowFullscreen failed for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
                 return Lb_FAIL;
             }
+            // SDL3 made this request asynchronous where SDL2 applied it before
+            // returning. Without waiting, the size/position calls below race a
+            // transition that has not happened yet, and leaving fullscreen can
+            // strand the window at the wrong size until the next mode change.
+            SDL_SyncWindow(lbWindow);
         }
         SDL_SetWindowBordered(lbWindow, (mdinfo->sdlFlags & SDL_WINDOW_BORDERLESS) ? false : true);
         // if the new mode is windowed mode (including the special FILL ALL mode)
