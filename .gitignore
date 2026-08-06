@@ -48,5 +48,13 @@ res/keeperfx_icon.ico
 /src/ver_defs.h
 keeperfx.log
 crash_log.txt
+# makepkg output and release payloads staged for a local AUR build. The recipe
+# is the source of truth here; the built packages are hundreds of megabytes and
+# are rebuilt from a release tag, so they never belong in history.
+/packaging/aur/*.pkg.tar.zst
+/packaging/aur/*.pkg.tar.xz
+/packaging/aur/*.7z
+/packaging/aur/src/
+/packaging/aur/pkg/
 .local/
 .vscode/compile_and_copy_files.ps1

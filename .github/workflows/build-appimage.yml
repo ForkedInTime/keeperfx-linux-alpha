@@ -17,6 +17,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Which channel to stamp the build as (a release trigger takes this from its tag)'
+        type: choice
+        options: [alpha, stable]
+        default: alpha
 
 permissions:
   contents: write        # needed to attach the bundle to the release
@@ -28,7 +34,39 @@ env:
   LAUNCHER_BRANCH: alpha
 
 jobs:
+  # A release published with its assets already attached (the normal flow: build by
+  # dispatch, attach to a draft, publish) does not need rebuilding. Rebuilding it
+  # produces the same binaries from the same commit, but recompresses the archive,
+  # so the payload's checksum changes -- which silently invalidates the sha256 the
+  # AUR recipe pinned moments earlier, and every `makepkg` then fails its integrity
+  # check. Skip the rebuild when there is nothing missing to attach.
+  check-assets:
+    runs-on: ubuntu-24.04
+    outputs:
+      skip: ${{ steps.probe.outputs.skip }}
+    steps:
+      - name: Does the release already carry both assets?
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "release" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          NAMES=$(gh release view "${{ github.event.release.tag_name }}" \
+                    --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' || true)
+          echo "$NAMES"
+          if echo "$NAMES" | grep -q 'KeeperFX-Linux-Alpha-x86_64\.AppImage' \
+             && echo "$NAMES" | grep -q 'keeperfx-linux-alpha-x86_64-full\.7z'; then
+            echo "Both assets are already attached -- skipping the rebuild."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   appimage:
+    needs: check-assets
+    if: needs.check-assets.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out the engine
@@ -102,8 +140,33 @@ jobs:
                            deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
           BN="$(git rev-list --count HEAD)"
           echo "Build number: $BN"
+          # The suffix comes from the tag, not a hardcoded "alpha". The launcher
+          # reads version.txt and treats a version with no suffix as STABLE and
+          # anything containing "alpha" as ALPHA -- so a stable release built with
+          # VER_SUFFIX=alpha would stamp itself alpha and be classified as one,
+          # which defeats the point of tagging it stable. Tags look like
+          # v1.4.0.5409-alpha or v1.4.0.5409.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # A dispatch has no tag -- GITHUB_REF_NAME is the branch, so the tag
+            # rules below would read "alpha" and stamp every manual build as an
+            # alpha, including the one built to become a stable release.
+            case "${{ inputs.channel }}" in
+              stable) VER_SUFFIX= ;;
+              *)      VER_SUFFIX=alpha ;;
+            esac
+            echo "Manual build, channel '${{ inputs.channel }}' -> VER_SUFFIX='$VER_SUFFIX'"
+          else
+            TAG="${GITHUB_REF_NAME:-}"
+            case "$TAG" in
+              *-alpha)     VER_SUFFIX=alpha ;;
+              *-prototype) VER_SUFFIX=Prototype ;;
+              v[0-9]*)     VER_SUFFIX= ;;
+              *)           VER_SUFFIX=alpha ;;
+            esac
+            echo "Tag '$TAG' -> VER_SUFFIX='$VER_SUFFIX'"
+          fi
           rm -f src/ver_defs.h
-          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
+          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX="$VER_SUFFIX" -j"$(nproc)"
           cd tools/fxfontmaker
           python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
           python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
