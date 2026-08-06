@@ -333,8 +333,21 @@ static void process_event(const SDL_Event *ev)
         }
         else
         {
-            mouseDelta.x = ev->motion.xrel;
-            mouseDelta.y = ev->motion.yrel;
+            // SDL3 reports relative motion as a float where SDL2 used Sint32, and
+            // Wayland, HiDPI scaling and pointer acceleration all emit fractional
+            // deltas. Assigning straight into the integer truncates toward zero, so
+            // any movement below one pixel is discarded outright and slow dragging
+            // registers as no movement at all. Carry the remainder in the same 8.8
+            // fixed point the ratio branch above uses; whole-pixel deltas leave the
+            // accumulator at zero and behave exactly as they did before.
+            int dx = (int)(ev->motion.xrel * 256.0f) + frac_x;
+            int dy = (int)(ev->motion.yrel * 256.0f) + frac_y;
+
+            mouseDelta.x = (dx + 128) >> 8;
+            mouseDelta.y = (dy + 128) >> 8;
+
+            frac_x = dx - (mouseDelta.x * 256);
+            frac_y = dy - (mouseDelta.y * 256);
             if (isMouseActivated)
             {
                 isMouseActivated = 0;
