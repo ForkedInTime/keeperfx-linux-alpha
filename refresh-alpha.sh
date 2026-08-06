@@ -1,25 +1,44 @@
 #!/usr/bin/env bash
-# Update the personal KeeperFX alpha: pull the KeeperFX team's latest master,
-# rebase our fixes onto it, rebuild, and install. Run from this repo's root.
+# Rebuild the personal KeeperFX alpha from the current checkout and install it.
+# Run from this repo's root. Override PREFIX to install somewhere else.
 set -euo pipefail
 
-PREFIX="$HOME/.local/share/keeperfx-alpha"
+PREFIX="${PREFIX:-$HOME/.local/share/keeperfx-alpha}"
 
 echo "==> fetching upstream (the KeeperFX team's master)"
 git fetch upstream
 
 echo "==> what the team changed since our base:"
-git log --oneline HEAD~1..upstream/master | head -60 || true
+git log --oneline HEAD..upstream/master | head -60 || true
 
-echo "==> rebasing our alpha fixes onto their latest master"
-if ! git rebase upstream/master; then
-  cat <<MSG
+# This script was written when the fork was a handful of fixes carried on top of
+# the team's master, so refreshing meant rebasing onto it. That is no longer what
+# this repository is: sync is merge-based (the weekly bot opens a merge PR, and
+# those are merged, never squashed), and the fork's implementation wins where the
+# two disagree -- a rebase inverts that and replays our commits onto their tree.
+#
+# It is also actively destructive right now. Upstream migrated to SDL3 (#5085) on
+# 2026-08-05. That migration is ported and verified, but parked on
+# sync/upstream-2026-08-05-sdl3 until the release workflows build somewhere that
+# ships SDL3 -- ubuntu-24.04 does not. Rebasing here would drag every fork commit
+# onto the migration we deliberately have not taken.
+#
+# Left behind an opt-in rather than deleted, because the reconciliation it does is
+# still occasionally the right tool -- just never the default.
+if [ "${REBASE_ONTO_UPSTREAM:-0}" = "1" ]; then
+  echo "==> rebasing our fixes onto their latest master (REBASE_ONTO_UPSTREAM=1)"
+  if ! git rebase upstream/master; then
+    cat <<MSG
 !! Rebase hit conflicts. The team touched a file our fixes change
    (bflib_video.c / linux.mk / LensManager.cpp / main.cpp). Resolve them, then:
        git rebase --continue
-   and re-run this script. (This is the expected ~yearly reconciliation.)
+   and re-run this script.
 MSG
-  exit 1
+    exit 1
+  fi
+else
+  echo "==> not rebasing onto upstream; building this checkout as it stands"
+  echo "    (sync is merge-based -- see the note in this script)"
 fi
 
 echo "==> building (fetch curl-downloaded deps serially first to avoid a -j race)"
@@ -27,8 +46,9 @@ make -f linux.mk deps/centijson/include/json.h deps/astronomy/include/astronomy.
                  deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
 # Build number = git commit count, exactly as the team's CI computes it
 # (build-alpha-patch-unsigned.yml: BUILD_NUMBER=$(git rev-list --count HEAD)).
-# Version then reads "1.3.2.<count> alpha" — the team's real alpha line, and high
-# enough that the keeperfx-launcher-qt enables every version-gated setting.
+# Version then reads "<major>.<minor>.<release>.<count> alpha", with the first three
+# taken from version.mk (upstream controls them; 1.4.0 at the time of writing), and
+# a count high enough that keeperfx-launcher-qt enables every version-gated setting.
 BUILD_NUMBER=$(git rev-list --count HEAD)
 echo "    BUILD_NUMBER=$BUILD_NUMBER"
 # ver_defs.h only regenerates when version.mk changes, so force it — otherwise a
@@ -51,6 +71,19 @@ echo "==> generating UTF-8 unifont .fxfont files (needed since #4920; not built 
 
 echo "==> installing engine + config into $PREFIX (binaries/saves untouched)"
 [ -d "$PREFIX" ] || { echo "install dir $PREFIX missing — run a first install first"; exit 1; }
+# If the keeperfx-tux package has been installed, its wrapper links the packaged
+# engine into this directory from a read-only /usr prefix, and the copy below
+# either fails outright or would clobber a packaged file. That install belongs to
+# pacman, not to this script.
+if [ -L "$PREFIX/keeperfx" ]; then
+  cat <<MSG
+!! $PREFIX/keeperfx is a symlink to $(readlink "$PREFIX/keeperfx")
+   That game directory is managed by the keeperfx-tux package, not by this script.
+   To install a dev build without disturbing it, pick another prefix:
+       PREFIX=~/kfx-dev ./refresh-alpha.sh
+MSG
+  exit 1
+fi
 cp -f bin/keeperfx "$PREFIX/keeperfx"
 # Record the engine's version where keeperfx-launcher-qt can read it: a native ELF
 # has no Windows PE ProductVersion resource, so the launcher reads version.txt instead.
