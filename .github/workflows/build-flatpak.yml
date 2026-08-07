@@ -51,10 +51,29 @@ jobs:
             libgl1-mesa-dev zlib1g-dev \
             libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 \
-            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
             libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev libepoxy-dev \
-            libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+            libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
+            $(packaging/ci/build-sdl3.sh --apt-packages)
+
+      - name: Cache the SDL3 stack
+        uses: actions/cache@v4
+        with:
+          path: deps/sdl3
+          key: sdl3-${{ runner.os }}-${{ hashFiles('packaging/ci/build-sdl3.sh') }}
+
+      # As in build-appimage.yml: the AppDir here is assembled by linuxdeploy too,
+      # so LD_LIBRARY_PATH has to resolve libSDL3 for the bundling scan.
+      - name: Build the SDL3 stack (ubuntu-24.04 ships no SDL3 packages)
+        run: |
+          packaging/ci/build-sdl3.sh
+          eval "$(packaging/ci/build-sdl3.sh --env)"
+          {
+            echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+            echo "CPATH=$CPATH"
+            echo "LIBRARY_PATH=$LIBRARY_PATH"
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          } >> "$GITHUB_ENV"
 
       - name: Cache compiled objects (ccache)
         uses: actions/cache@v4
@@ -205,7 +224,7 @@ jobs:
           wget -q "$base/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
 
-      - name: Bundle ALL libraries (launcher Qt + engine SDL2/ffmpeg/OpenAL/…)
+      - name: Bundle ALL libraries (launcher Qt + engine SDL3/ffmpeg/OpenAL/…)
         working-directory: launcher
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1

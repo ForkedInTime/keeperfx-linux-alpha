@@ -815,7 +815,7 @@ TbBool gl_present_init(SDL_Window *window, int fb_width, int fb_height)
         LbErrorLog("gl_present: SDL_GL_CreateContext failed: %s\n", SDL_GetError());
         return false;
     }
-    if (SDL_GL_MakeCurrent(window, gl.context) != 0) {
+    if (!SDL_GL_MakeCurrent(window, gl.context)) {
         LbErrorLog("gl_present: SDL_GL_MakeCurrent failed: %s\n", SDL_GetError());
         gl_present_shutdown();
         return false;
@@ -835,14 +835,22 @@ TbBool gl_present_init(SDL_Window *window, int fb_width, int fb_height)
      */
     {
         int want = gl_env_int("KFX_VSYNC", 1);
-        if (SDL_GL_SetSwapInterval(want) != 0) {
+        // SDL3 returns bool (true on success) where SDL2 returned 0 on success, so
+        // these have to be negated rather than compared against 0 -- written the
+        // SDL2 way they compile clean and log a failure every time they succeed.
+        if (!SDL_GL_SetSwapInterval(want)) {
             LbWarnLog("gl_present: swap interval %d unavailable: %s\n", want, SDL_GetError());
-            if ((want != 1) && (SDL_GL_SetSwapInterval(1) != 0)) {
+            if ((want != 1) && !SDL_GL_SetSwapInterval(1)) {
                 LbWarnLog("gl_present: vsync (SDL_GL_SetSwapInterval) unavailable: %s\n", SDL_GetError());
             }
         }
+        // SDL3 reports the interval through an out-parameter instead of returning it.
+        int interval_in_effect = 0;
+        if (!SDL_GL_GetSwapInterval(&interval_in_effect)) {
+            interval_in_effect = 0;
+        }
         LbSyncLog("gl_present: swap interval requested %d, in effect %d\n",
-            want, SDL_GL_GetSwapInterval());
+            want, interval_in_effect);
     }
 
     /* Report the GL version / renderer string (confirms hardware GPU path). */
@@ -1190,7 +1198,10 @@ void gl_present_frame(const void *fb_pixels, int fb_width, int fb_height, int pi
     /* Aspect-preserving letterbox fit into the current drawable. */
     int draw_w = 0;
     int draw_h = 0;
-    SDL_GL_GetDrawableSize(gl.window, &draw_w, &draw_h);
+    // SDL3 dropped SDL_GL_GetDrawableSize; SDL_GetWindowSizeInPixels is the
+    // replacement and reports the same thing (pixels, not logical units, which
+    // is what the viewport needs on a HiDPI display).
+    SDL_GetWindowSizeInPixels(gl.window, &draw_w, &draw_h);
     if ((draw_w <= 0) || (draw_h <= 0)) {
         return;
     }
@@ -1263,7 +1274,10 @@ void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch)
     glBindTexture(GL_TEXTURE_2D, 0);
 
     int draw_w = 0, draw_h = 0;
-    SDL_GL_GetDrawableSize(gl.window, &draw_w, &draw_h);
+    // SDL3 dropped SDL_GL_GetDrawableSize; SDL_GetWindowSizeInPixels is the
+    // replacement and reports the same thing (pixels, not logical units, which
+    // is what the viewport needs on a HiDPI display).
+    SDL_GetWindowSizeInPixels(gl.window, &draw_w, &draw_h);
     if ((draw_w <= 0) || (draw_h <= 0)) {
         return;
     }
@@ -1326,7 +1340,7 @@ void gl_present_shutdown(void)
     if (gl.prog_movie != 0) { glDeleteProgram(gl.prog_movie); gl.prog_movie = 0; }
     if (gl.tex_movie != 0)  { glDeleteTextures(1, &gl.tex_movie); gl.tex_movie = 0; }
     if (gl.context != NULL) {
-        SDL_GL_DeleteContext(gl.context);
+        SDL_GL_DestroyContext(gl.context);
     }
     memset(&gl, 0, sizeof(gl));
 }

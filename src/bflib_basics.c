@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "bflib_datetm.h"
 #include "bflib_fileio.h"
@@ -172,8 +172,8 @@ short warning_dialog(const char *codefile,const int ecode,const char *message)
   }
 
   const SDL_MessageBoxButtonData buttons[] = {
-        { .flags = SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, .buttonid = 1, .text = "Ignore" },
-    { .flags = SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, .buttonid = 0, .text = "Abort" },
+        { .flags = SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, .buttonID = 1, .text = "Ignore" },
+    { .flags = SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, .buttonID = 0, .text = "Abort" },
     };
 
     const SDL_MessageBoxData messageboxdata = {

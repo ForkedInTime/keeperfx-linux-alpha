@@ -80,7 +80,7 @@ That is the whole install: it builds the engine on your machine and pulls in
 <summary><b>What the package does and doesn't include</b></summary>
 
 > It installs as two pieces from one recipe: `keeperfx-tux`, the engine, compiled against your system's
-> SDL2/ffmpeg/OpenAL rather than bundling copies; and `keeperfx-tux-data`, everything KeeperFX itself
+> SDL3/ffmpeg/OpenAL rather than bundling copies; and `keeperfx-tux-data`, everything KeeperFX itself
 > provides — campaigns, graphics, sounds and language files. You only ever ask for the first; pacman
 > brings the second.
 >
@@ -374,7 +374,7 @@ any of these.</sub>
    `sound/` (`atmos1.sbk`, `atmos2.sbk`, `bullfrog.sbk`).
 4. Install the runtime libraries (Arch shown; names vary by distro):
    ```bash
-   sudo pacman -S --needed sdl2-compat sdl2_mixer sdl2_net sdl2_image \
+   sudo pacman -S --needed sdl3 sdl3_mixer sdl3_image \
      ffmpeg openal luajit libspng minizip zlib libepoxy miniupnpc libnatpmp openssl zstd
    ```
 5. Run: `cd ~/.local/share/keeperfx-alpha && ./keeperfx`
@@ -390,11 +390,11 @@ Tested on Arch Linux (x86-64). Package **names** differ across distros, but the 
 **1. Install build dependencies** (Arch / derivatives):
 ```bash
 sudo pacman -S --needed base-devel git python \
-  sdl2-compat sdl2_mixer sdl2_net sdl2_image \
+  sdl3 sdl3_mixer sdl3_image \
   ffmpeg openal luajit libspng minizip zlib libepoxy \
   miniupnpc libnatpmp openssl zstd
 ```
-> Other distros: a C/C++ toolchain, `make`, `git`, `python3`, and the dev packages for SDL2 (+mixer/net/image),
+> Other distros: a C/C++ toolchain, `make`, `git`, `python3`, and the dev packages for SDL3 (+mixer/image),
 > ffmpeg (avformat/avcodec/avutil/swscale/swresample), OpenAL, LuaJIT, libspng, minizip, zlib, libepoxy,
 > miniupnpc, libnatpmp, openssl, zstd. centijson/astronomy/enet6/libcurl are fetched by the makefile.
 

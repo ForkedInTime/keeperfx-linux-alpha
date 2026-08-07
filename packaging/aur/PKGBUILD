@@ -23,10 +23,12 @@ license=('GPL-2.0-or-later')
 # installed to build with -- a depends= array inside package_*() is metadata for
 # the built package and does nothing at build time. The engine's libraries are
 # therefore listed here as well as on the output that runs against them; without
-# that a clean chroot has no SDL2 headers and the engine will not compile.
+# that a clean chroot has no SDL3 headers and the engine will not compile.
+# SDL3_net does not exist: networking is enet6, and the only SDLNet_ references
+# left in the tree are comments.
 makedepends=('git' 'python' 'curl' 'p7zip'
              # engine
-             'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
+             'sdl3' 'sdl3_mixer' 'sdl3_image'
              'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
              'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
              # Qt launcher
@@ -140,7 +142,7 @@ build() {
 package_keeperfx-tux() {
   pkgdesc="KeeperFX Tux Edition — native Linux build of the Dungeon Keeper engine remake"
   depends=(
-    'sdl2-compat' 'sdl2_mixer' 'sdl2_net' 'sdl2_image'
+    'sdl3' 'sdl3_mixer' 'sdl3_image'
     'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
     'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
     # Implicit but real: the engine links these, the wrapper is a bash script,

@@ -30,10 +30,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential git python3 pkg-config \
-            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
             libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
-            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
+            $(packaging/ci/build-sdl3.sh --apt-packages)
+
+      # Keyed on the script, which carries the pinned versions -- bumping SDL3
+      # there invalidates this cache in the same commit.
+      - name: Cache the SDL3 stack
+        uses: actions/cache@v4
+        with:
+          path: deps/sdl3
+          key: sdl3-${{ runner.os }}-${{ hashFiles('packaging/ci/build-sdl3.sh') }}
+
+      - name: Build the SDL3 stack (ubuntu-24.04 ships no SDL3 packages)
+        run: |
+          packaging/ci/build-sdl3.sh
+          eval "$(packaging/ci/build-sdl3.sh --env)"
+          {
+            echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+            echo "CPATH=$CPATH"
+            echo "LIBRARY_PATH=$LIBRARY_PATH"
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          } >> "$GITHUB_ENV"
 
       - name: Fetch the auto-downloaded deps (serial, avoids a parallel-build race)
         run: |

@@ -117,10 +117,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential git python3 pkg-config \
-            libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
             libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
-            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev
+            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
+            $(packaging/ci/build-sdl3.sh --apt-packages)
+
+      - name: Cache the SDL3 stack
+        if: steps.merge.outputs.clean == 'true'
+        uses: actions/cache@v4
+        with:
+          path: deps/sdl3
+          key: sdl3-${{ runner.os }}-${{ hashFiles('packaging/ci/build-sdl3.sh') }}
+
+      # The compile check is only meaningful if it builds against the same SDL3 the
+      # release workflows use; without this it would fail on every run for a reason
+      # that has nothing to do with the merge it is meant to be checking.
+      - name: Build the SDL3 stack
+        if: steps.merge.outputs.clean == 'true'
+        run: |
+          packaging/ci/build-sdl3.sh
+          eval "$(packaging/ci/build-sdl3.sh --env)"
+          {
+            echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+            echo "CPATH=$CPATH"
+            echo "LIBRARY_PATH=$LIBRARY_PATH"
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          } >> "$GITHUB_ENV"
 
       - name: Build engine (compile check)
         id: build
