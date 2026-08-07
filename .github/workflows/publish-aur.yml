@@ -47,8 +47,29 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag || github.event.release.tag_name }}"
           [ -n "$TAG" ] || { echo "::error::no tag to publish"; exit 1; }
-          # pkgver is the tag without the leading v and the -alpha suffix.
-          PKGVER="${TAG#v}"; PKGVER="${PKGVER%-alpha}"
+
+          # The AUR is a STABLE-only channel.
+          #
+          # This fires on every published release, and an alpha tag used to be
+          # published here with its suffix stripped -- v1.4.0.5397-alpha became
+          # pkgver 1.4.0.5397. pacman upgrades on version alone, so `yay -Syu`
+          # moved Arch users onto alpha builds silently, indistinguishably from
+          # stable, every few days. The launcher has a release-channel setting to
+          # prevent exactly that; a distro package has no equivalent, so the
+          # filtering has to happen here.
+          #
+          # Deliberately not skipped quietly: a release that does not reach the
+          # AUR should say so in the log, or the next person debugging "why is the
+          # AUR behind?" has nothing to go on.
+          case "$TAG" in
+            *-alpha|*-prototype)
+              echo "::notice::$TAG is an alpha/prototype tag; the AUR tracks stable releases only, so there is nothing to publish."
+              echo "skip_channel=1" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          PKGVER="${TAG#v}"
           case "$PKGVER" in
             *[!0-9.]*) echo "::error::tag '$TAG' does not yield a numeric pkgver ('$PKGVER')"; exit 1 ;;
           esac
@@ -57,11 +78,13 @@ jobs:
           echo "Publishing $TAG as pkgver $PKGVER"
 
       - name: Install tooling
+        if: steps.tag.outputs.skip_channel != '1'
         run: pacman -Syu --noconfirm --needed git openssh
 
       - uses: actions/checkout@v4
 
       - name: Bump the PKGBUILD to this release
+        if: steps.tag.outputs.skip_channel != '1'
         working-directory: packaging/aur
         run: |
           # One split package builds both outputs, so there is a single version to
@@ -72,6 +95,7 @@ jobs:
           grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
 
       - name: Recompute the data archive checksum
+        if: steps.tag.outputs.skip_channel != '1'
         id: sums
         working-directory: packaging/aur
         run: |
@@ -130,7 +154,7 @@ jobs:
           grep -A7 '^sha256sums' PKGBUILD
 
       - name: Verify the tag actually exists upstream
-        if: steps.sums.outputs.skip != '1'
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1'
         working-directory: packaging/aur
         run: |
           # Catches a release published before its tag propagated, which would
@@ -140,7 +164,7 @@ jobs:
             "refs/tags/${{ steps.tag.outputs.tag }}"
 
       - name: Regenerate .SRCINFO
-        if: steps.sums.outputs.skip != '1'
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1'
         working-directory: packaging/aur
         run: |
           # makepkg refuses to run as root, so do this as a normal user.
@@ -151,7 +175,7 @@ jobs:
           head -6 .SRCINFO
 
       - name: Sanity-check the generated metadata
-        if: steps.sums.outputs.skip != '1'
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1'
         working-directory: packaging/aur
         run: |
           grep -q "pkgver = ${{ steps.tag.outputs.pkgver }}" .SRCINFO \
@@ -166,7 +190,7 @@ jobs:
           echo "split package at ${{ steps.tag.outputs.tag }} declares both outputs"
 
       - name: Commit the bump back to this repo
-        if: steps.sums.outputs.skip != '1' && !inputs.dry_run
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1' && !inputs.dry_run
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  'github-actions[bot]'
@@ -180,7 +204,7 @@ jobs:
           fi
 
       - name: Push to the AUR
-        if: steps.sums.outputs.skip != '1' && !inputs.dry_run
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1' && !inputs.dry_run
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
@@ -228,7 +252,7 @@ jobs:
           fi
 
       - name: Dry-run summary
-        if: steps.sums.outputs.skip != '1' && inputs.dry_run
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1' && inputs.dry_run
         working-directory: packaging/aur
         run: |
           echo "Dry run — nothing pushed. Generated metadata:"
