@@ -20,11 +20,25 @@ set -euo pipefail
 
 # Kept here rather than in each workflow so three copies cannot drift apart: what
 # SDL3 needs to build is a property of this script, not of any one pipeline.
+#
+# The X/Wayland/audio block is SDL's own documented Linux build-dependency list
+# (docs/README-linux.md at the pinned tag), copied wholesale rather than trimmed
+# to what seems necessary. Trimming is how this broke the first time: libxtst-dev
+# was omitted because the developer machine already had it, and SDL's CMake makes
+# XTEST a hard error rather than quietly disabling it. Several of these guard
+# similar auto-required checks, and every one is a 15-minute CI round trip to
+# discover. All verified present in Ubuntu 24.04 (noble).
+#
+# The optional audio backends (jack, sndio, nas) are dlopen'd by SDL at runtime,
+# not linked, so building against them costs nothing at distribution time: they
+# never enter DT_NEEDED and so are never bundled into the AppImage.
 if [ "${1:-}" = "--apt-packages" ]; then
   echo "cmake \
 libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev \
-libwayland-dev wayland-protocols libxkbcommon-dev libdrm-dev libgbm-dev \
-libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
+libxtst-dev libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
+libasound2-dev libpulse-dev libpipewire-0.3-dev libjack-dev libsndio-dev libaudio-dev \
+libudev-dev libdbus-1-dev libibus-1.0-dev libfribidi-dev libthai-dev libusb-1.0-0-dev \
 libpng-dev libjpeg-dev zlib1g-dev \
 libogg-dev libvorbis-dev libflac-dev libmpg123-dev"
   exit 0
