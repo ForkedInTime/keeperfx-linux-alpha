@@ -15,7 +15,7 @@
 - **Do not touch** `play_music_fgroup()`, `find_music_file_for_mod_list()`, or the `SET_MUSIC` script path. Those already accept arbitrary filenames and are a separate mechanism.
 - Engine C++ files use **tab** indentation; launcher files use **4 spaces**. Match the file you are editing.
 - A test build of the engine must **not** be left installed in `~/.local/share/keeperfx-alpha/` unless built with `BUILD_NUMBER`/`VER_SUFFIX`, or its `1.4.0.0` version string confuses the version-gated self-update.
-- Build the engine with `make -f linux.mk -j"$(nproc)"` (or bare `make`, which the fork's `GNUmakefile` forwards). Build the launcher with `cmake --build /home/yetipaw/.cache/launcher-qt/build -j"$(nproc)"`.
+- Build the engine with `make -f linux.mk -j"$(nproc)"` (or bare `make`, which the fork's `GNUmakefile` forwards). Build the launcher with `cmake --build /mnt/Storage/Projects/keeperfx-workspace/launcher/build -j"$(nproc)"`.
 
 ---
 
@@ -292,10 +292,10 @@ naming how many playable tracks were found, instead of failing quietly."
 ### Task 3: Relax the launcher's music-present check
 
 **Files:**
-- Modify: `/home/yetipaw/.cache/launcher-qt/src/dkfiles.h` (the `areAllSoundFilesPresent()` declaration)
-- Modify: `/home/yetipaw/.cache/launcher-qt/src/dkfiles.cpp` (`areAllSoundFilesPresent()`)
-- Modify: `/home/yetipaw/.cache/launcher-qt/src/copydkfilesdialog.cpp` (the `areAllSoundFilesPresent()` call site)
-- Modify: `/home/yetipaw/.cache/launcher-qt/src/launchermainwindow.cpp` (the missing-music startup check)
+- Modify: `/mnt/Storage/Projects/keeperfx-workspace/launcher/src/dkfiles.h` (the `areAllSoundFilesPresent()` declaration)
+- Modify: `/mnt/Storage/Projects/keeperfx-workspace/launcher/src/dkfiles.cpp` (`areAllSoundFilesPresent()`)
+- Modify: `/mnt/Storage/Projects/keeperfx-workspace/launcher/src/copydkfilesdialog.cpp` (the `areAllSoundFilesPresent()` call site)
+- Modify: `/mnt/Storage/Projects/keeperfx-workspace/launcher/src/launchermainwindow.cpp` (the missing-music startup check)
 
 **Interfaces:**
 - Consumes: nothing from Tasks 1–2 — the launcher and engine share no code, only the `music/` convention.
@@ -406,7 +406,7 @@ with:
 - [ ] **Step 4: Confirm no other references survive**
 
 ```bash
-grep -rn 'areAllSoundFilesPresent' /home/yetipaw/.cache/launcher-qt/src/
+grep -rn 'areAllSoundFilesPresent' /mnt/Storage/Projects/keeperfx-workspace/launcher/src/
 ```
 
 Expected: no output.
@@ -414,7 +414,7 @@ Expected: no output.
 - [ ] **Step 5: Build**
 
 ```bash
-cmake --build /home/yetipaw/.cache/launcher-qt/build -j"$(nproc)" 2>&1 | tail -8
+cmake --build /mnt/Storage/Projects/keeperfx-workspace/launcher/build -j"$(nproc)" 2>&1 | tail -8
 ```
 
 Expected: builds to completion, no errors.
@@ -424,7 +424,7 @@ Expected: builds to completion, no errors.
 ```bash
 INSTALL=/home/yetipaw/.local/share/keeperfx-alpha
 SCRATCH=/tmp/keeperfx-music-test
-cp /home/yetipaw/.cache/launcher-qt/build/keeperfx-launcher-qt "$INSTALL/keeperfx-launcher-qt-test"
+cp /mnt/Storage/Projects/keeperfx-workspace/launcher/build/keeperfx-launcher-qt "$INSTALL/keeperfx-launcher-qt-test"
 mkdir -p "$SCRATCH/backup2" && cp "$INSTALL"/music/*.ogg "$SCRATCH/backup2/"
 rm -f "$INSTALL"/music/*.ogg
 ffmpeg -loglevel error -y -i "$SCRATCH/backup2/keeper02.ogg" "$INSTALL/music/keeper02.flac"
@@ -455,7 +455,7 @@ Expected: `empty-folder prompt OK`, the six oggs restored, and no `-test` artefa
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /home/yetipaw/.cache/launcher-qt
+cd /mnt/Storage/Projects/keeperfx-workspace/launcher
 git add src/dkfiles.h src/dkfiles.cpp src/copydkfilesdialog.cpp src/launchermainwindow.cpp
 git commit -m "fix(music): treat any playable audio in music/ as music present
 
