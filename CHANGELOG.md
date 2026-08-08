@@ -4,6 +4,19 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5467 — 2026-08-08 — alpha
+
+**A launcher fix for the map editor.** The engine is unchanged from 1.4.0.5465.
+
+- **The map editor is kept up to date.** The launcher used to install Unearth once and
+  then only ever check that it was still there, so whichever version you first installed
+  is the one you kept — indefinitely. That mattered more than it sounds: an install from
+  before the start of July predates the release where Unearth learned to find a native
+  Linux KeeperFX. Until then its file picker looked only for `keeperfx.exe`, so on Linux
+  it could not see the game at all, and nothing would ever have offered you the version
+  that fixes it. The launcher now remembers which release it installed and offers the
+  newer one when you open the editor.
+
 ## 1.4.0.5465 — 2026-08-08 — alpha
 
 **Mostly the launcher this time.** The engine gains upstream's windowing rework and
