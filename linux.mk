@@ -178,6 +178,9 @@ src/kjm_input.c \
 src/lens_api.c \
 src/config_effects.c \
 src/kfx_memory.c \
+src/kfx/platform/PlatformManager.cpp \
+src/kfx/platform/PlatformLinux.cpp \
+src/kfx/platform/WindowSystemSDL.cpp \
 src/kfx/lense/DisplacementEffect.cpp \
 src/kfx/lense/FlyeyeEffect.cpp \
 src/kfx/lense/LensEffect.cpp \
@@ -293,6 +296,7 @@ KFX_CXX_OBJECTS = $(patsubst src/%.cpp,obj/%.o,$(KFX_CXX_SOURCES))
 KFX_OBJECTS = $(KFX_C_OBJECTS) $(KFX_CXX_OBJECTS)
 
 KFX_INCLUDES = \
+	-Isrc \
 	-Ideps/centijson/include \
 	-Ideps/centitoml \
 	-Ideps/astronomy/include \
@@ -337,6 +341,7 @@ TOML_SOURCES = \
 TOML_OBJECTS = $(patsubst deps/centitoml/%.c,obj/centitoml/%.o,$(TOML_SOURCES))
 
 TOML_INCLUDES = \
+	-Isrc \
 	-Ideps/centijson/include
 
 TOML_CFLAGS += -O3 -march=x86-64 $(TOML_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter

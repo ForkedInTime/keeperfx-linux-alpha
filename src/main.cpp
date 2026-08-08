@@ -14,6 +14,7 @@
 #include "pre_inc.h"
 
 #include "platform.h"
+#include "kfx/platform/PlatformManager.h"
 #include "keeperfx.hpp"
 
 #include "bflib_coroutine.h"
@@ -1730,19 +1731,15 @@ void redetect_screen_refresh_rate_for_draw()
         if (fps_limit_secondary > 0)
             fps_limit_current = fps_limit_secondary;
 
-        if (lbWindow != NULL) {
-            SDL_DisplayID display_id_sdl = SDL_GetDisplayForWindow(lbWindow);
-            if (display_id_sdl != 0) {
-                const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display_id_sdl);
-                if (mode != NULL && mode->refresh_rate > 0) {
-                    // SDL3 reports the refresh rate as a float. Round to whole Hz:
-                    // the adaptive limiter steps down by integer divisors of this
-                    // figure, so it has to be the same integer the frame budget is
-                    // computed from.
-                    fps_limit_current = (int)(mode->refresh_rate + 0.5f);
-                    fps_adaptive_begin(fps_limit_current);
-                }
-            }
+        // Upstream's platform seam does exactly what our inline probe did, including
+        // rounding the SDL3 float to whole Hz (+0.5f) -- checked, not assumed. So take
+        // their abstraction; the adaptive limiter still has to be started here, because
+        // it steps down by integer divisors of this same figure and upstream has no
+        // equivalent.
+        int refresh_rate = PlatformManager_GetDisplayRefreshRate();
+        if (refresh_rate > 0) {
+            fps_limit_current = refresh_rate;
+            fps_adaptive_begin(fps_limit_current);
         }
 
     } else if (fps_limit_main > 0) {

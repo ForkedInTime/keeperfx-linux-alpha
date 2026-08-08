@@ -57,5 +57,6 @@ crash_log.txt
 /packaging/aur/*.7z
 /packaging/aur/src/
 /packaging/aur/pkg/
+debug.log
 .local/
 .vscode/compile_and_copy_files.ps1
