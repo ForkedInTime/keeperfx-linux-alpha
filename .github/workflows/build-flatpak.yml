@@ -159,6 +159,9 @@ jobs:
           # and its ldata movies are the original 320x200 Smacker files where ours are
           # H.264 re-encodes. So ours is the base, upstream layers over it, and our
           # movies are restored afterwards.
+          # NOTE: this resolves to the newest NON-PRERELEASE release. Alpha releases
+          # must therefore be flagged prerelease on GitHub, or an alpha becomes the
+          # payload base for the next stable. See docs/releasing.md.
           wget -q https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/keeperfx-linux-alpha-x86_64-full.7z
           7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
 
