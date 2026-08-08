@@ -275,6 +275,13 @@ jobs:
           # Fonts are re-applied AFTER the overlay: they live in fxdata/ but are
           # generated, not part of config/, so the overlay would otherwise remove them.
           cp -f ../tools/fxfontmaker/*.fxfont "$P/fxdata/"
+          # Drop files upstream has retired. The payload is assembled by overlaying onto
+          # the PREVIOUS release's payload, so nothing is ever removed and obsolete data
+          # accumulates release after release -- 555 files, 16 MiB by this point. The
+          # launcher already deletes exactly these from the user's install on first run,
+          # reading the same list, so shipping them means sending data purely for the
+          # launcher to throw away.
+          ../packaging/ci/prune-payload.sh "$P" ../docs/launcher-auto-file-removal.txt
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
           echo "Stamped version: $(cat "$P/version.txt")"
           cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"
