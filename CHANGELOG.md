@@ -4,6 +4,40 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5465 — 2026-08-08 — alpha
+
+**Mostly the launcher this time.** The engine gains upstream's windowing rework and
+little else; everything you are likely to notice is in the launcher.
+
+- **Your Tux Edition releases now appear in the launcher.** The "Latest News" panel reads
+  keeperfx.net, which reports the Windows project's releases — so this launcher was
+  updating you to builds it never mentioned. The newest Tux Edition releases now sit at the
+  top of that panel, above the KeeperFX team's news, which is still there: their engine
+  changes reach you too.
+- **You can read the logs without leaving the launcher.** Play ▾ → **View logs** opens the
+  launcher log and the game log side by side, with a Copy button — the usual next step when
+  reporting a problem — and it keeps following the file while it is open, so you can
+  reproduce a fault and watch it happen. When something fails, the error itself now offers
+  a **Show log** button.
+- **Workshop items that the site publishes but its API does not are installable again.**
+  Some items — those needing an unreleased game version — are served perfectly well by
+  keeperfx.net while its API reports no file for them at all. The launcher used to say
+  "Could not get a download link", which reads like a fault at our end. It now falls back
+  to the item's own page. Where genuinely nothing is published, it says so, and says where
+  the gap is.
+- **The window resizes properly.** It was already draggable on Wayland — the code that
+  tried to prevent it has no effect there — but nothing moved when you did, so it only
+  looked broken. Now the workshop panel lays its cards out across as many columns as fit,
+  and the window opens wide enough to show four of them in a row.
+
+And in the engine:
+
+- **Upstream's windowing and platform rework**, taken so this fork does not drift from a
+  file both projects edit heavily. It cost us nothing you can see: the OpenGL support their
+  version had no way to express is carried on top of it, and a fault it reintroduced — the
+  DESKTOP_FULL video mode quietly losing its real mode switch — is fixed again.
+- **Multiplayer and screenshots on SDL3**, from the KeeperFX team.
+
 ## 1.4.0.5459 — 2026-08-08 — alpha
 
 **The engine now runs on SDL3.** The KeeperFX team moved off SDL2, and this brings that
