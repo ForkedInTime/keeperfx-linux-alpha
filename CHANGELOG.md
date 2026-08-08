@@ -4,6 +4,48 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5459 — 2026-08-08 — alpha
+
+**The engine now runs on SDL3.** The KeeperFX team moved off SDL2, and this brings that
+across. SDL is the layer between the game and your desktop — window, input, sound — so
+this touches everything, which is why it lands on the alpha channel first and not on
+stable. Nothing about it should be visible to you: the same resolutions, the same
+controls, the same audio. If anything behaves differently from 1.4.0.5423, that is worth
+reporting, because it is not intended.
+
+Five faults were found reviewing the port before it shipped. Two of them fail silently,
+which is the kind that otherwise reaches you and gets blamed on something else:
+
+- **Winning a level could crash the game.** The cutscene where the Lord is dragged to the
+  torture chamber was missing from the frontend's state handling, so completing a level
+  that unlocks it could take the game down instead. That fault has been there since the
+  sequence was added in 2019.
+- **Slow mouse movement was being thrown away.** SDL3 reports pointer motion in
+  fractions of a pixel where SDL2 used whole numbers, and the fractions were being
+  discarded rather than accumulated. On Wayland, on a HiDPI screen, or with pointer
+  acceleration, a slow drag could register as no movement at all.
+- **"DESKTOP_FULL" had quietly stopped being a real fullscreen mode.** It had become
+  identical to "DESKTOP" — a borderless window — so choosing it no longer changed the
+  display mode as it says it does.
+- **Leaving fullscreen could strand the window at the wrong size,** because SDL3 applies
+  that change in the background where SDL2 applied it immediately, and the game resized
+  the window before the change had happened.
+- **Music could go silent for the rest of the session.** If a track failed to start, the
+  previously playing track had already been discarded, and every later request to play it
+  again was treated as already-playing and did nothing.
+
+Also in, from the KeeperFX team:
+
+- **Hand rules now apply to prisoners,** not only to your own creatures.
+- **The dig-tagging sound always plays in multiplayer,** rather than being swallowed when
+  the game was predicting your dig locally.
+- **A possible crash in the drag animation** on the frontend.
+- **Creature names are now written as comments in the configuration files,** which makes
+  them far easier to edit by hand.
+
+Behind the scenes, the release pipeline builds SDL3 from source rather than moving to a
+newer Ubuntu, so the AppImage keeps running on every distribution it ran on before.
+
 ## 1.4.0.5423 — 2026-08-05 — stable
 
 **Replaces 1.4.0.5411 as the stable release.** The engine is unchanged; all of this is
