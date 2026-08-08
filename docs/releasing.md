@@ -11,12 +11,47 @@ infers it.
 
 ## Steps
 
+0. **If the launcher changed, push its `alpha` branch first.** See below — this is
+   the step that is easy to forget and produces a release that looks fine.
 1. Commit the changelog entry and any version change.
 2. Tag it. A stable tag carries no suffix; an alpha tag ends in `-alpha`.
 3. Create the GitHub release for that tag — **and tick prerelease for an alpha.**
 4. CI does the rest: `build-appimage.yml` builds and attaches the AppImage and
    `full.7z`; `publish-aur.yml` updates the AUR recipe. The Flatpak is monthly
    and self-updates, so it is not part of cutting a release.
+
+## The launcher ships from its own branch
+
+The launcher is a **separate repository**
+(`ForkedInTime/keeperfx-launcher-qt-linux`), and `build-appimage.yml` clones it at
+a fixed branch:
+
+```yaml
+LAUNCHER_BRANCH: alpha
+git clone --branch "$LAUNCHER_BRANCH" --depth 1 "$LAUNCHER_REPO" launcher
+```
+
+Day-to-day launcher work happens on its **`master`**. So a release only carries
+launcher changes if `alpha` has been fast-forwarded to `master` first:
+
+```bash
+git -C <launcher> push origin master:alpha
+```
+
+**Why this deserves its own step:** nothing fails if you skip it. The engine
+release builds, every workflow goes green, the assets attach, and the changelog
+describes launcher features that are not in the binary. It looks like the
+features are broken rather than absent. This happened while cutting
+`v1.4.0.5465-alpha`: `alpha` was six commits behind and the whole launcher
+release would have shipped without a single one of its changes.
+
+Two ways to confirm it worked, in order of effort:
+
+- before tagging: `git -C <launcher> rev-list --count origin/alpha..origin/master`
+  should be `0`;
+- after the build: the AppImage run log should show the new sources compiling,
+  e.g. `Building CXX object ... logviewerdialog.cpp.o` for the release that added
+  the log viewer.
 
 ## Why the prerelease flag matters
 
