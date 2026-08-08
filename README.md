@@ -431,6 +431,36 @@ The native launcher is its own repo:
 [**keeperfx-launcher-qt-linux**](https://github.com/ForkedInTime/keeperfx-launcher-qt-linux).
 </details>
 
+## 🔧 Why this fork builds with `linux.mk`, not upstream's CMake
+
+Upstream builds with CMake and we deliberately do not. This is the single biggest structural
+difference between the two trees, so it is worth stating plainly rather than leaving people to
+discover it in a build error.
+
+Their CMake **does not build a working Linux target**, and each of these was measured, not assumed:
+
+- **It cannot find SDL3 on Linux.** It probes pkg-config for `SDL3_image` and `SDL3_mixer`, but SDL
+  ships those modules as `sdl3-image` and `sdl3-mixer`. The check fails on *every* distribution —
+  including Arch and Fedora, which package SDL3 properly — and configuration then falls through to
+  `FetchContent`, silently rebuilding the whole of SDL from source on each configure.
+- **Its Linux dependency set is missing libraries the engine links.** `libswscale` is absent although
+  `bflib_fmvids.cpp` calls `sws_scale`, and `libepoxy` is absent entirely although the OpenGL present
+  backend needs it. `KFX_OS=linux ./build-cmake.sh` fails at link with undefined symbols.
+- **It is Windows-first.** Its `WIN32` source filter excludes only `src/linux.cpp`, so a Windows
+  build still tries to compile our OpenGL sources against headers that are not there.
+
+None of that is a criticism of upstream: KeeperFX is a Windows project, their CMake serves their
+platform, and the Linux path in it is untested because nobody there runs it.
+
+**It is exactly the reason this fork exists.** `linux.mk` is ours, it is what CI and the AppImage are
+actually built with, and it is kept honest by every release. The price is small and paid knowingly:
+when upstream adds source files we add them to `linux.mk` by hand — a few lines per refactor. We
+consider that a better trade than adopting a build system that does not currently produce a working
+Linux binary.
+
+If upstream's CMake ever builds cleanly on Linux, this is worth revisiting; it would remove that
+manual step. Until then, `linux.mk` is the supported way to build the Tux Edition.
+
 ## How the Tux Edition stays current with upstream
 
 **A weekly sync bot does it automatically.** Every Monday a GitHub Action checks the KeeperFX team's

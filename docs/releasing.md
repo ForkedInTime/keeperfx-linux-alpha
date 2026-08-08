@@ -55,3 +55,17 @@ attached by the AppImage build, which runs *after* the release is published. On
 a fresh release the archive is legitimately not there yet, so the workflow logs
 a notice and skips rather than failing. Re-run it once the AppImage build has
 uploaded.
+
+## Build system
+
+This fork builds with `linux.mk`, not upstream's CMake. The reasons — their
+pkg-config module names for SDL3 are wrong so it silently vendors SDL from
+source, its Linux dependency set omits `libswscale` and `libepoxy`, and its
+`WIN32` source filter is Windows-first — are set out in the README under
+"Why this fork builds with `linux.mk`".
+
+The practical consequence when syncing upstream: **new source files must be
+added to `linux.mk` by hand.** Upstream updates their `Makefile` and CMake and
+has no reason to touch ours, so a merge that compiles for them can fail to link
+for us. #5099 added four files under `src/kfx/platform/` and also needed `-Isrc`,
+which upstream's Makefile has always carried.
