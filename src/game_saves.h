@@ -109,6 +109,7 @@ TbBool save_game(long slot_idx);
 TbBool initialise_load_game_slots(void);
 int count_valid_saved_games(void);
 TbBool is_save_game_loadable(long slot_num);
+TbBool delete_save_game(long slot_num);
 /******************************************************************************/
 TbBool save_catalogue_slot_disable(unsigned int slot_idx);
 TbBool load_game_save_catalogue(void);

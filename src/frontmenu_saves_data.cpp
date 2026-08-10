@@ -30,6 +30,8 @@
 #include "gui_draw.h"
 #include "frontend.h"
 #include "frontmenu_saves.h"
+#include "gui_frontmenu.h"
+#include "sprites.h"
 #include "config_settings.h"
 #include "frontmenu_options.h"
 #include "game_legacy.h"
@@ -49,6 +51,17 @@ struct GuiButtonInit load_menu_buttons[] = {
   { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               5, 999, 218, 999, 218,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[5]}, 0, gui_load_game_maintain },
   { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               6, 999, 250, 999, 250,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[6]}, 0, gui_load_game_maintain },
   { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_load_game,      NULL,        NULL,               7, 999, 282, 999, 282,300, 32, draw_load_button,                  1, GUIStr_Empty,  0,{.str = input_string[7]}, 0, gui_load_game_maintain },
+  // Delete buttons, in the right margin beside each slot. They must not carry
+  // the clickable flag: that fades the menu out, and deleting a save should
+  // leave you looking at the list.
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               0, 378,  59, 378,  59, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               1, 378,  91, 378,  91, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               2, 378, 123, 378, 123, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               3, 378, 155, 378, 155, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               4, 378, 187, 378, 187, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               5, 378, 219, 378, 219, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               6, 378, 251, 378, 251, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               7, 378, 283, 378, 283, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
   {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,           0,       {0},               0, NULL },
 };
 
@@ -62,7 +75,33 @@ struct GuiButtonInit save_menu_buttons[] = {
   { 5, -2,-1, 1, gui_save_game,      NULL,        NULL,               5, 999, 218, 999, 218,300, 32, gui_area_text,                     1, GUIStr_Empty,  0,{.str = input_string[5]},SAVE_TEXTNAME_LEN, NULL },
   { 5, -2,-1, 1, gui_save_game,      NULL,        NULL,               6, 999, 250, 999, 250,300, 32, gui_area_text,                     1, GUIStr_Empty,  0,{.str = input_string[6]},SAVE_TEXTNAME_LEN, NULL },
   { 5, -2,-1, 1, gui_save_game,      NULL,        NULL,               7, 999, 282, 999, 282,300, 32, gui_area_text,                     1, GUIStr_Empty,  0,{.str = input_string[7]},SAVE_TEXTNAME_LEN, NULL },
+  // Delete buttons, in the right margin beside each slot. Overwriting a slot
+  // has always been possible; this is for freeing one you no longer recognise.
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               0, 378,  59, 378,  59, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               1, 378,  91, 378,  91, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               2, 378, 123, 378, 123, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               3, 378, 155, 378, 155, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               4, 378, 187, 378, 187, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               5, 378, 219, 378, 219, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               6, 378, 251, 378, 251, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, gui_ask_delete_save,NULL,        NULL,               7, 378, 283, 378, 283, 30, 30, draw_delete_save_button,           0, GUIStr_Empty,  0,       {0},               0, gui_delete_save_maintain },
   {-1,  0, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,           0,       {0},               0, NULL },
+};
+
+/** Confirmation for deleting a saved game. Modelled on the quit confirmation:
+ *  same wording, same yes/no buttons, so it reads as part of the stock UI. The
+ *  extra line naming the save is not decoration - the dialog covers the list,
+ *  and the whole point of the feature is clearing out saves you can no longer
+ *  tell apart. */
+struct GuiButtonInit delete_save_menu_buttons[] = {
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,240, 32, gui_area_text,                     1, GUIStr_ConfirmYouSure, 0, {0},            0, NULL },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  48, 999,  48,300, 32, gui_area_text,                     0, GUIStr_Empty,          0, {.str = delete_save_name}, 0, NULL },
+  // The yes/no sprites are drawn from scr_pos and are far taller than the click
+  // area, so scr_pos sits above pos to centre the glyph on it - same offsets the
+  // stock quit confirmation uses.
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_delete_save_cancelled,NULL,  NULL,               0, 103,  80, 105, 114, 46, 32, gui_area_normal_button, GBS_options_button_smd_no, GUIStr_ConfirmNo,      0, {0},            0, NULL },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 1, gui_delete_save_confirmed,NULL,  NULL,               0, 169,  80, 171, 114, 46, 32, gui_area_normal_button, GBS_options_button_smd_yes,GUIStr_ConfirmYes,     0, {0},            0, NULL },
+  {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0,   0,   0,   0,   0,  0,  0, NULL,                              0,   0,           0,       {0},               0, NULL },
 };
 
 struct GuiButtonInit frontend_load_menu_buttons[] = {
@@ -87,6 +126,8 @@ struct GuiMenu load_menu =
  {   GMnu_LOAD, 0, 4, load_menu_buttons,          POS_GAMECTR,POS_GAMECTR, 436, 350, gui_pretty_background, 0, NULL,    init_load_menu,          0, 1, 0,};
 struct GuiMenu save_menu =
  {   GMnu_SAVE, 0, 4, save_menu_buttons,          POS_GAMECTR,POS_GAMECTR, 436, 350, gui_pretty_background, 0, NULL,    init_save_menu,          0, 1, 0,};
+struct GuiMenu delete_save_menu =
+ {GMnu_DELETE_SAVE, 0, 1, delete_save_menu_buttons,  POS_GAMECTR,POS_GAMECTR, 330, 172, gui_pretty_background,       0, NULL,    NULL,                    0, 1, 0,};
 struct GuiMenu frontend_load_menu =
  { GMnu_FELOAD, 0, 1, frontend_load_menu_buttons,  POS_SCRCTR, POS_SCRCTR, 640, 480, NULL,                  0, NULL,    NULL,                    0, 0, 0,};
 

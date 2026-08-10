@@ -150,6 +150,78 @@ void update_loadsave_input_strings(struct CatalogueEntry *game_catalg)
     }
 }
 
+/** Slot the pending delete confirmation refers to, or -1 when none is pending.
+ *  The confirmation is a menu of its own, so the slot cannot simply be carried
+ *  on the button that opened it. */
+static long delete_save_slot_num = -1;
+char delete_save_name[DELETE_SAVE_NAME_LEN] = "";
+
+void gui_delete_save_maintain(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
+        return;
+    long slot_num = gbtn->btype_value & LbBFeF_IntValueMask;
+    struct CatalogueEntry* centry = &save_game_catalogue[slot_num];
+    if ((centry->flags & CEF_InUse) != 0)
+        gbtn->flags |= LbBtnF_Enabled;
+    else
+        gbtn->flags &= ~LbBtnF_Enabled;
+}
+
+void draw_delete_save_button(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
+        return;
+    // A free slot has nothing to delete, so leave the margin empty rather than
+    // showing an icon that does nothing.
+    if ((gbtn->flags & LbBtnF_Enabled) == 0)
+        return;
+    int spr_idx = GPS_plyrsym_symbol_player_any_dead;
+    int ps_units_per_px = simple_gui_panel_sprite_height_units_per_px(gbtn, spr_idx, 100);
+    int cntr_x = gbtn->scr_pos_x + (gbtn->width >> 1);
+    int cntr_y = gbtn->scr_pos_y + (gbtn->height >> 1);
+    if ((gbtn->button_state_left_pressed) || (gbtn->button_state_right_pressed))
+    {
+        // The nudge the stock buttons use to acknowledge a press.
+        cntr_x += 2*units_per_pixel/16;
+        cntr_y += 2*units_per_pixel/16;
+    }
+    draw_gui_panel_sprite_centered(cntr_x, cntr_y, ps_units_per_px, spr_idx);
+}
+
+void gui_ask_delete_save(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
+        return;
+    long slot_num = gbtn->btype_value & LbBFeF_IntValueMask;
+    // Buttons still fire their click handler while greyed out, so decide from
+    // the catalogue rather than trusting the button state.
+    if ((save_game_catalogue[slot_num].flags & CEF_InUse) == 0)
+        return;
+    delete_save_slot_num = slot_num;
+    snprintf(delete_save_name, sizeof(delete_save_name), "%s", save_game_catalogue[slot_num].textname);
+    create_menu(&delete_save_menu);
+}
+
+void gui_delete_save_confirmed(struct GuiButton *gbtn)
+{
+    long slot_num = delete_save_slot_num;
+    delete_save_slot_num = -1;
+    if (slot_num < 0)
+        return;
+    delete_save_game(slot_num);
+    // Re-read from disk either way: on success the row reverts to "Unused" and
+    // the skull greys out without leaving the menu, and on failure the menu
+    // goes back to showing what is actually still there.
+    load_game_save_catalogue();
+    update_loadsave_input_strings(save_game_catalogue);
+}
+
+void gui_delete_save_cancelled(struct GuiButton *gbtn)
+{
+    delete_save_slot_num = -1;
+}
+
 void frontend_load_game(struct GuiButton *gbtn)
 {
     int i = frontend_load_game_button_to_index(gbtn);

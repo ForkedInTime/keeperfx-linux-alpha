@@ -352,6 +352,25 @@ TbBool is_save_game_loadable(long slot_num)
     return false;
 }
 
+TbBool delete_save_game(long slot_num)
+{
+    if ((slot_num < 0) || (slot_num >= TOTAL_SAVE_SLOTS_COUNT))
+    {
+        ERRORLOG("Cannot delete save slot %d - out of range", (int)slot_num);
+        return false;
+    }
+    char* fname = prepare_file_fmtpath(FGrp_Save, saved_game_filename, slot_num);
+    if (LbFileDelete(fname) != 1)
+    {
+        WARNLOG("Cannot delete save file \"%s\"", fname);
+        return false;
+    }
+    // Drop the catalogue entry too, so the slot reads as free without a rescan.
+    memset(&save_game_catalogue[slot_num], 0, sizeof(struct CatalogueEntry));
+    SYNCLOG("Deleted saved game in slot %d", (int)slot_num);
+    return true;
+}
+
 TbBool load_game(long slot_num)
 {
     if ((slot_num < 0) || (slot_num >= TOTAL_SAVE_SLOTS_COUNT))

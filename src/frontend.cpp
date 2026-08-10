@@ -206,7 +206,7 @@ struct GuiMenu *menu_list[] = {
     &room_menu2,
     &trap_menu2,
     &frontend_select_mp_mappack_menu,
-    NULL,
+    &delete_save_menu,//50
 };
 
 /** Array used for mapping buttons to text messages.
