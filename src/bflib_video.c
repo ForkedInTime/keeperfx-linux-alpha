@@ -150,6 +150,23 @@ TbResult LbScreenUnlock(void)
     return Lb_SUCCESS;
 }
 
+#ifndef _WIN32
+/** Last palette uploaded to the GPU, so identical palettes are not re-expanded
+ *  and re-uploaded every frame.
+ *
+ *  It must be invalidated whenever the GL backend is torn down and rebuilt: the
+ *  new palette texture starts empty, while the engine's palette is usually
+ *  unchanged across the rebuild, so the comparison below would decide there was
+ *  nothing to upload and leave every index mapping to black. */
+static SDL_Color last_gl_palette[PALETTE_COLORS];
+static int last_gl_palette_count = -1;
+
+void LbInvalidateGLPaletteCache(void)
+{
+    last_gl_palette_count = -1;
+}
+#endif
+
 TbResult LbScreenSwap(void)
 {
     int blresult;
@@ -175,8 +192,6 @@ TbResult LbScreenSwap(void)
                 int ncol = pal->ncolors;
                 if (ncol > PALETTE_COLORS)
                     ncol = PALETTE_COLORS;
-                static SDL_Color last_gl_palette[PALETTE_COLORS];
-                static int last_gl_palette_count = -1;
                 if ((ncol != last_gl_palette_count)
                  || (memcmp(last_gl_palette, pal->colors, ncol * sizeof(SDL_Color)) != 0)) {
                     gl_present_set_palette(pal->colors, ncol);
@@ -752,6 +767,8 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
             lbDrawSurface = glDrawSurface;
             lbHasSecondSurface = false;
             lbUseGLPresent = true;
+            // Fresh backend means a fresh, empty palette texture.
+            LbInvalidateGLPaletteCache();
         } else {
             SYNCLOG("GL present init failed for mode %d (%s); using CPU blit fallback", (int)mode, mdinfo->Desc);
             SDL_DestroySurface(glDrawSurface);
@@ -960,6 +977,7 @@ TbResult LbScreenReset(TbBool exiting_application)
         // In GL mode lbDrawSurface is an allocated 8-bit surface we own.
         SDL_DestroySurface(lbDrawSurface);
         lbUseGLPresent = false;
+        LbInvalidateGLPaletteCache();
     } else
 #endif
     if (lbHasSecondSurface) {

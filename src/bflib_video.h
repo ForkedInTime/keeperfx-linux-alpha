@@ -325,6 +325,9 @@ TbResult LbScreenUnlock(void);
 TbBool LbScreenIsLocked(void);
 
 TbResult LbScreenSwap(void);
+#ifndef _WIN32
+void LbInvalidateGLPaletteCache(void);
+#endif
 TbResult LbScreenClear(TbPixel colour);
 TbResult LbScreenWaitVbi(void);
 unsigned short LbGetCurrentDisplayIndex();
