@@ -200,7 +200,15 @@ jobs:
             echo "PKGBUILDs already at this version; nothing to commit"
           else
             git commit -m "packaging: AUR package to ${{ steps.tag.outputs.tag }}"
-            git push origin HEAD:${{ github.event.repository.default_branch }}
+            # Recording the bump here is bookkeeping; publishing to the AUR is the
+            # job. This pushed straight at the default branch, so any commit that
+            # landed there between the release and this step made the push fail --
+            # which failed the step, and the AUR push is gated on it, so the
+            # package silently never went out. Rebase once; if it still will not
+            # go, say so and carry on to the AUR.
+            git pull --rebase --autostash origin "${{ github.event.repository.default_branch }}" || true
+            git push origin HEAD:${{ github.event.repository.default_branch }} \
+              || echo "::warning::could not record the AUR bump on ${{ github.event.repository.default_branch }}; commit packaging/aur by hand"
           fi
 
       - name: Push to the AUR

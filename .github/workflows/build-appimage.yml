@@ -221,10 +221,24 @@ jobs:
           # and its ldata movies are the original 320x200 Smacker files where ours are
           # H.264 re-encodes. So ours is the base, upstream layers over it, and our
           # movies are restored afterwards.
-          # NOTE: this resolves to the newest NON-PRERELEASE release. Alpha releases
-          # must therefore be flagged prerelease on GitHub, or an alpha becomes the
-          # payload base for the next stable. See docs/releasing.md.
-          wget -q https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/keeperfx-linux-alpha-x86_64-full.7z
+          # Use the newest release that actually HAS the payload, skipping the tag
+          # being built. "releases/latest" alone is not safe: a stable release
+          # becomes latest the instant it is published, which is before its own
+          # assets exist, so a stable build downloaded its own payload and got a
+          # 404 (wget exit 8, an empty archive, and a failed release). Alphas never
+          # hit it, being prereleases -- which is why it surfaced only on the first
+          # stable patch. Prereleases stay excluded from the base for the reason
+          # docs/releasing.md already gives: a stable payload must not be built on
+          # top of an alpha's. See docs/releasing.md.
+          BASE_TAG=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            | jq -r --arg cur "${GITHUB_REF_NAME}" '[.[] | select(.draft == false and .prerelease == false) | select(.tag_name != $cur) | select(any(.assets[]; .name == "keeperfx-linux-alpha-x86_64-full.7z")) | .tag_name] | first // empty')
+          if [ -z "$BASE_TAG" ]; then
+            echo "::error::no earlier release carries keeperfx-linux-alpha-x86_64-full.7z to use as the payload base"
+            exit 1
+          fi
+          echo "payload base taken from: $BASE_TAG"
+          wget -q "https://github.com/${GITHUB_REPOSITORY}/releases/download/${BASE_TAG}/keeperfx-linux-alpha-x86_64-full.7z"
           7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
 
           UP_URL=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \

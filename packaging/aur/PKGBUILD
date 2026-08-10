@@ -14,7 +14,7 @@ _tag=v1.4.0.5423
 _launcher_commit=9f3f1eff4defb9d2c4f3c420a067c9922c239234
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
-pkgver=1.4.0.5423
+pkgver=1.4.0.5425
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
@@ -50,7 +50,7 @@ source=(
 noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
-  'd31664607abeded52ef485770a94ec980dbef448be92101026472dd09a49212f'
+  'a31e803e60bea582424b438bbaa1f05b360ea4ea0621c2545723a688103cdb2f'
   'SKIP'
   '8b897f0e147061f14fb0618a2737faefec037f338a1cac40d559b558ac1eef0c'
   '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'

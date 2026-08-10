@@ -83,6 +83,33 @@ If Arch users should ever be able to follow the alpha line, that wants a
 separate `keeperfx-tux-alpha` package they opt into by name — the usual Arch
 convention — not a silent version bump.
 
+## The stable-release trap: `latest` becomes the new release immediately
+
+`build-appimage.yml` builds each release's payload by overlaying onto the previous
+release's `full.7z`. It used to fetch that base from `releases/latest` — which is
+safe for an alpha, because a prerelease never becomes `latest`, and wrong for a
+stable, because publishing a stable makes it `latest` *the instant it is
+published*, before its own assets exist. The build then tried to download its own
+payload, got a 404, and `wget` exited 8 with no useful message.
+
+This bit the first stable patch, `v1.4.0.5425`. The workflow now asks the API for
+the newest **non-prerelease** release that actually carries
+`keeperfx-linux-alpha-x86_64-full.7z`, skipping the tag being built, so it can
+never resolve to itself — and still never bases a stable payload on an alpha's,
+which is the rule the prerelease flag exists to enforce.
+
+If you ever need the old manual escape: flag the new stable as prerelease, re-run
+the failed build so `latest` falls back to the previous stable, then clear the
+flag.
+
+## The AUR bookkeeping step used to gate the AUR push
+
+`publish-aur.yml` commits the version/checksum bump back to this repo and *then*
+pushes to the AUR. That commit pushed straight at the default branch, so any
+commit landing there in between made it fail — and because the AUR push is gated
+on that step, the package silently never went out. The push is now rebased and
+non-fatal; a failure warns and the AUR push still runs.
+
 ## Ordering trap
 
 `publish-aur.yml` pins the release's `full.7z` by hash, but that asset is
