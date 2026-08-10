@@ -4,6 +4,26 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5473 — 2026-08-09 — alpha
+
+**Follow-up to the save delete button.** Engine-side; the launcher is unchanged.
+
+- **The delete button explains itself.** Hovering the skull now reads *Delete this saved
+  game*, in all sixteen languages the game ships. The wording follows the engine's own
+  tooltip convention of a short heading before a colon — that is not cosmetic: the tooltip
+  box is sized to whatever comes before the colon, and without one the box sizes itself to
+  the whole sentence and runs off the right edge of the screen, since these buttons sit in
+  the menu's right margin.
+- **Clicking away from a name you are typing no longer freezes the menu.** Clicking a save
+  row starts editing its name, and while any text field is being edited the game gates out
+  every button on screen. So clicking a row and then changing your mind left the menu
+  unresponsive with nothing to explain why, and clicking again did not help — only Enter or
+  Escape did. This has always been the case; the delete buttons simply made it easy to run
+  into, because there was previously nothing else on that menu to click. A click outside the
+  field now ends the edit and still reaches the button you aimed at, in one click. What you
+  had typed is kept but not saved, so nothing is committed and nothing is thrown away. This
+  applies to every text field in the game, not only the save menu.
+
 ## 1.4.0.5470 — 2026-08-09 — alpha
 
 **You can delete a saved game.** Engine-side; the launcher is unchanged from 1.4.0.5467.
