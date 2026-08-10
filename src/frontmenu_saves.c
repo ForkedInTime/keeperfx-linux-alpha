@@ -25,6 +25,7 @@
 #include "bflib_sprite.h"
 #include "bflib_sprfnt.h"
 #include "config_strings.h"
+#include "config_translation.h"
 #include "game_saves.h"
 #include "gui_draw.h"
 #include "gui_frontbtns.h"
@@ -156,6 +157,22 @@ void update_loadsave_input_strings(struct CatalogueEntry *game_catalg)
 static long delete_save_slot_num = -1;
 char delete_save_name[DELETE_SAVE_NAME_LEN] = "";
 
+/** Tooltip string for the delete buttons, or 0 for none.
+ *
+ *  It comes from translation.toml rather than the compiled gtext tables, which
+ *  are shipped binaries the fork does not generate. Resolved when either menu
+ *  opens rather than cached for the session: campaigns, maps and mods may each
+ *  add their own translation.toml, and that renumbers the table. */
+static TextStringId delete_tooltip_stridx = 0;
+
+static void resolve_delete_tooltip(void)
+{
+    TextStringId stridx = get_string_id_by_alias("DELETE_SAVED_GAME");
+    // A mod shipping its own translation.toml without this entry should cost a
+    // tooltip, not a wrong string.
+    delete_tooltip_stridx = (stridx > 0) ? stridx : 0;
+}
+
 void gui_delete_save_maintain(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
@@ -166,6 +183,9 @@ void gui_delete_save_maintain(struct GuiButton *gbtn)
         gbtn->flags |= LbBtnF_Enabled;
     else
         gbtn->flags &= ~LbBtnF_Enabled;
+    // The button tables cannot name a translation.toml string, so the id is
+    // filled in here once the table has been read.
+    gbtn->tooltip_stridx = delete_tooltip_stridx;
 }
 
 void draw_delete_save_button(struct GuiButton *gbtn)
@@ -318,6 +338,7 @@ void frontend_draw_games_scroll_tab(struct GuiButton *gbtn)
 void init_load_menu(struct GuiMenu *gmnu)
 {
   SYNCDBG(6,"Starting");
+  resolve_delete_tooltip();
   struct PlayerInfo* player = get_my_player();
   set_players_packet_action(player, PckA_UpdatePause, 1, 1, 0, 0);
   load_game_save_catalogue();
@@ -327,6 +348,7 @@ void init_load_menu(struct GuiMenu *gmnu)
 void init_save_menu(struct GuiMenu *gmnu)
 {
   SYNCDBG(6,"Starting");
+  resolve_delete_tooltip();
   struct PlayerInfo* player = get_my_player();
   player->paused_state_restore = flag_is_set(game.operation_flags, GOF_Paused);
   set_players_packet_action(player, PckA_UpdatePause, 1, 1, 0, 0);

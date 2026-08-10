@@ -116,3 +116,26 @@ _SWE = """En Beholder har anslutit sig till dig. Dessa stora, klotformade varels
 De känner ett intensivt hat mot allt de kan se, särskilt mot dem som hånar deras avsaknad av öron."""
 _UKR = """Спостерігач приєднався до вас. Ці великі кулясті істоти мають кілька очних відростків і одне центральне око, кожне з яких містить потужну магію.  
 Вони відчувають сильну ненавист до всього, що можуть бачити, особливо до тих, хто насміхається з їх відсутності вух."""
+
+# Tooltip on the delete button beside each slot on the save and load menus.
+[DELETE_SAVED_GAME]
+# shown when hovering the skull next to a saved game
+# the text before the colon sets the tooltip box width and the rest scrolls
+# inside it - that is the engine's tooltip convention, and a string with no
+# colon sizes the box to the whole line and runs off the screen edge
+ENG = "Delete: Delete this saved game"
+_CHI = "删除: 删除此存档"
+_CZE = "Smazat: Smazat tuto uloženou hru"
+_DUT = "Verwijderen: Dit opgeslagen spel verwijderen"
+_FRE = "Supprimer: Supprimer cette partie sauvegardée"
+_GER = "Löschen: Diesen Spielstand löschen"
+_ITA = "Elimina: Elimina questo salvataggio"
+_JPN = "削除: このセーブデータを削除する"
+_KOR = "삭제: 이 저장된 게임 삭제"
+_LAT = "Delere: Hoc ludum servatum dele"
+_POL = "Usuń: Usuń ten zapisany stan gry"
+_POR = "Eliminar: Eliminar este jogo guardado"
+_RUS = "Удалить: Удалить это сохранение"
+_SPA = "Eliminar: Eliminar esta partida guardada"
+_SWE = "Radera: Radera detta sparade spel"
+_UKR = "Видалити: Видалити це збереження"
