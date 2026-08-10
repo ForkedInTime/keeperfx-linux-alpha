@@ -4,6 +4,22 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5470 — 2026-08-09 — alpha
+
+**You can delete a saved game.** Engine-side; the launcher is unchanged from 1.4.0.5467.
+
+- **A delete button on every save slot.** There are eight save slots, and until now the only
+  way to reclaim one was to overwrite it. That is fine until you are mid-campaign and the
+  names of the games you saved weeks ago no longer mean anything — you have to overwrite
+  something without knowing what you are destroying. Nothing in the engine deleted a saved
+  game at all. Each row on the in-game Save and Load menus now carries a skull button in
+  the right margin, using Bullfrog's own "dead keeper" symbol. It appears only on slots that
+  hold a game, and it asks before doing anything. The confirmation **names the save it is
+  about to delete**: the dialog covers the list, and telling apart saves you can no longer
+  identify is the whole point. Confirm and the slot frees, the row reverts to `UNUSED` and
+  the menu stays open, so you can clear a couple of slots and save without leaving for the
+  dungeon and coming back.
+
 ## 1.4.0.5467 — 2026-08-08 — alpha
 
 **A launcher fix for the map editor.** The engine is unchanged from 1.4.0.5465.
