@@ -3091,6 +3091,17 @@ short get_gui_inputs(short gameplay_on)
   int gmbtn_idx = -1;
   ActiveButtonID nx_over_slider_button = -1;
   struct GuiButton *gbtn;
+  // A click outside the field being typed into leaves that field, exactly as
+  // Escape does. Without this the entire menu is inert while a save name is
+  // being edited -- the sweep below gates every button out -- and clicking again
+  // does not help, so buttons look broken until you happen to press Escape.
+  // Cancelled here, before the sweep, so the same click still reaches whatever
+  // it landed on.
+  if (game_is_busy_doing_gui_string_input() && (left_button_clicked)
+   && !check_if_pos_is_over_button(input_button, left_button_clicked_x, left_button_clicked_y))
+  {
+      end_gui_string_input();
+  }
   // Sweep through buttons
   for (int gidx = 0; gidx < ACTIVE_BUTTONS_COUNT; gidx++)
   {

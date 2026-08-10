@@ -547,6 +547,22 @@ short game_is_busy_doing_gui(void)
     return true;
 }
 
+void end_gui_string_input(void)
+{
+    if (input_button == NULL)
+        return;
+    // Leave the field, keeping what was typed but without committing it -- no
+    // click_event, so this neither saves a game nor activates anything.
+    //
+    // Deliberately not Escape's behaviour, which restores the previous text:
+    // this also runs when the click landed on a button that reads the field,
+    // such as confirming a network session name, and reverting there would
+    // quietly discard what the player just typed.
+    input_button = NULL;
+    input_field_pos = 0;
+    LbStopTextInput();
+}
+
 TbBool get_button_area_input(struct GuiButton *gbtn, int modifiers)
 {
     if (input_button == NULL)
