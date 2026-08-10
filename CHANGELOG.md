@@ -4,6 +4,25 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5475 — 2026-08-10 — alpha
+
+**Changing resolution no longer blacks out the game.** This one also affects the current
+stable release, 1.4.0.5423.
+
+- **Fixed: the screen went black, permanently, after changing resolution in the in-game
+  Graphics menu.** The game kept running — it was still drawing and presenting frames at
+  full speed, they were simply black — and nothing brought it back: no further resolution
+  change, no key, no menu. The 8-bit picture is turned into colour on the GPU using a
+  256-colour lookup table. Uploading that table every frame was wasted work, since it only
+  changes on fades, flashes and movies, so it is uploaded only when it differs from the last
+  one sent. Changing resolution rebuilds the graphics backend, which creates a fresh, empty
+  lookup table — but the game's own palette either side of that rebuild is identical, so the
+  check concluded there was nothing to send. Every pixel then looked itself up in a table
+  full of zeroes, which is black, and it stayed black because the palette never genuinely
+  changed again. The table is now refilled whenever the backend is rebuilt. Switching
+  between borderless fullscreen, exclusive fullscreen and your own windowed resolutions all
+  work again.
+
 ## 1.4.0.5473 — 2026-08-09 — alpha
 
 **Follow-up to the save delete button.** Engine-side; the launcher is unchanged.
