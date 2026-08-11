@@ -502,6 +502,41 @@ void delete_room_structure(struct Room *room)
     }
     if ((room->alloc_flags & RoF_Allocated) != 0)
     {
+      // Sever every creature still linked into this room's worker list BEFORE the
+      // structure is wiped. Nothing did this, so a room deleted with workers left
+      // them flagged CCFlg_IsInRoomList with work_room_id pointing at a slot that
+      // memset() below frees for reuse. When such an orphan later left "its" room,
+      // room_get() handed it whatever NEW room now owned the slot, and the unlink
+      // surgery rewrote that room's list head -- splicing a chain of half-dead
+      // creatures into a healthy room. That is the creature-list corruption behind
+      // the level-transition abort the 5322 guard was added for ("Jump to invalid
+      // creature 274"): detectable thousands of turns after this function planted it.
+      {
+          long i = room->creatures_list;
+          unsigned long k = 0;
+          while (i != 0)
+          {
+              struct Thing* ctng = thing_get(i);
+              struct CreatureControl* cctrl = creature_control_get_from_thing(ctng);
+              if (!creature_control_exists(cctrl))
+              {
+                  ERRORLOG("Room %s index %d worker list was already corrupt at index %ld",
+                      room_code_name(room->kind), (int)room->index, i);
+                  break;
+              }
+              i = cctrl->next_in_room;
+              cctrl->work_room_id = 0;
+              cctrl->next_in_room = 0;
+              cctrl->prev_in_room = 0;
+              cctrl->creature_control_flags &= ~CCFlg_IsInRoomList;
+              k++;
+              if (k > THINGS_COUNT)
+              {
+                  ERRORLOG("Infinite loop detected when sweeping creatures list");
+                  break;
+              }
+          }
+      }
       // This is almost remove_room_from_players_list(room, room->owner);
       // but it doesn't change room_slabs_count and is less careful - better not use too much
       if (room->owner != game.neutral_player_num)
@@ -534,6 +569,12 @@ void delete_all_room_structures(void)
     for (long i = 1; i < ROOMS_COUNT; i++)
     {
         struct Room* room = &game.rooms[i];
+        // Level teardown deletes things and creature controls BEFORE rooms
+        // (delete_all_structures), so by now this list only points at freed
+        // slots. Drop it rather than let delete_room_structure's worker sweep
+        // walk freed controls and cry corruption on every ordinary level exit
+        // -- the sweep is for rooms deleted DURING play, where workers are live.
+        room->creatures_list = 0;
         delete_room_structure(room);
     }
 }

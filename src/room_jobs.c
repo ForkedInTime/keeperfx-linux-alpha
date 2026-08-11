@@ -224,7 +224,20 @@ TbBool remove_creature_from_specific_room(struct Thing *creatng, struct Room *ro
             ERRORLOG("Linked list of rooms has invalid previous element on thing %d",(int)creatng->index);
         }
     } else {
-        room->creatures_list = cctrl->next_in_room;
+        // "No previous element" only means "head of THIS room's list" when the
+        // room actually agrees. A creature carrying a stale work_room_id -- its
+        // room deleted and the slot since reused -- lands here holding links into
+        // a chain this room has never seen; overwriting the head unconditionally
+        // spliced that dead chain into a healthy room, which is how the
+        // creature-list corruption spread between rooms. Refuse the write, log
+        // loudly (this firing means some path is still orphaning workers), and
+        // fall through so the creature itself still detaches cleanly below.
+        if (room->creatures_list == creatng->index) {
+            room->creatures_list = cctrl->next_in_room;
+        } else {
+            ERRORLOG("Creature %d claims to head room %s index %d worker list, but the list starts at %d -- stale room link, refusing to relink",
+                (int)creatng->index, room_code_name(room->kind), (int)room->index, (int)room->creatures_list);
+        }
     }
     if (cctrl->next_in_room != 0) {
         sectng = thing_get(cctrl->next_in_room);
@@ -253,6 +266,14 @@ TbBool remove_creature_from_work_room(struct Thing *creatng)
     {
         WARNLOG("Creature had invalid room index %d",(int)cctrl->work_room_id);
         erstat_inc(ESE_BadCreatrState);
+        // Self-heal rather than bail: leaving the flag and links in place made
+        // this warning repeat forever and kept the stale chain alive for the
+        // next room to inherit. The room is gone, so there is no list to
+        // maintain -- just detach this creature completely.
+        cctrl->work_room_id = 0;
+        cctrl->next_in_room = 0;
+        cctrl->prev_in_room = 0;
+        cctrl->creature_control_flags &= ~CCFlg_IsInRoomList;
         return false;
     }
     CreatureJob jobpref = get_job_for_creature_state(get_creature_state_besides_interruptions(creatng));
