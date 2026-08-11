@@ -9,9 +9,9 @@
 #
 # _tag and pkgver are bumped by .github/workflows/publish-aur.yml when a release
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
-_tag=v1.4.0.5423
+_tag=v1.4.0.5425
 # The launcher is a separate repository with no tags, so it is pinned by commit.
-_launcher_commit=9f3f1eff4defb9d2c4f3c420a067c9922c239234
+_launcher_commit=21e3b13e8b9ef9199c8e01693d303d098aa66c07
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
 pkgver=1.4.0.5425
