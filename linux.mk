@@ -306,8 +306,25 @@ KFX_INCLUDES = \
 	$(shell pkg-config --cflags epoxy) \
 	$(shell pkg-config --cflags-only-I libavformat)
 
-KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
-KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+# -Werror=unused-result: a discarded return value is promoted to a build error.
+# Nine of the thirteen launcher bugs found in the 2026-08-05 review shared this
+# one root cause -- QFile::copy, QDir::rename, SDL_TryLockMutex, all compiling
+# clean while a failure silently became a success. The engine builds with zero
+# such warnings today, so this costs nothing and keeps the class out.
+KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Werror=unused-result -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Werror=unused-result -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+
+# SANITIZE=1: AddressSanitizer + UndefinedBehaviorSanitizer build, for the local
+# regression pass (tests/sanitize-regression.sh) -- not for release. UBSan is
+# built in recover mode so a run REPORTS every finding rather than dying at the
+# first one; the report is the deliverable. Objects land in the same obj/ as a
+# normal build, so always build from clean -- the script does.
+ifeq ($(SANITIZE),1)
+KFX_SAN_FLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -fno-common
+KFX_CFLAGS += $(KFX_SAN_FLAGS)
+KFX_CXXFLAGS += $(KFX_SAN_FLAGS)
+KFX_LDFLAGS += -fsanitize=address,undefined
+endif
 
 KFX_LDFLAGS += \
 	-g \

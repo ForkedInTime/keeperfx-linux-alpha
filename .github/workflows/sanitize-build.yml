@@ -1,0 +1,68 @@
+# Keeps the sanitizer tooling honest.
+#
+# The full sanitized campaign pass (tests/sanitize-regression.sh) needs a real
+# game install -- the original Dungeon Keeper files are not redistributable, so
+# CI cannot run it. What CI CAN do is stop the two halves it depends on from
+# bit-rotting: the SANITIZE=1 engine build, and the unit tests compiled and run
+# under ASan+UBSan. The day the sanitized build breaks is the day someone would
+# otherwise discover it mid-bug-hunt, which is the worst possible time.
+#
+# Weekly rather than per-push: the sanitized build is a full rebuild and the
+# normal CI already compiles every push; this only has to catch drift.
+name: Sanitizer build
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'   # Mondays 05:00 UTC, before the upstream-sync bot at 06:00
+  workflow_dispatch:
+
+jobs:
+  sanitize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # build number = commit count
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git python3 pkg-config \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
+            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
+            $(packaging/ci/build-sdl3.sh --apt-packages)
+
+      - name: Cache the SDL3 stack
+        uses: actions/cache@v4
+        with:
+          path: deps/sdl3
+          key: sdl3-${{ runner.os }}-${{ hashFiles('packaging/ci/build-sdl3.sh') }}
+
+      - name: Build the SDL3 stack (ubuntu-24.04 ships no SDL3 packages)
+        run: |
+          packaging/ci/build-sdl3.sh
+          eval "$(packaging/ci/build-sdl3.sh --env)"
+          {
+            echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+            echo "CPATH=$CPATH"
+            echo "LIBRARY_PATH=$LIBRARY_PATH"
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          } >> "$GITHUB_ENV"
+
+      - name: Fetch the auto-downloaded deps (serial, avoids a parallel-build race)
+        run: |
+          make -f linux.mk \
+            deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
+            deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
+
+      - name: Build the engine with ASan + UBSan
+        run: |
+          rm -f src/ver_defs.h
+          make -f linux.mk SANITIZE=1 BUILD_NUMBER="$(git rev-list --count HEAD)" \
+            VER_SUFFIX=alpha -j"$(nproc)"
+
+      - name: Run the unit tests under the sanitizers
+        run: SANITIZE=1 tests/run.sh

@@ -21,10 +21,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// Stubs for the two engine symbols linux.cpp references. Nothing under test
-// reaches either of them.
+// Stubs for the engine symbols the platform layer references. Nothing under
+// test reaches any of them: the tests only exercise the file-find path, and
+// PlatformManager's window-system accessor is never called by it.
 extern "C" void LbErrorParachuteInstall() {}
 extern "C" int kfxmain(int, char **) { return 0; }
+class WindowSystemSDL;
+WindowSystemSDL* GetSDLWindowSystem() { return nullptr; }
 
 static int g_failures = 0;
 
