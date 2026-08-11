@@ -4,6 +4,34 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5485 — 2026-08-10 — alpha
+
+**Four memory faults fixed, found by turning on the compiler's own alarms.** The engine
+now has a memory-checking build (AddressSanitizer) and a script that runs every installed
+campaign under it; its first afternoon caught four faults that months of play never
+showed, all inherited from the original project and all present since well before this
+fork's first release.
+
+- **The colour table wrote past its own end on every game start.** One array held ten
+  entries while the code filling it wrote eleven — it has been like that since the
+  purple, orange and black player colours were added. The stray write landed on the
+  dungeon heart's beat-animation state, so the practical symptom was at most a heartbeat
+  wobble; the fix sizes the array from the same constant the filler uses, so the two can
+  never drift apart again.
+- **The level-script reader looked one letter past the end of every command name** shorter
+  than the word it was checking, on nearly every campaign. Read-only and harmless in
+  practice, now simply correct.
+- **Tiny map files were read past their end on every level load.** Some map files are
+  legitimately a single byte; the decompressor read an eighteen-byte header out of them
+  regardless. Files too small to be compressed are now treated as what they are.
+- **Finished sound messages were destroyed as the wrong type** — a one-line C++ mistake
+  (a missing virtual destructor) that made every retired message undefined behaviour.
+
+None of these was dangerous to your saves, but all four were real, and the tooling that
+found them is now part of the project: a build mode any developer can run, a weekly
+check that keeps it working, and a compiler setting that turns an entire class of bug —
+a failure result silently ignored — into a build error from now on.
+
 ## 1.4.0.5482 — 2026-08-10 — alpha
 
 **Upstream sync.** Three changes from the KeeperFX team, one of which needed care.
