@@ -167,7 +167,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 9 wins |
 > | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
-> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, music download + recovery, single-instance lock, weekly sync bot | 10+ items |
+> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 185 commits of ours on top
 > of theirs, on top of 16 upstream merges. The sections below are the line items.</sub>
@@ -195,6 +195,13 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   a window asks for and instead matches the window's app ID to an installed `.desktop` file, so both halves
   are needed for the icon to actually appear. Fixed for X11 and Wayland alike, in every install method.
 
+**In-game quality of life**
+- **Delete a saved game.** The engine never could — the only way to reclaim one of the eight slots
+  was to overwrite it blind. Every slot on the Save and Load menus now carries a skull button
+  (Bullfrog's own "dead keeper" symbol) that asks first and **names the save it is about to
+  delete**. Clicking away from a save-name you are typing no longer freezes the menu, in any text
+  field in the game.
+
 **Native Linux launcher** *(the KeeperFX team's `keeperfx-launcher-qt`, made to run natively)*
 - The team's Qt settings launcher compiles cross-platform but was written Windows-first (it launched the game
   through **Wine** and read the version from a Windows `.exe`). Here it's built for Linux and patched to detect
@@ -216,6 +223,10 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   KeeperFX-stock or Workshop/user, and lets you **uninstall reversibly** — removed items go to a backup you
   can **Restore** in one click. And it **loads instantly on re-open**: thumbnails and the catalogue are
   cached to disk and refreshed in the background, so there's no "is it stuck?" wait after the first visit.
+- **Read the logs without leaving the launcher.** Play ▾ → **View logs** shows the launcher log and
+  the game log side by side, following live, with a Copy button — and errors now offer a **Show log**
+  button directly. The news panel lists this fork's releases (version and date, one line each, the
+  full changelog one click away) above the KeeperFX team's news.
 - **One launcher at a time.** The launcher won't open a second copy of itself (that would let two games fight
   over the same saves).
 - **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for
@@ -268,6 +279,10 @@ first.)
   aborted the game at a level transition. Rooms now sever their workers on deletion, the list head is
   only rewritten when the room agrees, and orphaned creatures detach themselves. The ~18 guarded list
   walks stay as the last line of defence, and the fault exists in upstream KeeperFX to this day.
+- **Changing resolution no longer blacks out the game.** The GPU present layer maps the 8-bit
+  picture through a colour table uploaded only when it changes — but rebuilding the backend on a
+  resolution switch produced a fresh, empty table that the "unchanged" check then never refilled.
+  Every pixel looked up black, permanently. The table is refilled on every backend rebuild.
 - **Five memory faults found by our sanitizer pass** — the engine now builds under AddressSanitizer and
   every campaign is run through it before a release. Its first runs caught an array overflow on every
   game start, out-of-bounds reads on every level load and script parse, and a C++ destructor fault on
