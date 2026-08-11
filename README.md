@@ -63,14 +63,21 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam D
 yay -S keeperfx-tux
 ```
 
-Then launch **KeeperFX (Tux Edition)** from your menu, or run `keeperfx-tux`. Updates arrive with your
-normal `yay -Syu` — the AUR tracks this project's **stable** releases, so an upgrade only ever moves you
-between stables, never onto an alpha.
+That one command is the whole install — **the launcher and game data come with it**, not as separate
+steps: `keeperfx-tux` pulls in `keeperfx-tux-data` (campaigns, graphics, sounds) and
+`keeperfx-tux-launcher` (the Qt launcher) automatically, all locked to the same version.
 
-That one command is the whole install: it builds the engine on your machine and pulls in
-`keeperfx-tux-data` (the campaigns, graphics and sounds) and `keeperfx-tux-launcher` (the Qt launcher)
-automatically. Prefer to build without an AUR helper? `git clone` this repo and `makepkg -si` in
-`packaging/aur/` produces the identical packages — same recipe.
+**First launch: open “KeeperFX” from your menu — that's the launcher, and it finishes the setup.**
+It finds your *Dungeon Keeper* installation (GOG, Steam, EA, Lutris/Heroic) and copies the handful of
+original files the packages legally can't ship, fetches the soundtrack if your copy lacks it, and is
+also where the Workshop browser and Mod Manager live — one-click campaigns, maps and mods. The second
+menu entry, **“KeeperFX (play directly)”**, skips the launcher and starts the game itself: fine for
+every day *after* setup, but on a fresh install it will simply stop and list the files it's missing.
+
+Updates arrive with your normal `yay -Syu` — the AUR tracks this project's **stable** releases, so an
+upgrade only ever moves you between stables, never onto an alpha. Prefer to build without an AUR
+helper? `git clone` this repo and `makepkg -si` in `packaging/aur/` produces the identical packages —
+same recipe.
 
 <details>
 <summary><b>What the package does and doesn't include</b></summary>
