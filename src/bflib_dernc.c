@@ -461,6 +461,13 @@ long UnpackM1(void * buffer, ulong bufsize)
 {
     long retcode;
     rnc_header header;
+    // A buffer smaller than the header cannot be RNC-packed, and several map
+    // files legitimately are that small (an .inf can be a single byte). The
+    // header was read unconditionally, overrunning every such buffer by up to
+    // 17 bytes on every level load -- ASan flagged it on all 14 campaigns.
+    // "Too small to be packed" and "not packed" mean the same thing here.
+    if (bufsize < sizeof(header))
+        return 0;
     memcpy(&header, buffer, sizeof(header));
     //If file isn't compressed - return with zero
     if (header.signature != RNC_SIGNATURE)

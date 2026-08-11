@@ -109,7 +109,13 @@ unsigned short twinkle_eff_elements[] = {TngEffElm_RedTwinkle,  TngEffElm_BlueTw
 unsigned short gold_hoard_objects[] = {ObjMdl_GoldHoard1, ObjMdl_GoldHoard2, ObjMdl_GoldHoard3, ObjMdl_GoldHoard4, ObjMdl_GoldHoard5};
 unsigned short food_grow_objects[] = {ObjMdl_ChickenStb, ObjMdl_ChickenWob, ObjMdl_ChickenCrk};
 
-struct CallToArmsGraphics call_to_arms_graphics[10];
+// One entry per player colour INCLUDING the two extended slots:
+// load_spritecolors_config_file() fills PLAYER_COLORS_COUNT (= COLOURS_COUNT + 2
+// = 11) entries, and the old literal [10] left it writing the last one past the
+// end of this array into whichever global the linker placed next -- on every
+// game start, silently, since the purple/orange/black colours were added.
+// Found by the ASan campaign pass the day it first ran.
+struct CallToArmsGraphics call_to_arms_graphics[COLOURS_COUNT + 2];
 
 /******************************************************************************/
 struct Thing *create_object(const struct Coord3d *pos, ThingModel model, unsigned short owner, long parent_idx)

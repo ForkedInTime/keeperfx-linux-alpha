@@ -66,6 +66,12 @@ struct Message {
 
 	virtual bool is(const Message &) const noexcept = 0;
 	virtual void play() const noexcept = 0;
+
+	// Every message is owned as unique_ptr<Message> and the concrete types are
+	// larger than the base, so deleting through the base pointer without this
+	// is undefined behaviour -- ASan reports it as a new/delete type mismatch
+	// on every message the queue retires.
+	virtual ~Message() = default;
 };
 
 struct DefaultMessage : Message {

@@ -180,7 +180,13 @@ static struct CommandDesc const *find_command_desc(const struct CommandToken *to
     int token_len = token->end - token->start;
     for (int i = 0; cmdlist_desc[i].textptr != NULL; i++)
     {
-        if ((cmdlist_desc[i].textptr[token_len] == 0) && (strncmp(cmdlist_desc[i].textptr, token->start, token_len) == 0))
+        // strncmp FIRST: it stops at either string's terminator, so a match over
+        // token_len bytes proves textptr is at least token_len long -- which is
+        // what makes the [token_len] probe that follows legal. The original
+        // order probed textptr[token_len] on every entry, reading one byte past
+        // the end of each command-name literal shorter than the token; ASan
+        // flagged it on 13 of 14 campaign scripts.
+        if ((strncmp(cmdlist_desc[i].textptr, token->start, token_len) == 0) && (cmdlist_desc[i].textptr[token_len] == 0))
         {
             cmnd_desc = &cmdlist_desc[i];
             break;
