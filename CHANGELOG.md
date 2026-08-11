@@ -4,6 +4,23 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5482 — 2026-08-10 — alpha
+
+**Upstream sync.** Three changes from the KeeperFX team, one of which needed care.
+
+- **Creatures that were asleep on payday now get the gold you handed them.** An advance
+  taken while a creature was in a non-salary state — sleeping, most often — did not take
+  effect until later. Upstream's fix, taken as-is.
+- **File enumeration and OS-version queries moved into the platform layer**, continuing the
+  rework this fork already adopted. Both are internal tidying you will not see.
+- **Kept: hidden files stay invisible to the game.** Upstream's new enumeration skips only
+  `.` and `..`, where this fork skips every hidden entry. That matters on Linux: campaigns,
+  mods and workshop content usually arrive as archives built on macOS or Windows, which
+  carry `._name.cfg` sidecar files beside the real ones. Without the filter the game reads
+  those as real campaigns and mods — and because `.` sorts first, the sidecar is picked
+  ahead of the file it shadows. The filter was carried into the new code; verified by
+  planting sidecars and confirming the engine ignores them.
+
 ## 1.4.0.5475 — 2026-08-10 — alpha
 
 **Changing resolution no longer blacks out the game.** This one also affects the current
