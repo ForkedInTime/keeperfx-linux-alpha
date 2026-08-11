@@ -164,9 +164,11 @@ jobs:
           BN="$(git rev-list --count HEAD)"
           echo "Build number: $BN"
           rm -f src/ver_defs.h
-          # No suffix: this is a stable build, and the launcher classifies the
-          # install's channel from version.txt.
-          make -f linux.mk BUILD_NUMBER="$BN" -j"$(nproc)"
+          # VER_SUFFIX must be EXPLICITLY empty: linux.mk defaults an unset suffix
+          # to "Prototype", and a Prototype-stamped install is a channel orphan the
+          # launcher refuses to ever update. That exact bundle reached the stable
+          # release for eleven minutes on 2026-08-11.
+          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX= -j"$(nproc)"
           cd tools/fxfontmaker
           python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
           python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
@@ -264,6 +266,15 @@ jobs:
           ../packaging/ci/prune-payload.sh "$P" ../docs/launcher-auto-file-removal.txt
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
           echo "Stamped version: $(cat "$P/version.txt")"
+          # Gate BEFORE anything gets attached: the stamp must be the stable tag's
+          # version with no channel suffix. A wrong stamp fails the build here
+          # instead of publishing a mislabelled bundle.
+          WANT="${{ steps.stable.outputs.tag }}"; WANT="${WANT#v}"
+          STAMP="$(tr -d ' ' < "$P/version.txt")"
+          if [ "$STAMP" != "$WANT" ]; then
+            echo "::error::version.txt says '$(cat "$P/version.txt")' but this is a build of $WANT"
+            exit 1
+          fi
           cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"
           cp -f ext/7z.so "$P/7z.so"
           cp -f ../bin/keeperfx "$APPDIR/usr/bin/keeperfx"   # for linuxdeploy lib scan
