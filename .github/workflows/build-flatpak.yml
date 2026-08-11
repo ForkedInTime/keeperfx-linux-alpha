@@ -33,9 +33,26 @@ jobs:
   flatpak:
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out the engine
+      # The Flatpak is the STABLE channel. It used to build whatever the alpha
+      # branch held and attach to whatever release happened to be "latest" --
+      # fine when only alphas existed, channel corruption once stable did: the
+      # September cron would have attached an alpha-branch build stamped
+      # "alpha" onto the stable release page.
+      - name: Resolve the current stable release
+        id: stable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20                   --json tagName,isDraft,isPrerelease                   --jq '[.[] | select(.isDraft or .isPrerelease | not) | .tagName
+                         | select((endswith("-alpha") or endswith("-prototype")) | not)][0]')
+          [ -n "$TAG" ] && [ "$TAG" != "null" ] || { echo "::error::no stable release found"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building the Flatpak from stable $TAG"
+
+      - name: Check out the engine at the stable tag
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.stable.outputs.tag }}
           fetch-depth: 0       # full history, so the build number (git commit count) is correct
 
       # Cloned before the cache steps below, which hash files from inside it.
@@ -124,7 +141,9 @@ jobs:
           BN="$(git rev-list --count HEAD)"
           echo "Build number: $BN"
           rm -f src/ver_defs.h
-          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
+          # No suffix: this is a stable build, and the launcher classifies the
+          # install's channel from version.txt.
+          make -f linux.mk BUILD_NUMBER="$BN" -j"$(nproc)"
           cd tools/fxfontmaker
           python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
           python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
@@ -162,7 +181,7 @@ jobs:
           # NOTE: this resolves to the newest NON-PRERELEASE release. Alpha releases
           # must therefore be flagged prerelease on GitHub, or an alpha becomes the
           # payload base for the next stable. See docs/releasing.md.
-          wget -q https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/keeperfx-linux-alpha-x86_64-full.7z
+          wget -q "https://github.com/${{ github.repository }}/releases/download/${{ steps.stable.outputs.tag }}/keeperfx-linux-alpha-x86_64-full.7z"
           7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
 
           UP_URL=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
@@ -273,6 +292,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="$(gh release view --json tagName --jq .tagName)"
+          TAG="${{ steps.stable.outputs.tag }}"
           echo "Attaching Flatpak to release $TAG"
           gh release upload "$TAG" KeeperFX-Linux-Alpha-x86_64.flatpak --clobber

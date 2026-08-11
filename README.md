@@ -111,8 +111,8 @@ same recipe.
 >   use the AppImage. Grab `KeeperFX-Linux-Alpha-x86_64.flatpak` from
 >   [Releases](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases) and:
 >   `flatpak install --user ./KeeperFX-Linux-Alpha-x86_64.flatpak`
->   *(The Flatpak is rebuilt monthly, so it may sit on a slightly older release than the AppImage —
->   no matter: it self-updates the game package on launch.)*
+>   *(The Flatpak tracks the **stable** channel and is rebuilt monthly, so it may briefly trail a
+>   brand-new stable — no matter: it self-updates the game package on launch.)*
 >
 > **Short version: use the AppImage unless you specifically want Flatpak.**
 </details>
