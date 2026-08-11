@@ -71,7 +71,8 @@ jobs:
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
             libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev libepoxy-dev \
             libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
-            $(packaging/ci/build-sdl3.sh --apt-packages)
+            $(if [ -x packaging/ci/build-sdl3.sh ]; then packaging/ci/build-sdl3.sh --apt-packages; \
+              else echo libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev; fi)
 
       - name: Cache the SDL3 stack
         uses: actions/cache@v4
@@ -81,8 +82,17 @@ jobs:
 
       # As in build-appimage.yml: the AppDir here is assembled by linuxdeploy too,
       # so LD_LIBRARY_PATH has to resolve libSDL3 for the bundling scan.
-      - name: Build the SDL3 stack (ubuntu-24.04 ships no SDL3 packages)
+      # The SDL steps follow the ERA OF THE CHECKED-OUT TREE, not the workflow's.
+      # This file runs from the alpha branch but builds a stable TAG; the current
+      # stable predates the SDL3 migration, so it neither has build-sdl3.sh nor
+      # wants an SDL3 stack -- it links the distro's SDL2. The first SDL3-era
+      # stable makes the script reappear and this branch flips on its own.
+      - name: Build the SDL3 stack (only when this tree uses SDL3)
         run: |
+          if [ ! -x packaging/ci/build-sdl3.sh ]; then
+            echo "SDL2-era tree: distro SDL2 packages already installed, no stack to build."
+            exit 0
+          fi
           packaging/ci/build-sdl3.sh
           eval "$(packaging/ci/build-sdl3.sh --env)"
           {
