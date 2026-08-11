@@ -159,15 +159,15 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | | What we added | Roughly |
 > |---|---|---|
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
-> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit: out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs | ~29 fixes |
-> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, creature-list corruption guard | ~6 fixes |
+> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found five memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
+> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 9 wins |
 > | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater, music download + recovery, single-instance lock, weekly sync bot | 10+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 123 commits of ours on top
-> of theirs, on top of 9 weekly upstream merges. The sections below are the line items.</sub>
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 185 commits of ours on top
+> of theirs, on top of 16 upstream merges. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -258,11 +258,17 @@ first.)
   told you on screen to install one as a mod. They also sort ahead of the file they shadow, so anything
   choosing by position chose the wrong one. Hidden files are now ignored everywhere the game looks for
   content, and the scanner has tests that run it against a real directory.
-- **Creature-list corruption guard** — a corrupted creature-list link (a "next" pointer aimed at a slot
-  that isn't a creature) could abort the whole game when advancing between campaign levels. The engine now
-  validates each creature in a list before using it across ~18 walks that previously lacked the check,
-  logging rich diagnostics and **safely skipping instead of crashing** — the game keeps playing. This bug
-  exists upstream too; ours degrades gracefully and leaves a breadcrumb toward a permanent root fix.
+- **Creature-list corruption — found and fixed at the root.** Deleting a room never unlinked the
+  creatures still working in it, and a creature leaving its room trusted that "no previous neighbour"
+  meant it led the room's list. Together, one defeated keeper plus reclaimed territory let a dead room's
+  worker chain get spliced into a healthy room — silent corruption planted thousands of turns before it
+  aborted the game at a level transition. Rooms now sever their workers on deletion, the list head is
+  only rewritten when the room agrees, and orphaned creatures detach themselves. The ~18 guarded list
+  walks stay as the last line of defence, and the fault exists in upstream KeeperFX to this day.
+- **Five memory faults found by our sanitizer pass** — the engine now builds under AddressSanitizer and
+  every campaign is run through it before a release. Its first runs caught an array overflow on every
+  game start, out-of-bounds reads on every level load and script parse, and a C++ destructor fault on
+  every retired sound message — inherited faults dating from 2008 to 2025, all still present upstream.
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
   using `sdl2-compat`.
 - **Ultrawide creature-possession crash** — the new C++ lens effect didn't size its buffer for large
