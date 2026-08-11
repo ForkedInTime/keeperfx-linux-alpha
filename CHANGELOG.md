@@ -4,6 +4,25 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5488 — 2026-08-10 — alpha
+
+**The creature-list corruption is fixed at the root.** The crash this fork guarded against
+in 1.4.0.5322 — the game aborting between campaign levels after "invalid creature"
+warnings — is now understood end to end and fixed at its cause, not its symptom.
+
+- **What it was:** deleting a room never unlinked the creatures still working in it, and a
+  creature leaving its room trusted "no previous neighbour" to mean it led the room's list.
+  Defeat an enemy keeper, claim their territory, and a dead room's worker chain could be
+  spliced wholesale into one of your healthy rooms — corruption planted silently, detected
+  thousands of turns later, fatal only at a level transition after victory. It took one
+  recorded crash, its full log, and five days to reconstruct.
+- **What changed:** rooms now sever every worker when they are deleted; the list head is
+  only rewritten when the room actually agrees the creature leads it, and a refusal is
+  logged loudly rather than obeyed; a creature whose room is already gone detaches itself
+  instead of warning forever. The eighteen guarded list walks from 1.4.0.5322 stay, as the
+  last line of defence rather than the only one.
+- The fault dates from 2009 and is present in upstream KeeperFX today.
+
 ## 1.4.0.5485 — 2026-08-10 — alpha
 
 **Four memory faults fixed, found by turning on the compiler's own alarms.** The engine
