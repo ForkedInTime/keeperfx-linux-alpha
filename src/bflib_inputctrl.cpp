@@ -319,6 +319,10 @@ static void process_event(const SDL_Event *ev)
         {
           return;
         }
+        if (!lbMouseGrabbed && !GetSDLWindowSystem()->IsCursorInWindow())
+        {
+          break;
+        }
         static int frac_x = 0, frac_y = 0;
         if (lbMouseGrabbed && lbDisplay.MouseMoveRatio > 0)
         {
@@ -330,6 +334,12 @@ static void process_event(const SDL_Event *ev)
 
             frac_x = dx - (mouseDelta.x * 256);
             frac_y = dy - (mouseDelta.y * 256);
+            // Upstream re-centres the cursor whenever it nears a 48px margin,
+            // because their grab+warp scheme lets it reach the window edge and
+            // stop producing motion. Relative mode has no edge to reach, so the
+            // warp is unnecessary here -- and on Wayland warping a locked
+            // pointer is not dependable, which would make it a regression
+            // rather than a no-op.
         }
         else
         {
@@ -473,6 +483,14 @@ static void process_event(const SDL_Event *ev)
     case SDL_EVENT_WINDOW_RESIZED:
         break;
 
+    case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+        LbSetMouseGrab(lbMouseGrabbed);
+        break;
+
+    case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+        LbSetMouseGrab(lbMouseGrabbed);
+        break;
+
     case SDL_EVENT_GAMEPAD_AXIS_MOTION:
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
     case SDL_EVENT_GAMEPAD_BUTTON_UP:
@@ -569,6 +587,8 @@ void LbMouseCheckPosition(TbBool grab_state_changed)
 void LbSetMouseGrab(TbBool grab_mouse)
 {
     IWindowSystem* ws = GetSDLWindowSystem();
+    if (!ws->HasOSCursor()) // consoles will have no OS cursor to grab or hide
+        return;
     TbBool previousGrabState = lbMouseGrabbed;
     lbMouseGrabbed = grab_mouse;
     if (lbMouseGrabbed)
@@ -581,7 +601,6 @@ void LbSetMouseGrab(TbBool grab_mouse)
         ws->SetCursorGrab(false);
         LbMouseCheckPosition((previousGrabState != lbMouseGrabbed));
     }
-    ws->SetCursorVisible(!ws->IsAppActive());
 }
 
 static void LbClearTextInput(void)
@@ -629,15 +648,11 @@ void LbGrabMouseInit(void)
 
 void LbGrabMouseCheck(long grab_event)
 {
-    TbBool window_has_focus = GetSDLWindowSystem()->IsAppActive();
     TbBool paused = ((game.operation_flags & GOF_Paused) != 0);
     TbBool possession_mode = (get_my_player()->view_type == PVT_CreatureContrl) && ((game.view_mode_flags & GNFldD_CreaturePasngr) == 0);
     TbBool grab_cursor = lbMouseGrabbed;
-    if (!window_has_focus)
-    {
-        grab_cursor = false;
-    }
-    else
+    // ASSUMPTION: SDL3 auto-suspends/resumes relative mode on focus; grab is driven
+    // by game intent only, never forced off by focus loss.
     {
         if (!game.packet_load_enable)
         {

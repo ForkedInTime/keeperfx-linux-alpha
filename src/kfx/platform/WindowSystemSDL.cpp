@@ -36,15 +36,36 @@ static SDL_DisplayID display_index_to_id(int index)
 }
 
 bool WindowSystemSDL::IsAppActive() const { return m_appActive; }
-void WindowSystemSDL::OnFocusGained()     { m_appActive = true; }
-void WindowSystemSDL::OnFocusLost()       { m_appActive = false; }
+void WindowSystemSDL::OnFocusGained()     { m_appActive = true;  ApplyOsCursorPolicy(); }
+void WindowSystemSDL::OnFocusLost()       { m_appActive = false; ApplyOsCursorPolicy(); }
+
+void WindowSystemSDL::ApplyOsCursorPolicy()
+{
+    if (!lbWindow)
+        return;
+    const bool focused = (SDL_GetWindowFlags(lbWindow) & SDL_WINDOW_INPUT_FOCUS) != 0;
+    if (focused)
+        SDL_HideCursor();
+    else
+        SDL_ShowCursor();
+}
 
 void WindowSystemSDL::SetCursorGrab(bool grab)
 {
     if (!lbWindow)
         return;
     if (SDL_getenv("NO_RELATIVE_MOUSE") == nullptr)
+    {
+        // Fork: relative mouse mode, not window grab plus a warp to the centre.
+        // Upstream switched to grab+warp for Wine, where relative mode behaves
+        // badly -- a reasonable trade for them, since Wine is how their Linux
+        // users run the game. This fork is the native build, and on Wayland
+        // relative mode IS the pointer-lock mechanism: warping a confined
+        // pointer is unreliable there and grab alone leaves absolute
+        // positioning, which is not what the camera code expects.
         SDL_SetWindowRelativeMouseMode(lbWindow, grab);
+    }
+    ApplyOsCursorPolicy();
 }
 
 void WindowSystemSDL::SetCursorVisible(bool visible)
@@ -60,6 +81,26 @@ void WindowSystemSDL::WarpCursor(int x, int y)
     if (!lbWindow)
         return;
     SDL_WarpMouseInWindow(lbWindow, (float)x, (float)y);
+}
+
+bool WindowSystemSDL::IsCursorInWindow() const
+{
+    if (!lbWindow)
+        return false;
+    // Fork: mouse focus, not global cursor position against the window rect.
+    //
+    // SDL_GetGlobalMouseState returns 0,0 on Wayland -- measured on this fork's
+    // reference desktop, natively and through XWayland, with the same probe
+    // returning exact coordinates under X11, so it is the platform and not the
+    // measurement. Upstream's arithmetic then reports "cursor outside" for every
+    // window that does not cover the screen origin, which in a windowed session
+    // silently drops every ungrabbed motion event and disables edge panning.
+    // Their Linux CI only compiles the engine, so nothing there would catch it.
+    //
+    // Mouse focus is delivered by enter/leave events instead of a position
+    // query, so it needs no global coordinates and is correct on Wayland, X11
+    // and Windows alike. It is what IsMouseInsideWindow() used before #5109.
+    return SDL_GetMouseFocus() == lbWindow;
 }
 
 // ----- Window management -----
