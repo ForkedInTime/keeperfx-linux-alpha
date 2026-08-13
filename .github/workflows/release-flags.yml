@@ -1,0 +1,118 @@
+# Keep the channel flags true no matter how a release was created.
+#
+# An alpha that is not marked prerelease is not a cosmetic problem. The payload
+# base in build-appimage.yml is chosen with
+#   select(.draft == false and .prerelease == false)
+# so an unflagged alpha becomes eligible as the base for the NEXT build, and a
+# stable would then be assembled on top of an alpha payload. It is also what
+# `releases/latest` feeds: the README download button and the launcher's update
+# channel both read it.
+#
+# v1.4.0.5485-alpha and v1.4.0.5488-alpha were both published without the flag
+# on 2026-08-11, 37 minutes apart. Nothing in CI writes prerelease -- it is set
+# once, by hand, when the release is created -- so the failure mode is simply
+# "the checkbox was missed", and no amount of care prevents a repeat. This
+# enforces it after the fact instead.
+#
+# Edits made with GITHUB_TOKEN do not trigger further workflow runs, so the
+# repair below cannot loop through the `edited` trigger.
+name: Enforce release channel flags
+
+on:
+  release:
+    types: [published, released, edited]
+  workflow_dispatch:
+    inputs:
+      sweep:
+        description: "Check every release, not just the one that triggered this"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Alpha and prototype tags must be prereleases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Without this, gh resolves to whatever repo it infers and has
+          # answered for dkfans/keeperfx before now.
+          GH_REPO: ${{ github.repository }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          SWEEP: ${{ inputs.sweep }}
+        run: |
+          set -euo pipefail
+
+          # One listing, not two calls per release. `isLatest` is only available
+          # on `gh release list` -- `gh release view` does not expose it, and
+          # asking it there yields an empty string that silently compares
+          # unequal to "false", which would "repair" every correctly flagged
+          # release on the repository.
+          mapfile -t rows < <(gh release list --limit 100 \
+            --json tagName,isPrerelease,isLatest \
+            --jq '.[] | [.tagName, (.isPrerelease|tostring), (.isLatest|tostring)] | @tsv')
+
+          if [ "${SWEEP:-false}" = "true" ] || [ -z "${EVENT_TAG:-}" ]; then
+            echo "Checking every release (${#rows[@]} found)."
+          else
+            echo "Checking the release that triggered this run: ${EVENT_TAG}"
+          fi
+
+          repaired=0
+          checked=0
+          for row in "${rows[@]}"; do
+            IFS=$'\t' read -r tag is_pre is_latest <<< "$row"
+
+            # Only the prerelease channels. A stable tag carries no suffix and
+            # must stay a full release -- it is the one that should be latest.
+            case "$tag" in
+              *-alpha|*-prototype) ;;
+              *) continue ;;
+            esac
+
+            # When a release triggered this run, only that one is in scope.
+            if [ "${SWEEP:-false}" != "true" ] && [ -n "${EVENT_TAG:-}" ] \
+               && [ "$tag" != "${EVENT_TAG}" ]; then
+              continue
+            fi
+
+            checked=$((checked + 1))
+            if [ "$is_pre" = "true" ] && [ "$is_latest" = "false" ]; then
+              continue
+            fi
+
+            echo "::warning title=Release flags repaired::${tag} was published with prerelease=${is_pre} latest=${is_latest}; forcing prerelease and clearing latest."
+            gh release edit "$tag" --prerelease --latest=false
+            repaired=$((repaired + 1))
+          done
+
+          echo "Checked ${checked} prerelease-channel tag(s)."
+
+          if [ "$repaired" -eq 0 ]; then
+            echo "All checked releases already carry the right flags."
+          else
+            echo "Repaired ${repaired} release(s)."
+          fi
+
+      - name: Report which release GitHub now serves as latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Not an assertion -- a repository with no stable release yet has no
+          # latest at all, which is legitimate. This is here so the value that
+          # the README button and the payload base depend on is visible in the
+          # log of every release, instead of being discovered months later.
+          latest=$(gh release list --limit 100 --json tagName,isLatest \
+                     --jq '[.[] | select(.isLatest)] | first.tagName // "none"')
+          echo "releases/latest currently serves: ${latest}"
+          case "$latest" in
+            *-alpha|*-prototype)
+              echo "::error title=A prerelease is being served as latest::${latest} is the latest release; the README download button and the payload base both read this."
+              exit 1
+              ;;
+          esac
