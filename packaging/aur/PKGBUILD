@@ -11,13 +11,14 @@
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
 _tag=v1.4.0.5425
 # The launcher is a separate repository with no tags, so it is pinned by commit.
-_launcher_commit=21e3b13e8b9ef9199c8e01693d303d098aa66c07
+_launcher_commit=b27ddd5d267484351d6cd4d9ca45a9113f1d586c
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
 pkgver=1.4.0.5425
-# rel 3: ship the pacman hook that reports a library break the soname
-# dependencies below cannot catch.
-pkgrel=3
+# rel 4: ship the pacman hook that reports a library break the soname
+# dependencies below cannot catch, and pick up the launcher fix that stops a
+# crash report carrying a log the failing run never wrote.
+pkgrel=4
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
 license=('GPL-2.0-or-later')
