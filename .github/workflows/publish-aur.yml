@@ -248,14 +248,26 @@ jobs:
             fi
             exit 0
           fi
-          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO \
-             packaging/aur/keeperfx-tux.sh packaging/aur/keeperfx-tux.desktop /tmp/aur/
+          # Every local file named in the PKGBUILD's source=() has to land in the
+          # AUR repository -- that repository IS the build context, so one file
+          # missing means the package fails to build for everyone who installs
+          # it. keeperfx-tux-launcher.sh was already in source=() and was never
+          # copied here; it survived only because the initial manual import had
+          # put it there and `git add -A` leaves untouched files alone, so it
+          # would have silently gone stale the moment it changed.
+          for f in PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop \
+                   keeperfx-tux-launcher.sh keeperfx-tux.hook keeperfx-tux-libcheck.sh; do
+            [ -f "packaging/aur/$f" ] \
+              || { echo "::error::packaging/aur/$f is missing; the AUR build context would be incomplete"; exit 1; }
+            cp "packaging/aur/$f" /tmp/aur/
+          done
           cd /tmp/aur
           git add -A
           if git diff --cached --quiet; then
             echo "AUR already up to date"
           else
-            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}"
+            # pkgrel is forced to 1 above: a release is always a fresh build.
+            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}-1"
             git push
           fi
 
