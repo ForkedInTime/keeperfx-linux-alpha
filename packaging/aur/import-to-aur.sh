@@ -44,7 +44,10 @@ import_pkg() {
         echo "    already up to date"
         return 0
     fi
-    local msg="Update to $(sed -n 's/^\tpkgver = //p' .SRCINFO)"
+    # pkgrel belongs in the message: a rebuild against a bumped soname changes
+    # pkgrel and nothing else, and "Update to 1.4.0.5425" on an unchanged version
+    # tells an AUR user nothing about why the package moved.
+    local msg="Update to $(sed -n 's/^\tpkgver = //p' .SRCINFO)-$(sed -n 's/^\tpkgrel = //p' .SRCINFO)"
     git rev-parse HEAD >/dev/null 2>&1 || msg="Initial import: $desc"
     git -c user.name="$NAME" -c user.email="$EMAIL" commit -q -m "$msg"
     git push -q origin master
