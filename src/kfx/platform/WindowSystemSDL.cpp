@@ -56,13 +56,14 @@ void WindowSystemSDL::SetCursorGrab(bool grab)
         return;
     if (SDL_getenv("NO_RELATIVE_MOUSE") == nullptr)
     {
-        SDL_SetWindowMouseGrab(lbWindow, grab);
-        if (grab)
-        {
-            int w = 0, h = 0;
-            SDL_GetWindowSize(lbWindow, &w, &h);
-            SDL_WarpMouseInWindow(lbWindow, w / 2.0f, h / 2.0f);
-        }
+        // Fork: relative mouse mode, not window grab plus a warp to the centre.
+        // Upstream switched to grab+warp for Wine, where relative mode behaves
+        // badly -- a reasonable trade for them, since Wine is how their Linux
+        // users run the game. This fork is the native build, and on Wayland
+        // relative mode IS the pointer-lock mechanism: warping a confined
+        // pointer is unreliable there and grab alone leaves absolute
+        // positioning, which is not what the camera code expects.
+        SDL_SetWindowRelativeMouseMode(lbWindow, grab);
     }
     ApplyOsCursorPolicy();
 }
@@ -86,12 +87,20 @@ bool WindowSystemSDL::IsCursorInWindow() const
 {
     if (!lbWindow)
         return false;
-    float gx = 0.0f, gy = 0.0f;
-    SDL_GetGlobalMouseState(&gx, &gy);
-    int wx = 0, wy = 0, ww = 0, wh = 0;
-    SDL_GetWindowPosition(lbWindow, &wx, &wy);
-    SDL_GetWindowSize(lbWindow, &ww, &wh);
-    return gx >= wx && gx < wx + ww && gy >= wy && gy < wy + wh;
+    // Fork: mouse focus, not global cursor position against the window rect.
+    //
+    // SDL_GetGlobalMouseState returns 0,0 on Wayland -- measured on this fork's
+    // reference desktop, natively and through XWayland, with the same probe
+    // returning exact coordinates under X11, so it is the platform and not the
+    // measurement. Upstream's arithmetic then reports "cursor outside" for every
+    // window that does not cover the screen origin, which in a windowed session
+    // silently drops every ungrabbed motion event and disables edge panning.
+    // Their Linux CI only compiles the engine, so nothing there would catch it.
+    //
+    // Mouse focus is delivered by enter/leave events instead of a position
+    // query, so it needs no global coordinates and is correct on Wayland, X11
+    // and Windows alike. It is what IsMouseInsideWindow() used before #5109.
+    return SDL_GetMouseFocus() == lbWindow;
 }
 
 // ----- Window management -----

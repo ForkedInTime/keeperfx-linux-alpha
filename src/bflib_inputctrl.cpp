@@ -324,15 +324,8 @@ static void process_event(const SDL_Event *ev)
           break;
         }
         static int frac_x = 0, frac_y = 0;
-        static bool s_recenter_pending = false;
         if (lbMouseGrabbed && lbDisplay.MouseMoveRatio > 0)
         {
-            // Warp-based relative motion (Wine-safe).
-            if (s_recenter_pending)
-            {
-                s_recenter_pending = false;
-                break;
-            }
             int dx = ev->motion.xrel * lbDisplay.MouseMoveRatio + frac_x;
             int dy = ev->motion.yrel * lbDisplay.MouseMoveRatio + frac_y;
 
@@ -341,18 +334,12 @@ static void process_event(const SDL_Event *ev)
 
             frac_x = dx - (mouseDelta.x * 256);
             frac_y = dy - (mouseDelta.y * 256);
-
-            IWindowSystem* ws = GetSDLWindowSystem();
-            int win_w = 0, win_h = 0;
-            ws->GetWindowSize(&win_w, &win_h);
-            const int margin = 48;
-            if (win_w > 2 * margin && win_h > 2 * margin &&
-                (ev->motion.x <= margin || ev->motion.x >= win_w - margin ||
-                 ev->motion.y <= margin || ev->motion.y >= win_h - margin))
-            {
-                ws->WarpCursor(win_w / 2, win_h / 2);
-                s_recenter_pending = true;
-            }
+            // Upstream re-centres the cursor whenever it nears a 48px margin,
+            // because their grab+warp scheme lets it reach the window edge and
+            // stop producing motion. Relative mode has no edge to reach, so the
+            // warp is unnecessary here -- and on Wayland warping a locked
+            // pointer is not dependable, which would make it a regression
+            // rather than a no-op.
         }
         else
         {
