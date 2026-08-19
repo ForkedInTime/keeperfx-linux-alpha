@@ -22,6 +22,7 @@
 #endif
 
 #include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
 #include "bflib_crash.h"
 #include <signal.h>
 #include <stdarg.h>
@@ -113,7 +114,7 @@ void ctrl_handler(int sig_id)
 {
     signal(sig_id, SIG_DFL);
     LbErrorLog("Failure signal: %s.\n",sigstr(sig_id));
-    LbScreenReset(true);
+    RendererResetScreen(true);
     LbErrorLogClose();
     raise(sig_id);
 }
@@ -343,7 +344,7 @@ static LONG CALLBACK ctrl_handler_w32(LPEXCEPTION_POINTERS info)
             _backtrace(16 , info->ContextRecord);
             SymCleanup(GetCurrentProcess());
     }
-    LbScreenReset(true);
+    RendererResetScreen(true);
     LbErrorLogClose();
     return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -529,12 +530,12 @@ static void ctrl_handler_posix(int sig_id, siginfo_t *info, void *context)
     log_posix_context(context);
     _backtrace_posix(16);
 
-    // Do NOT reset the screen / tear down GL/SDL from inside a signal handler: that work is
-    // not async-signal-safe and can deadlock or re-fault when the crash happened inside the
-    // GL driver, SDL, or the allocator — which would suppress the crash report entirely. The
-    // async-signal-safe signal info and backtrace_symbols_fd output were already written to
-    // stderr above. The process is terminating, so the OS/compositor reclaims the video
-    // context anyway.
+    // Do NOT reset the screen / tear down the renderer/SDL from inside a signal handler: that
+    // work is not async-signal-safe and can deadlock or re-fault when the crash happened inside
+    // the graphics driver, SDL, or the allocator — which would suppress the crash report
+    // entirely. The async-signal-safe signal info and backtrace_symbols_fd output were already
+    // written to stderr above. The process is terminating, so the OS/compositor reclaims the
+    // video context anyway. (Upstream calls RendererResetScreen(true) here.)
     LbErrorLogClose();
 
     signal(sig_id, SIG_DFL);

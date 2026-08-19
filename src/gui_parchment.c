@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
 #include "gui_parchment.h"
 
 #include "globals.h"
@@ -428,7 +429,7 @@ void draw_overhead_map(const struct TbRect *map_area, long block_size, PlayerNum
             dstblock += run_width;
         }
     }
-    lbDisplay.DrawFlags = 0;
+    RendererSetDrawFlags(0);
 }
 
 void draw_overhead_room_icons(const struct TbRect *map_area, long block_size, PlayerNumber plyr_idx)
@@ -445,9 +446,9 @@ void draw_overhead_room_icons(const struct TbRect *map_area, long block_size, Pl
       {
           long room_visibility = abs(rkind_select - room->kind);
           if ((room_visibility < 2) || (room_visibility >= 4))
-            lbDisplay.DrawFlags &= ~Lb_SPRITE_TRANSPAR4;
+            RendererClearDrawFlags(Lb_SPRITE_TRANSPAR4);
           else
-              lbDisplay.DrawFlags |= Lb_SPRITE_TRANSPAR4;
+              RendererAddDrawFlags(Lb_SPRITE_TRANSPAR4);
           if (room_visibility < 4)
           {
             if (subtile_revealed(room->central_stl_x, room->central_stl_y, plyr_idx))
@@ -465,7 +466,7 @@ void draw_overhead_room_icons(const struct TbRect *map_area, long block_size, Pl
           }
         }
     }
-    lbDisplay.DrawFlags &= ~Lb_SPRITE_TRANSPAR4;
+    RendererClearDrawFlags(Lb_SPRITE_TRANSPAR4);
 }
 
 int draw_overhead_call_to_arms(const struct TbRect *map_area, long block_size, PlayerNumber plyr_idx)
@@ -476,7 +477,7 @@ int draw_overhead_call_to_arms(const struct TbRect *map_area, long block_size, P
         if (player_uses_power_call_to_arms(i))
         {
             struct Dungeon* dungeon = get_dungeon(i);
-            lbDisplay.DrawFlags = Lb_SPRITE_OUTLINE;
+            RendererSetDrawFlags(Lb_SPRITE_OUTLINE);
             const struct PowerConfigStats *powerst = get_power_model_stats(PwrK_CALL2ARMS);
             long m = (4 * ((i + get_gameturn()) & 7) * subtile_slab(powerst->strength[dungeon->cta_power_level]));
             long pos_x = map_area->left + block_size * (int)dungeon->cta_stl_x / STL_PER_SLB;
@@ -741,7 +742,7 @@ void draw_map_level_name(void)
     get_parchment_background_area_rect(&bkgnd_area);
     // Set position
     LbTextSetFont(winfont);
-    lbDisplay.DrawFlags = 0;
+    RendererSetDrawFlags(0);
     int x = bkgnd_area.left;
     int y = bkgnd_area.top;
     int w = bkgnd_area.right - bkgnd_area.left;
@@ -1081,7 +1082,7 @@ static void draw_texture(int32_t texture_x, int32_t texture_y, int32_t texture_w
 
 void draw_zoom_box_terrain(long scrtop_x, long scrtop_y, int stl_x, int stl_y, PlayerNumber plyr_idx, long draw_tiles_x, long draw_tiles_y, int subtile_size)
 {
-    lbDisplay.DrawFlags = 0;
+    RendererSetDrawFlags(0);
     scrtop_x += 4*units_per_pixel/16;
     scrtop_y -= 4*units_per_pixel/16;
     setup_vecs(lbDisplay.WScreen, 0, lbDisplay.GraphicsScreenWidth, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
@@ -1106,9 +1107,9 @@ void draw_zoom_box_terrain(long scrtop_x, long scrtop_y, int stl_x, int stl_y, P
       }
       scr_y += subtile_size;
     }
-    lbDisplay.DrawFlags |= Lb_SPRITE_OUTLINE;
+    RendererAddDrawFlags(Lb_SPRITE_OUTLINE);
     LbDrawBox(scrtop_x, scrtop_y, draw_tiles_x*subtile_size, draw_tiles_y*subtile_size, 0);
-    lbDisplay.DrawFlags &= ~Lb_SPRITE_OUTLINE;
+    RendererClearDrawFlags(Lb_SPRITE_OUTLINE);
 }
 
 void draw_zoom_box_things(long scrtop_x, long scrtop_y, int stl_x, int stl_y, PlayerNumber plyr_idx, long draw_tiles_x, long draw_tiles_y, int subtile_size)

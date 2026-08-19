@@ -29,6 +29,7 @@ extern "C" {
 
 struct GuiMenu;
 struct GuiButton;
+struct CatalogueEntry;
 
 #pragma pack()
 /******************************************************************************/
@@ -50,6 +51,7 @@ void draw_delete_save_button(struct GuiButton *gbtn);
 void gui_ask_delete_save(struct GuiButton *gbtn);
 void gui_delete_save_confirmed(struct GuiButton *gbtn);
 void gui_delete_save_cancelled(struct GuiButton *gbtn);
+void update_loadsave_input_strings(struct CatalogueEntry *game_catalg);
 void frontend_load_game(struct GuiButton *gbtn);
 void frontend_draw_load_game_button(struct GuiButton *gbtn);
 void frontend_load_game_up(struct GuiButton *gbtn);

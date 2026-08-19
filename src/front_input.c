@@ -683,17 +683,15 @@ static short get_minimap_control_inputs(void)
     if (is_game_key_pressed(Gkey_ZoomMinimapOut, true, false)) {
         if (menu_is_active(GMnu_MAIN)) {
             fake_button_click(BID_MAP_ZOOM_OU);
-        } else {
-            gui_zoom_out(NULL);
         }
+        gui_zoom_out(NULL);
         return true;
     }
     if (is_game_key_pressed(Gkey_ZoomMinimapIn, true, false)) {
         if (menu_is_active(GMnu_MAIN)) {
             fake_button_click(BID_MAP_ZOOM_IN);
-        } else {
-            gui_zoom_in(NULL);
         }
+        gui_zoom_in(NULL);
         return true;
     }
     return false;
@@ -1460,14 +1458,14 @@ static short get_creature_passenger_action_inputs(void)
           {
             turn_off_menu(GMnu_CREATURE_QUERY1);
             turn_on_menu(GMnu_CREATURE_QUERY2);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_NXPAGE);
             update_wheel_scrolled();
           }
           else if (wheel_scrolled_up)
           {
             turn_off_menu(GMnu_CREATURE_QUERY1);
             turn_on_menu(GMnu_CREATURE_QUERY4);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_PVPAGE);
             update_wheel_scrolled();
           }
         }
@@ -1477,14 +1475,14 @@ static short get_creature_passenger_action_inputs(void)
           {
             turn_off_menu(GMnu_CREATURE_QUERY2);
             turn_on_menu(GMnu_CREATURE_QUERY3);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_NXPAGE);
             update_wheel_scrolled();
           }
           else if (wheel_scrolled_up)
           {
             turn_off_menu(GMnu_CREATURE_QUERY2);
             turn_on_menu(GMnu_CREATURE_QUERY1);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_PVPAGE);
             update_wheel_scrolled();
           }
         }
@@ -1494,14 +1492,14 @@ static short get_creature_passenger_action_inputs(void)
           {
             turn_off_menu(GMnu_CREATURE_QUERY3);
             turn_on_menu(GMnu_CREATURE_QUERY4);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_NXPAGE);
             update_wheel_scrolled();
           }
           else if (wheel_scrolled_up)
           {
             turn_off_menu(GMnu_CREATURE_QUERY3);
             turn_on_menu(GMnu_CREATURE_QUERY2);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_PVPAGE);
             update_wheel_scrolled();
           }
         }
@@ -1511,14 +1509,14 @@ static short get_creature_passenger_action_inputs(void)
           {
             turn_off_menu(GMnu_CREATURE_QUERY4);
             turn_on_menu(GMnu_CREATURE_QUERY1);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_NXPAGE);
             update_wheel_scrolled();
           }
           else if (wheel_scrolled_up)
           {
             turn_off_menu(GMnu_CREATURE_QUERY4);
             turn_on_menu(GMnu_CREATURE_QUERY3);
-            fake_button_click(0);
+            fake_button_click(BID_CRTR_PVPAGE);
             update_wheel_scrolled();
           }
         }
@@ -1690,14 +1688,14 @@ static short get_creature_control_action_inputs(void)
         {
             turn_on_menu(GMnu_CREATURE_QUERY3);
         }
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_NXPAGE);
         update_wheel_scrolled();
       }
       if (is_game_key_pressed(Gkey_CrtrQueryMod, true, false) || wheel_scrolled_up)
       {
         turn_off_menu(GMnu_CREATURE_QUERY1);
         turn_on_menu(GMnu_CREATURE_QUERY4);
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_PVPAGE);
         update_wheel_scrolled();
       }
     }
@@ -1715,14 +1713,14 @@ static short get_creature_control_action_inputs(void)
       {
         turn_off_menu(GMnu_CREATURE_QUERY2);
         turn_on_menu(GMnu_CREATURE_QUERY3);
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_NXPAGE);
         update_wheel_scrolled();
       }
       if (is_game_key_pressed(Gkey_CrtrQueryMod, true, false) || wheel_scrolled_up)
       {
         turn_off_menu(GMnu_CREATURE_QUERY2);
         turn_on_menu(GMnu_CREATURE_QUERY1);
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_PVPAGE);
         update_wheel_scrolled();
       }
     }
@@ -1748,7 +1746,7 @@ static short get_creature_control_action_inputs(void)
       {
         turn_off_menu(GMnu_CREATURE_QUERY3);
         turn_on_menu(GMnu_CREATURE_QUERY4);
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_NXPAGE);
         update_wheel_scrolled();
       }
       if (is_game_key_pressed(Gkey_CrtrQueryMod, true, false) || wheel_scrolled_up)
@@ -1761,7 +1759,7 @@ static short get_creature_control_action_inputs(void)
         {
             turn_on_menu(GMnu_CREATURE_QUERY1);
         }
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_PVPAGE);
         update_wheel_scrolled();
       }
     }
@@ -1787,14 +1785,14 @@ static short get_creature_control_action_inputs(void)
       {
         turn_off_menu(GMnu_CREATURE_QUERY4);
         turn_on_menu(GMnu_CREATURE_QUERY1);
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_NXPAGE);
         update_wheel_scrolled();
       }
       if (is_game_key_pressed(Gkey_CrtrQueryMod, true, false) || wheel_scrolled_up)
       {
         turn_off_menu(GMnu_CREATURE_QUERY4);
         turn_on_menu(GMnu_CREATURE_QUERY3);
-        fake_button_click(0);
+        fake_button_click(BID_CRTR_PVPAGE);
         update_wheel_scrolled();
       }
     }
@@ -2172,8 +2170,10 @@ static short get_map_action_inputs(void)
 
 static void get_isometric_or_front_view_mouse_inputs(struct Packet *pckt,int rotate_pressed,TbBool mods_used)
 {
-    // Reserve the scroll wheel for the resurrect and transfer creature specials
-    if ((menu_is_active(GMnu_RESURRECT_CREATURE) || menu_is_active(GMnu_TRANSFER_CREATURE) || rotate_pressed || mods_used) == 0)
+    // Reserve the scroll wheel for the resurrect and transfer creature specials, and
+    // for the in-game Load/Save menus (there the wheel scrolls the savegame list).
+    if ((menu_is_active(GMnu_RESURRECT_CREATURE) || menu_is_active(GMnu_TRANSFER_CREATURE)
+        || menu_is_active(GMnu_LOAD) || menu_is_active(GMnu_SAVE) || rotate_pressed || mods_used) == 0)
     {
         // mouse scroll zoom unaffected by frameskip
         if ((pckt->control_flags & PCtr_MapCoordsValid) != 0)

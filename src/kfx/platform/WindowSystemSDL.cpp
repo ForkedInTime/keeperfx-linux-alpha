@@ -54,18 +54,42 @@ void WindowSystemSDL::SetCursorGrab(bool grab)
 {
     if (!lbWindow)
         return;
-    if (SDL_getenv("NO_RELATIVE_MOUSE") == nullptr)
-    {
-        // Fork: relative mouse mode, not window grab plus a warp to the centre.
-        // Upstream switched to grab+warp for Wine, where relative mode behaves
-        // badly -- a reasonable trade for them, since Wine is how their Linux
-        // users run the game. This fork is the native build, and on Wayland
-        // relative mode IS the pointer-lock mechanism: warping a confined
-        // pointer is unreliable there and grab alone leaves absolute
-        // positioning, which is not what the camera code expects.
+    // Relative mouse mode is a setting now (#5134), defaulting on, which is what
+    // this fork's earlier hard revert of this function was protecting: on Wayland
+    // relative mode IS the pointer-lock mechanism -- warping a confined pointer is
+    // unreliable there, and grab alone leaves absolute positioning, which is not
+    // what the camera code expects. A user who wants the grab+warp behaviour can
+    // now ask for it, so the revert is gone.
+    if (m_useRelativeMouse) {
+        // deltas straight from the OS.
         SDL_SetWindowRelativeMouseMode(lbWindow, grab);
     }
+    else{
+        // confine the cursor to the window and re-center it.
+        SDL_SetWindowMouseGrab(lbWindow, grab);
+        if (grab)
+        {
+            int w = 0, h = 0;
+            SDL_GetWindowSize(lbWindow, &w, &h);
+            SDL_WarpMouseInWindow(lbWindow, w / 2.0f, h / 2.0f);
+        }
+    }
     ApplyOsCursorPolicy();
+}
+
+void WindowSystemSDL::SetUseRelativeMouse(bool relative)
+{
+    if (relative == m_useRelativeMouse)
+        return;
+
+    if (lbWindow)
+    {
+        if (m_useRelativeMouse)
+            SDL_SetWindowRelativeMouseMode(lbWindow, false);
+        else
+            SDL_SetWindowMouseGrab(lbWindow, false);
+    }
+    m_useRelativeMouse = relative;
 }
 
 void WindowSystemSDL::SetCursorVisible(bool visible)

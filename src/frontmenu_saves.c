@@ -17,6 +17,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
 #include "frontmenu_saves.h"
 #include "globals.h"
 #include "bflib_basics.h"
@@ -34,6 +35,7 @@
 #include "packets.h"
 #include "frontend.h"
 #include "front_input.h"
+#include "gui_vscroll.h"
 #include "game_legacy.h"
 #include "kjm_input.h"
 #include "sprites.h"
@@ -51,7 +53,7 @@ int frontend_load_game_button_to_index(struct GuiButton *gbtn)
         do
         {
             k++;
-            if (k >= TOTAL_SAVE_SLOTS_COUNT)
+            if (k >= save_game_catalogue_count)
                 return -1;
             centry = &save_game_catalogue[k];
         } while ((centry->flags & CEF_InUse) == 0);
@@ -59,15 +61,19 @@ int frontend_load_game_button_to_index(struct GuiButton *gbtn)
   return k;
 }
 
+/** Actual savegame slot shown in on-screen row btype_value (0..7), taking the
+ *  scroll offset into account. */
+static long loadsave_row_slot(const struct GuiButton *gbtn)
+{
+    long row = (gbtn != NULL) ? (gbtn->btype_value & LbBFeF_IntValueMask) : 0;
+    return gui_vscroll_offset + row;
+}
+
 void gui_load_game_maintain(struct GuiButton *gbtn)
 {
-    long slot_num;
-    if (gbtn != NULL)
-        slot_num = gbtn->btype_value & LbBFeF_IntValueMask;
-    else
-        slot_num = 0;
+    long slot_num = loadsave_row_slot(gbtn);
     struct CatalogueEntry* centry = &save_game_catalogue[slot_num];
-    if ((centry->flags & CEF_InUse) != 0)
+    if ((slot_num < save_game_catalogue_count) && ((centry->flags & CEF_InUse) != 0))
         gbtn->flags |= LbBtnF_Enabled;
     else
         gbtn->flags &=  ~LbBtnF_Enabled;
@@ -76,7 +82,7 @@ void gui_load_game_maintain(struct GuiButton *gbtn)
 void gui_load_game(struct GuiButton *gbtn)
 {
     struct PlayerInfo* player = get_my_player();
-    long slot_num = gbtn->btype_value & LbBFeF_IntValueMask;
+    long slot_num = loadsave_row_slot(gbtn);
     if (!load_game(slot_num))
     {
         ERRORLOG("Loading game %d failed; quitting.", (int)slot_num);
@@ -122,7 +128,7 @@ void gui_save_game(struct GuiButton *gbtn)
     struct PlayerInfo* player = get_my_player();
     if (strcasecmp(gbtn->content.str, get_string(GUIStr_SlotUnused)) != 0)
     {
-        long slot_num = (gbtn->btype_value & LbBFeF_IntValueMask) % TOTAL_SAVE_SLOTS_COUNT;
+        long slot_num = loadsave_row_slot(gbtn);
         fill_game_catalogue_slot(slot_num, gbtn->content.str);
         if (save_game(slot_num))
         {
@@ -139,15 +145,16 @@ void gui_save_game(struct GuiButton *gbtn)
 void update_loadsave_input_strings(struct CatalogueEntry *game_catalg)
 {
     SYNCDBG(6,"Starting");
-    for (long slot_num = 0; slot_num < TOTAL_SAVE_SLOTS_COUNT; slot_num++)
+    // Fill the 8 on-screen rows from the current scroll window [offset, offset+8).
+    for (long row = 0; row < GUI_VSCROLL_VISIBLE; row++)
     {
-        struct CatalogueEntry* centry = &game_catalg[slot_num];
+        long slot_num = gui_vscroll_offset + row;
         const char* text;
-        if ((centry->flags & CEF_InUse) != 0)
-            text = centry->textname;
+        if ((slot_num < save_game_catalogue_count) && ((game_catalg[slot_num].flags & CEF_InUse) != 0))
+            text = game_catalg[slot_num].textname;
         else
-          text = get_string(GUIStr_SlotUnused);
-        snprintf(input_string[slot_num], SAVE_TEXTNAME_LEN, "%s", text);
+            text = get_string(GUIStr_SlotUnused);
+        snprintf(input_string[row], SAVE_TEXTNAME_LEN, "%s", text);
     }
 }
 
@@ -177,9 +184,12 @@ void gui_delete_save_maintain(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
         return;
-    long slot_num = gbtn->btype_value & LbBFeF_IntValueMask;
+    // Through loadsave_row_slot, not the raw row index: with the scrollbar the
+    // button in row N acts on slot N + the scroll offset, and the catalogue is
+    // sized to the saves that exist, so the row can point past its end.
+    long slot_num = loadsave_row_slot(gbtn);
     struct CatalogueEntry* centry = &save_game_catalogue[slot_num];
-    if ((centry->flags & CEF_InUse) != 0)
+    if ((slot_num < save_game_catalogue_count) && ((centry->flags & CEF_InUse) != 0))
         gbtn->flags |= LbBtnF_Enabled;
     else
         gbtn->flags &= ~LbBtnF_Enabled;
@@ -213,10 +223,10 @@ void gui_ask_delete_save(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
         return;
-    long slot_num = gbtn->btype_value & LbBFeF_IntValueMask;
+    long slot_num = loadsave_row_slot(gbtn);
     // Buttons still fire their click handler while greyed out, so decide from
     // the catalogue rather than trusting the button state.
-    if ((save_game_catalogue[slot_num].flags & CEF_InUse) == 0)
+    if ((slot_num >= save_game_catalogue_count) || ((save_game_catalogue[slot_num].flags & CEF_InUse) == 0))
         return;
     delete_save_slot_num = slot_num;
     snprintf(delete_save_name, sizeof(delete_save_name), "%s", save_game_catalogue[slot_num].textname);
@@ -267,7 +277,7 @@ void frontend_draw_load_game_button(struct GuiButton *gbtn)
     // Select font to draw
     int font_idx = frontend_button_caption_font(gbtn, frontend_mouse_over_button);
     LbTextSetFont(frontend_font[font_idx]);
-    lbDisplay.DrawFlags = Lb_TEXT_HALIGN_LEFT;
+    RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
     // Set drawing window and draw the text
     int tx_units_per_px = (gbtn->height * 13 / 11) * 16 / LbTextLineHeight();
     int height = LbTextLineHeight() * tx_units_per_px / 16;
@@ -342,6 +352,7 @@ void init_load_menu(struct GuiMenu *gmnu)
   struct PlayerInfo* player = get_my_player();
   set_players_packet_action(player, PckA_UpdatePause, 1, 1, 0, 0);
   load_game_save_catalogue();
+  gui_vscroll_offset = 0;   // load list starts at the top
   update_loadsave_input_strings(save_game_catalogue);
 }
 
@@ -353,6 +364,7 @@ void init_save_menu(struct GuiMenu *gmnu)
   player->paused_state_restore = flag_is_set(game.operation_flags, GOF_Paused);
   set_players_packet_action(player, PckA_UpdatePause, 1, 1, 0, 0);
   load_game_save_catalogue();
+  gui_vscroll_offset = 0;
   update_loadsave_input_strings(save_game_catalogue);
 }
 /******************************************************************************/

@@ -11,6 +11,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
 #include "platform.h"
 #include "keeperfx.hpp"
 
@@ -134,7 +135,7 @@ static void check_players_lost(void)
             //this would easily prevent computer player activities on dead player, but it also makes dead player unable to use
             //floating spirit, so it can't be done this way: player->is_active = 0;
             if (is_my_player_number(i)) {
-                LbPaletteSet(engine_palette);
+                RendererPaletteSet(engine_palette);
             }
           }
       }
@@ -511,8 +512,8 @@ void update(void)
     struct PlayerInfo *player;
     SYNCDBG(4,"Starting for turn %ld",(long)get_gameturn());
 
-    update_local_cameras();
     process_packets();
+    update_local_cameras();
     api_update_server();
 
     if (quit_game || exit_keeper) {

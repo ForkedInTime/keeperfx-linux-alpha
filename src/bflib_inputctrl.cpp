@@ -339,7 +339,9 @@ static void process_event(const SDL_Event *ev)
             // stop producing motion. Relative mode has no edge to reach, so the
             // warp is unnecessary here -- and on Wayland warping a locked
             // pointer is not dependable, which would make it a regression
-            // rather than a no-op.
+            // rather than a no-op. The s_recenter_pending latch that swallowed
+            // the synthetic motion event from that warp goes with it: nothing
+            // is left that could ever set it.
         }
         else
         {
@@ -591,6 +593,7 @@ void LbSetMouseGrab(TbBool grab_mouse)
         return;
     TbBool previousGrabState = lbMouseGrabbed;
     lbMouseGrabbed = grab_mouse;
+    ws->SetUseRelativeMouse(use_relative_mouse_mode());
     if (lbMouseGrabbed)
     {
         LbMouseCheckPosition((previousGrabState != lbMouseGrabbed));

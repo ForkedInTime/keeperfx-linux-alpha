@@ -173,6 +173,7 @@ src/gui_parchment.c \
 src/gui_soundmsgs.cpp \
 src/gui_tooltips.c \
 src/gui_topmsg.c \
+src/gui_vscroll.c \
 src/highscores.c \
 src/kjm_input.c \
 src/lens_api.c \
@@ -181,6 +182,8 @@ src/kfx_memory.c \
 src/kfx/platform/PlatformManager.cpp \
 src/kfx/platform/PlatformLinux.cpp \
 src/kfx/platform/WindowSystemSDL.cpp \
+src/kfx/renderer/RendererManager.cpp \
+src/kfx/renderer/RendererSoftware.cpp \
 src/kfx/lense/DisplacementEffect.cpp \
 src/kfx/lense/FlyeyeEffect.cpp \
 src/kfx/lense/LensEffect.cpp \
@@ -190,7 +193,6 @@ src/kfx/lense/MistEffect.cpp \
 src/kfx/lense/OverlayEffect.cpp \
 src/kfx/lense/PaletteEffect.cpp \
 src/light_data.c \
-src/linux.cpp \
 src/lua_api.c \
 src/lua_api_lens.c \
 src/lua_api_map.c \
