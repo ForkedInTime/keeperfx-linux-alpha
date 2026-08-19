@@ -324,8 +324,17 @@ static void process_event(const SDL_Event *ev)
           break;
         }
         static int frac_x = 0, frac_y = 0;
+        static bool s_recenter_pending = false;
         if (lbMouseGrabbed && lbDisplay.MouseMoveRatio > 0)
         {
+            // Swallow the synthetic motion event our own re-centring warp produces,
+            // so it is not read as the player moving the mouse. Only the grab+warp
+            // scheme below can arm this.
+            if (s_recenter_pending)
+            {
+                s_recenter_pending = false;
+                break;
+            }
             int dx = ev->motion.xrel * lbDisplay.MouseMoveRatio + frac_x;
             int dy = ev->motion.yrel * lbDisplay.MouseMoveRatio + frac_y;
 
@@ -334,14 +343,34 @@ static void process_event(const SDL_Event *ev)
 
             frac_x = dx - (mouseDelta.x * 256);
             frac_y = dy - (mouseDelta.y * 256);
-            // Upstream re-centres the cursor whenever it nears a 48px margin,
-            // because their grab+warp scheme lets it reach the window edge and
-            // stop producing motion. Relative mode has no edge to reach, so the
-            // warp is unnecessary here -- and on Wayland warping a locked
-            // pointer is not dependable, which would make it a regression
-            // rather than a no-op. The s_recenter_pending latch that swallowed
-            // the synthetic motion event from that warp goes with it: nothing
-            // is left that could ever set it.
+            // Re-centre the cursor when it nears the window edge, because under
+            // the grab+warp scheme it can reach that edge and simply stop
+            // producing motion, which reads as the camera jamming.
+            //
+            // The gate is the whole point. Relative mouse mode (the default, and
+            // what SetCursorGrab uses when Ft_RelativeMouseMode is on) has no edge
+            // to reach, so the warp would be pointless there -- and on Wayland
+            // relative mode IS the pointer lock, where warping a locked pointer is
+            // not dependable, so it would be an active regression rather than a
+            // no-op. That is why this fork removed it outright before
+            // RELATIVE_MOUSE_MODE became a setting. Now that a user can turn
+            // relative mode OFF and select grab+warp, the warp has to come back for
+            // exactly that case: the pointer is not locked then, which is precisely
+            // when warping does work. Do not un-gate this.
+            if (!use_relative_mouse_mode())
+            {
+                IWindowSystem* ws = GetSDLWindowSystem();
+                int win_w = 0, win_h = 0;
+                ws->GetWindowSize(&win_w, &win_h);
+                const int margin = 48;
+                if (win_w > 2 * margin && win_h > 2 * margin &&
+                    (ev->motion.x <= margin || ev->motion.x >= win_w - margin ||
+                     ev->motion.y <= margin || ev->motion.y >= win_h - margin))
+                {
+                    ws->WarpCursor(win_w / 2, win_h / 2);
+                    s_recenter_pending = true;
+                }
+            }
         }
         else
         {
