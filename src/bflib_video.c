@@ -56,13 +56,6 @@ long lbScreenModeInfoNum = 0;
 
 /** Informs if Video Screen subsystem initialization was done. */
 volatile TbBool lbScreenInitialised = false;
-/** True when the OpenGL GPU present backend is active (Linux only).
- *
- * Dormant on this baseline: the present path now runs through IRenderer /
- * RendererSoftware, and nothing sets this true. It is kept so the fork's GL
- * paths that read it (the movie player in bflib_fmvids.cpp) stay intact and
- * compiled while the GL backend is re-attached behind the new interface. */
-TbBool lbUseGLPresent = false;
 /** True if we request the double buffering to be on in next mode switch. */
 TbBool lbDoubleBufferingRequested;
 /** Name of the video driver to be used. Must be set before LbScreenInitialize().
@@ -627,6 +620,12 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     lbDisplay.GraphicsWindowPtr = NULL;
     lbScreenInitialised = true;
     SYNCLOG("Mode %dx%dx8 setup succeeded (indexed draw surface)",(int)lbDrawSurface->w,(int)lbDrawSurface->h);
+    // Rebuild the backend now that the window and the draw surface exist. This is
+    // the only point at which AUTO can tell whether the GPU backend is available,
+    // since that one owns a GL context on the window -- the first RendererInit()
+    // in main() runs before any window does. It also re-arms the new backend's
+    // palette, which is what a mode change used to lose.
+    RendererReinit();
     if (palette != NULL)
     {
         RendererPaletteSet(palette);

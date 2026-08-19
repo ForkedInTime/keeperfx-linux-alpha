@@ -6,6 +6,7 @@ enum RendererType {
     RENDERER_INVALID  = -1,
     RENDERER_AUTO     = 0,  // pick the best available backend at startup
     RENDERER_SOFTWARE = 1,  // CPU software renderer, SDL display output
+    RENDERER_OPENGL   = 2,  // GPU palette lookup, GL 3.3 core
 };
 
 // Backend-agnostic renderer interface. Grown as drawing migrates behind the seam.

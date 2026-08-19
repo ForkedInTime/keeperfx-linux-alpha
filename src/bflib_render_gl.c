@@ -42,6 +42,10 @@
 #include "bflib_basics.h"
 #include "bflib_render_glworld.h"
 
+/* Set by RendererGL when a context is up; see the header for who reads it.
+ * Defined outside the _WIN32 split so the Windows stub build links too. */
+TbBool lbUseGLPresent = false;
+
 #ifndef _WIN32
 #include <epoxy/gl.h>
 #include <stdlib.h>

@@ -182,6 +182,7 @@ src/kfx_memory.c \
 src/kfx/platform/PlatformManager.cpp \
 src/kfx/platform/PlatformLinux.cpp \
 src/kfx/platform/WindowSystemSDL.cpp \
+src/kfx/renderer/RendererGL.cpp \
 src/kfx/renderer/RendererManager.cpp \
 src/kfx/renderer/RendererSoftware.cpp \
 src/kfx/lense/DisplacementEffect.cpp \

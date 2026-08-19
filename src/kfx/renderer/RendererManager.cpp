@@ -1,20 +1,27 @@
 #include "pre_inc.h"
 #include "kfx/renderer/RendererManager.h"
 #include "kfx/renderer/RendererSoftware.h"
+#include "kfx/renderer/RendererGL.h"
 #include "bflib_basics.h"
 #include "bflib_video.h"
 #include "post_inc.h"
 
 static IRenderer*   s_active_renderer = nullptr;
 static RendererType s_active_type     = RENDERER_INVALID;
+// What was asked for, as opposed to what AUTO resolved to. Kept so the backend
+// can be rebuilt against a window that did not exist the first time round.
+static RendererType s_requested_type  = RENDERER_AUTO;
 static unsigned char s_draw_colour = 0;
 static unsigned short s_draw_flags = 0;
+
+static void push_active_palette(void);
 
 // Allocate a backend for the requested type, or nullptr if unknown.
 static IRenderer* create_renderer(RendererType type)
 {
     switch (type)
     {
+        case RENDERER_OPENGL:   return new RendererGL();
         case RENDERER_SOFTWARE: return new RendererSoftware();
         default:                return nullptr;
     }
@@ -24,24 +31,51 @@ int RendererInit(RendererType type)
 {
     if (s_active_renderer != nullptr)
         RendererShutdown();
+    s_requested_type = type;
 
-    RendererType resolved = (type == RENDERER_AUTO) ? RENDERER_SOFTWARE : type;
-    IRenderer* rend = create_renderer(resolved);
-    if (rend == nullptr)
+    // AUTO prefers the GPU backend and drops to software when it cannot come up:
+    // no GL 3.3, or simply no window yet at the first call. Anything else is
+    // taken literally, so forcing a backend stays a one-word change.
+    static const RendererType auto_order[] = { RENDERER_OPENGL, RENDERER_SOFTWARE };
+    const RendererType* order   = (type == RENDERER_AUTO) ? auto_order : &type;
+    const int           n_order = (type == RENDERER_AUTO) ? 2 : 1;
+
+    for (int i = 0; i < n_order; i++)
     {
-        ERRORLOG("Unknown renderer type %d", (int)type);
-        return 0;
+        IRenderer* rend = create_renderer(order[i]);
+        if (rend == nullptr)
+        {
+            ERRORLOG("Unknown renderer type %d", (int)order[i]);
+            continue;
+        }
+        if (!rend->Init())
+        {
+            // Never silent: a GPU backend that quietly stopped being selected is
+            // a tenfold present cost that nobody notices for a month.
+            if (type == RENDERER_AUTO)
+                SYNCLOG("Renderer backend '%s' unavailable; trying the next one", rend->GetName());
+            else
+                ERRORLOG("Renderer '%s' failed to initialise", rend->GetName());
+            delete rend;
+            continue;
+        }
+        s_active_renderer = rend;
+        s_active_type     = order[i];
+        SYNCLOG("Renderer backend '%s' active", rend->GetName());
+        // A backend starts with no palette of its own -- the GPU one's LUT texture
+        // is blank -- while the engine's palette is usually unchanged across a
+        // rebuild, so nothing else would ever re-send it. That is precisely the
+        // black screen that used to follow a resolution change.
+        push_active_palette();
+        return 1;
     }
-    if (!rend->Init())
-    {
-        ERRORLOG("Renderer '%s' failed to initialise", rend->GetName());
-        delete rend;
-        return 0;
-    }
-    s_active_renderer = rend;
-    s_active_type     = resolved;
-    SYNCDBG(0, "Renderer backend '%s' active", rend->GetName());
-    return 1;
+    ERRORLOG("No renderer backend could be initialised (requested %d)", (int)type);
+    return 0;
+}
+
+void RendererReinit(void)
+{
+    RendererInit(s_requested_type);
 }
 
 void RendererShutdown(void)
@@ -68,6 +102,18 @@ const unsigned char* RendererGetActivePalette(void)
 static inline unsigned char chan6_to_8(unsigned char v)
 {
     return (unsigned char)((v * 255) / 63);
+}
+
+// Re-send the palette the engine already holds to whichever backend is active.
+static void push_active_palette(void)
+{
+    const unsigned char* pal6 = LbPaletteGetReadonly();
+    if (pal6 == NULL)
+        return; // nothing stored yet; the first LbPaletteSet will supply it
+    unsigned char rgb8[PALETTE_SIZE];
+    for (int i = 0; i < PALETTE_SIZE; i++)
+        rgb8[i] = chan6_to_8(pal6[i]);
+    RendererSetDisplayPalette(rgb8);
 }
 
 TbResult RendererPaletteSet(unsigned char *palette)

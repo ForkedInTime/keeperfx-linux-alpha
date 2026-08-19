@@ -29,8 +29,6 @@ extern "C" {
 #include <SDL3/SDL.h>
 #include "post_inc.h"
 
-extern "C" { extern TbBool lbUseGLPresent; }
-
 namespace {
 
 void copy_to_screen_pxquad(unsigned char *srcbuf, unsigned char *dstbuf, long width, long dst_shift)

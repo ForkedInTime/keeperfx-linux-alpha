@@ -12,6 +12,7 @@ typedef int RendererType;
 #  define RENDERER_INVALID  (-1)
 #  define RENDERER_AUTO     0
 #  define RENDERER_SOFTWARE 1
+#  define RENDERER_OPENGL   2
 #endif
 
 #ifdef __cplusplus
@@ -22,6 +23,14 @@ extern "C" {
 int          RendererInit(RendererType type);
 void         RendererShutdown(void);
 RendererType RendererGetActiveType(void);
+
+/** Rebuild the backend for the type most recently requested of RendererInit().
+ *
+ * A backend can be bound to the window and to the draw surface (the GPU backend
+ * owns a GL context on the window), so both have to exist before AUTO can even
+ * tell whether the GPU backend is available. LbScreenSetup() calls this once it
+ * has (re)created them, which is also what re-arms a fresh backend's palette. */
+void         RendererReinit(void);
 
 // The currently-active 6-bit VGA palette (768 bytes) that indexed drawing samples.
 const unsigned char* RendererGetActivePalette(void);

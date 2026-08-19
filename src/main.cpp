@@ -2231,7 +2231,9 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
     retval = true;
     retval &= (LbTimerInit() != Lb_FAIL);
     retval &= (RendererScreenInitialize() != Lb_FAIL);
-    retval &= (RendererInit(RENDERER_SOFTWARE) != 0);
+    // AUTO: the GPU backend where it is available, software everywhere else.
+    // Pin this to RENDERER_SOFTWARE to test the fallback path deliberately.
+    retval &= (RendererInit(RENDERER_AUTO) != 0);
     LbSetTitle(PROGRAM_NAME);
     LbSetIcon(1);
     RendererSetDoubleBuffering(true);

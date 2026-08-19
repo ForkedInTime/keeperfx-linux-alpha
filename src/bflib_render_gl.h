@@ -31,6 +31,14 @@ extern "C" {
 #endif
 /******************************************************************************/
 
+/** True while the OpenGL present backend holds a live context.
+ *
+ * Owned by RendererGL's lifetime. Code that goes around the renderer seam and
+ * talks to this backend directly -- the movie player, which presents truecolor
+ * frames the 8-bit framebuffer cannot carry -- reads this to know whether that
+ * is possible at all. Always false on Windows, where the backend is stubbed. */
+extern TbBool lbUseGLPresent;
+
 /** Initialise the OpenGL present backend.
  *
  * Creates an SDL_GLContext on the given (SDL_WINDOW_OPENGL) window, enables
