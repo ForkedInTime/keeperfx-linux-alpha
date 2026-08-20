@@ -517,8 +517,6 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     // upstream's vocabulary. Which of the two desktop modes is exclusive is decided in
     // LbRegisterVideoMode() -- see the Lb_VF_BORDERLESS note there -- so this only has
     // to read the decision back out.
-    const TbBool want_fullscreen = (mdinfo->windowFlags & (KFX_WF_FULLSCREEN_EXCLUSIVE | KFX_WF_FULLSCREEN_DESKTOP)) != 0;
-    const TbBool want_exclusive  = (mdinfo->windowFlags & KFX_WF_FULLSCREEN_EXCLUSIVE) != 0;
     if (PlatformManager_HasWindow())
     {
         const unsigned int fs_mask = KFX_WF_FULLSCREEN_EXCLUSIVE | KFX_WF_FULLSCREEN_DESKTOP;
