@@ -79,6 +79,10 @@ const struct LensOverlayData* get_lens_overlay_data(const char *name);
 const struct LensMistData* get_lens_mist_data(const char *name);
 
 extern short bad_icon_id;
+// The sentinel sprite returned by get_panel_sprite()/get_button_sprite() when the
+// requested index is not present in the loaded spritesheet. Draw helpers compare a
+// looked-up sprite against this by address to skip drawing it (see gui_draw.c).
+extern const struct TbSprite bad_icon;
 #ifdef __cplusplus
 }
 #endif

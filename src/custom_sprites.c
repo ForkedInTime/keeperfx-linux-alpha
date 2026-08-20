@@ -2144,6 +2144,26 @@ short get_anim_id_(const char* word_buf)
     return get_anim_id(word_buf, &obj_tmp);
 }
 
+/**
+ * sprites.h reserves a fixed block of indices for each built-in spritesheet (see
+ * GUI_PANEL_SPRITES_COUNT / GUI_BUTTON_SPRITES_COUNT), but the .tab/.dat files that back
+ * those sheets ship only in our release payload, not in the engine source tree -- our
+ * data/ tree is frozen to whatever the last release packaged. An upstream sync can add a
+ * new GPS_* or GBS_* constant, compiled and reachable, before the matching art has made it
+ * into that payload; the index is then "reserved" but not actually loaded. This has
+ * already happened twice in one sync: GPS_rpanel_rpanel_btn_pvpage_{act,std} (#5130) and
+ * GBS_vscroll_* (#5106). Rather than special-case those indices, warn once per distinct
+ * index whenever this gap is hit, so the next occurrence is a log line instead of mystery
+ * garbage on screen.
+ */
+static void warn_reserved_sprite_missing_once(const char *sheet_label, short sprite_idx, TbBool *warned, size_t warned_count)
+{
+    if ((sprite_idx < 0) || ((size_t)sprite_idx >= warned_count) || warned[sprite_idx])
+        return;
+    warned[sprite_idx] = true;
+    WARNLOG("Reserved %s sprite %d has no matching entry in the loaded spritesheet (data/ predates the code that added it); not drawing it", sheet_label, (int)sprite_idx);
+}
+
 const struct TbSprite *get_button_sprite_for_player(short sprite_idx, PlayerNumber plyr_idx)
 {
     return get_button_sprite(get_player_colored_button_sprite_idx(sprite_idx, plyr_idx));
@@ -2152,6 +2172,10 @@ const struct TbSprite *get_button_sprite_for_player(short sprite_idx, PlayerNumb
 const struct TbSprite *get_button_sprite(short sprite_idx)
 {
     if ((sprite_idx >= 0) && (sprite_idx < GUI_BUTTON_SPRITES_COUNT)) {
+        if (sprite_idx >= num_sprites(button_sprites)) {
+            static TbBool warned[GUI_BUTTON_SPRITES_COUNT];
+            warn_reserved_sprite_missing_once("button", sprite_idx, warned, GUI_BUTTON_SPRITES_COUNT);
+        }
         return get_sprite(button_sprites, sprite_idx);
     }
     sprite_idx -= GUI_PANEL_SPRITES_COUNT;
@@ -2186,6 +2210,11 @@ const struct TbSprite *get_panel_sprite(short sprite_idx)
 {
     if ((sprite_idx >= 0) && (sprite_idx < num_sprites(gui_panel_sprites))) {
         return get_sprite(gui_panel_sprites, sprite_idx);
+    }
+    if ((sprite_idx >= 0) && (sprite_idx < GUI_PANEL_SPRITES_COUNT)) {
+        static TbBool warned[GUI_PANEL_SPRITES_COUNT];
+        warn_reserved_sprite_missing_once("panel", sprite_idx, warned, GUI_PANEL_SPRITES_COUNT);
+        return &bad_icon;
     }
     sprite_idx -= GUI_PANEL_SPRITES_COUNT;
     if ((sprite_idx >= 0) && (sprite_idx < num_sprites(custom_sprites))) {

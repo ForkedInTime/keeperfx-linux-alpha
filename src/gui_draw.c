@@ -764,6 +764,8 @@ void draw_gui_panel_sprite_left_player(long x, long y, int units_per_px, long sp
 {
     spridx = get_player_colored_icon_idx(spridx,plyr_idx);
     const struct TbSprite* spr = get_panel_sprite(spridx);
+    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+        return;
     LbSpriteDrawResized(x, y, units_per_px, spr);
 }
 
@@ -771,6 +773,8 @@ void draw_gui_panel_sprite_rmleft_player(long x, long y, int units_per_px, long 
 {
     spridx = get_player_colored_icon_idx(spridx, plyr_idx);
     const struct TbSprite* spr = get_panel_sprite(spridx);
+    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+        return;
     LbSpriteDrawResizedRemap(x, y, units_per_px, spr, &pixmap.fade_tables[remap*256]);
 }
 
@@ -778,6 +782,8 @@ void draw_gui_panel_sprite_centered(long x, long y, int units_per_px, long sprid
 {
     spridx = get_player_colored_icon_idx(spridx,my_player_number);
     const struct TbSprite* spr = get_panel_sprite(spridx);
+    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+        return;
     x -= ((spr->SWidth*units_per_px/16) >> 1);
     y -= ((spr->SHeight*units_per_px/16) >> 1);
     LbSpriteDrawResized(x, y, units_per_px, spr);
@@ -787,6 +793,8 @@ void draw_gui_panel_sprite_occentered(long x, long y, int units_per_px, long spr
 {
     spridx = get_player_colored_icon_idx(spridx,my_player_number);
     const struct TbSprite* spr = get_panel_sprite(spridx);
+    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+        return;
     x -= ((spr->SWidth*units_per_px/16) >> 1);
     y -= ((spr->SHeight*units_per_px/16) >> 1);
     LbSpriteDrawResizedOneColour(x, y, units_per_px, spr, color);
