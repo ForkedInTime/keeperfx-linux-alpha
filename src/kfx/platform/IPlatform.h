@@ -47,6 +47,25 @@ public:
 
     /** The window system backing this platform (SDL desktop backend). */
     virtual IWindowSystem* GetWindowSystem();
+
+    /** Move `abs_path` into the OS's native trash/recycle bin, in a way the desktop
+     *  shell can restore it (freedesktop Trash spec on Linux; the platform's own
+     *  equivalent elsewhere). Returns false -- "not trashed" -- when the OS trash is
+     *  unavailable or the move fails for any reason; the caller is expected to fall
+     *  back to its own retained trash directory. A false return must never mean
+     *  "deleted anyway": on failure the file at abs_path is left untouched.
+     *
+     *  Once a file lands in the OS trash it belongs to the user and to their
+     *  desktop's own retention policy -- implementations must never purge, scan, or
+     *  otherwise manage what is already there; they only ever put things in.
+     *
+     *  macOS: no implementation exists here (no Mac build to test one against). The
+     *  correct call there is Cocoa's -[NSFileManager trashItemAtURL:resultingItemURL:
+     *  error:], not a plain move into ~/.Trash -- moving a file in by hand does not
+     *  register it with Finder, so "Put Back" stays greyed out. Faking recoverability
+     *  with a raw move would look like it worked and then never restore correctly;
+     *  better to leave the seam unimplemented than ship that. */
+    virtual TbBool TrashFile(const char* abs_path) = 0;
 };
 
 /** The platform implementation selected for this build target. */

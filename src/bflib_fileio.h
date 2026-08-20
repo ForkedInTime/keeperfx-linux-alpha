@@ -64,6 +64,13 @@ int LbFileDelete(const char *filename);
 short LbFileFlush(TbFileHandle handle);
 int LbFileMakeFullPath(const short append_cur_dir,
   const char *directory, const char *filename, char *buf, const unsigned long len);
+/** Create every missing parent directory of fname (the directories only --
+ *  fname itself is never created). Cross-platform: mkdir() on POSIX, _mkdir()
+ *  under _WIN32. Returns 1 on success (including "already existed"), 0 on
+ *  failure. Used by LbFileOpen(..., Lb_FILE_MODE_NEW) so any save write can
+ *  land in a directory that doesn't exist yet; also usable directly before a
+ *  plain rename() into a fresh directory. */
+int create_directory_for_file(const char * fname);
 
 /******************************************************************************/
 #ifdef __cplusplus

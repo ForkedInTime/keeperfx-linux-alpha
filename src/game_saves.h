@@ -118,6 +118,11 @@ TbBool initialise_load_game_slots(void);
 int count_valid_saved_games(void);
 TbBool is_save_game_loadable(long slot_num);
 TbBool delete_save_game(long slot_num);
+/** Evict fallback-trash entries (save/trash/) past the configured retention,
+ *  oldest first. Call once at startup -- never on the delete path itself, or
+ *  the clock only ever advances when someone happens to delete a save. Native
+ *  OS trash is out of scope: this only ever touches save/trash/. */
+void purge_save_trash_fallback(void);
 /******************************************************************************/
 TbBool save_catalogue_slot_disable(unsigned int slot_idx);
 TbBool load_game_save_catalogue(void);

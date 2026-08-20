@@ -95,12 +95,15 @@ struct GuiButtonInit save_menu_buttons[] = {
 };
 
 /** Confirmation for deleting a saved game. Modelled on the quit confirmation:
- *  same wording, same yes/no buttons, so it reads as part of the stock UI. The
+ *  same yes/no buttons, so it reads as part of the stock UI, but its own header
+ *  wording (gui_delete_confirm_header_maintain, from the SAVE_TRASH_CONFIRM
+ *  translation.toml alias) rather than the shared GUIStr_ConfirmYouSure --
+ *  deletion here is recoverable, so the dialog no longer says "delete". The
  *  extra line naming the save is not decoration - the dialog covers the list,
  *  and the whole point of the feature is clearing out saves you can no longer
  *  tell apart. */
 struct GuiButtonInit delete_save_menu_buttons[] = {
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,240, 32, gui_area_text,                     1, GUIStr_ConfirmYouSure, 0, {0},            0, NULL },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  10, 999,  10,240, 32, gui_area_text,                     1, GUIStr_ConfirmYouSure, 0, {0},            0, gui_delete_confirm_header_maintain },
   { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,               0, 999,  48, 999,  48,300, 32, gui_area_text,                     0, GUIStr_Empty,          0, {.str = delete_save_name}, 0, NULL },
   // The yes/no sprites are drawn from scr_pos and are far taller than the click
   // area, so scr_pos sits above pos to centre the glyph on it - same offsets the

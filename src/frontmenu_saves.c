@@ -208,12 +208,32 @@ char delete_save_name[DELETE_SAVE_NAME_LEN] = "";
  *  add their own translation.toml, and that renumbers the table. */
 static TextStringId delete_tooltip_stridx = 0;
 
+/** Header line of the delete-confirmation dialog, or 0 to fall back to the
+ *  stock GUIStr_ConfirmYouSure text. Deletion is recoverable (moved to the
+ *  trash, not erased), so this dialog gets its own wording via translation.toml
+ *  rather than reusing GUIStr_ConfirmYouSure -- that string is shared with the
+ *  quit-game confirmation (frontmenu_ingame_opts_data.cpp), so it cannot be
+ *  reworded here without also changing what quitting says. */
+static TextStringId delete_confirm_stridx = 0;
+
 static void resolve_delete_tooltip(void)
 {
     TextStringId stridx = get_string_id_by_alias("DELETE_SAVED_GAME");
     // A mod shipping its own translation.toml without this entry should cost a
     // tooltip, not a wrong string.
     delete_tooltip_stridx = (stridx > 0) ? stridx : 0;
+
+    stridx = get_string_id_by_alias("SAVE_TRASH_CONFIRM");
+    delete_confirm_stridx = (stridx > 0) ? stridx : 0;
+}
+
+void gui_delete_confirm_header_maintain(struct GuiButton *gbtn)
+{
+    if (gbtn == NULL)
+        return;
+    // gui_area_text draws its label from tooltip_stridx, not a dedicated label
+    // field -- see draw_delete_save_button's sibling gui_area_text callers.
+    gbtn->tooltip_stridx = (delete_confirm_stridx > 0) ? delete_confirm_stridx : GUIStr_ConfirmYouSure;
 }
 
 void gui_delete_save_maintain(struct GuiButton *gbtn)
