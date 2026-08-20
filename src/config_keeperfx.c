@@ -1015,10 +1015,12 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               features_enabled &= ~Ft_RelativeMouseMode;
           break;
       case 46: // TRASH_MAX_COUNT
-          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
-            i = atoi(word_buf);
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+            break;
           }
+          i = atoi(word_buf);
           if ((i >= 0) && (i <= 32768)) {
               save_trash_max_count = i;
           } else {
@@ -1026,10 +1028,12 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           break;
       case 47: // TRASH_MAX_DAYS
-          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
-            i = atoi(word_buf);
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+            break;
           }
+          i = atoi(word_buf);
           if ((i >= 0) && (i <= 32768)) {
               save_trash_max_days = i;
           } else {
