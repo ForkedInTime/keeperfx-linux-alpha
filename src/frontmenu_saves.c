@@ -61,12 +61,46 @@ int frontend_load_game_button_to_index(struct GuiButton *gbtn)
   return k;
 }
 
+/** Maps a position in the compacted display order to an actual catalogue slot.
+ *  The display packs entries as: every in-use slot in ascending slot order,
+ *  then every free slot in ascending slot order - so deleting a save in the
+ *  middle of the list closes the gap on screen without renumbering any file
+ *  on disk. `target` is the row index plus the scroll offset. Returns
+ *  save_game_catalogue_count (an intentionally out-of-range sentinel, not -1)
+ *  when target has no entry - every call site already tests
+ *  `slot_num < save_game_catalogue_count` before dereferencing, and a
+ *  negative return would slip past that check instead of failing it. */
+static long loadsave_compacted_slot(long target)
+{
+    long pos = 0;
+    for (long slot = 0; slot < save_game_catalogue_count; slot++)
+    {
+        if ((save_game_catalogue[slot].flags & CEF_InUse) != 0)
+        {
+            if (pos == target)
+                return slot;
+            pos++;
+        }
+    }
+    for (long slot = 0; slot < save_game_catalogue_count; slot++)
+    {
+        if ((save_game_catalogue[slot].flags & CEF_InUse) == 0)
+        {
+            if (pos == target)
+                return slot;
+            pos++;
+        }
+    }
+    return save_game_catalogue_count;
+}
+
 /** Actual savegame slot shown in on-screen row btype_value (0..7), taking the
- *  scroll offset into account. */
+ *  scroll offset into account and packing the display per
+ *  loadsave_compacted_slot(). */
 static long loadsave_row_slot(const struct GuiButton *gbtn)
 {
     long row = (gbtn != NULL) ? (gbtn->btype_value & LbBFeF_IntValueMask) : 0;
-    return gui_vscroll_offset + row;
+    return loadsave_compacted_slot(gui_vscroll_offset + row);
 }
 
 void gui_load_game_maintain(struct GuiButton *gbtn)
@@ -145,10 +179,12 @@ void gui_save_game(struct GuiButton *gbtn)
 void update_loadsave_input_strings(struct CatalogueEntry *game_catalg)
 {
     SYNCDBG(6,"Starting");
-    // Fill the 8 on-screen rows from the current scroll window [offset, offset+8).
+    // Fill the 8 on-screen rows from the current scroll window [offset, offset+8),
+    // through loadsave_compacted_slot() so the text on a row always matches the
+    // slot loadsave_row_slot() will act on for that same row.
     for (long row = 0; row < GUI_VSCROLL_VISIBLE; row++)
     {
-        long slot_num = gui_vscroll_offset + row;
+        long slot_num = loadsave_compacted_slot(gui_vscroll_offset + row);
         const char* text;
         if ((slot_num < save_game_catalogue_count) && ((game_catalg[slot_num].flags & CEF_InUse) != 0))
             text = game_catalg[slot_num].textname;
