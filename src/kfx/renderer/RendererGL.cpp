@@ -109,10 +109,22 @@ bool RendererGL::ScheduleScreenshot(const char* path, int fmt)
     //    and a vertical flip undone -- real GL surface area (see
     //    gl_present_postfx_active()'s doc comment) that a debug/QoL feature
     //    does not need to earn just because it is possible.
+    //  - It is also a structural guarantee, not just an intended behaviour:
+    //    gl_upload_indices() (bflib_render_gl.c) only ever reads fb_pixels
+    //    into the GL index texture. Nothing on the GL present path, post-FX
+    //    or not, ever writes back into lbDrawSurface -- there is no code
+    //    path by which this save could pick up post-FX output even by
+    //    accident.
     if (gl_present_postfx_active())
     {
-        SYNCDBG(2, "Screenshot captures the pre-post-FX frame; "
-                    "post-FX (KFX_POSTFX=1) output is not included");
+        // Informational, not a warning: this is the documented, deliberate
+        // behaviour above, not a failure. SYNCLOG (not SYNCDBG) so the one
+        // user actually affected -- someone running with KFX_POSTFX=1 -- sees
+        // it in their log at the default build level; screenshots are
+        // user-initiated and infrequent, so once per screenshot is not spam.
+        SYNCLOG("Screenshot saved the pre-post-FX frame: post-FX "
+                "(KFX_POSTFX=1) is active but its output is not included, "
+                "by design -- see ScheduleScreenshot()");
     }
     bool ok;
     switch (fmt)
