@@ -2233,6 +2233,12 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
     retval &= (RendererScreenInitialize() != Lb_FAIL);
     // AUTO: the GPU backend where it is available, software everywhere else.
     // Pin this to RENDERER_SOFTWARE to test the fallback path deliberately.
+    // Do NOT pin RENDERER_OPENGL here: this call happens before the window
+    // exists, RendererGL::Init() deliberately declines pre-window, and an
+    // explicit (non-AUTO) request has no fallback -- engine init fails
+    // outright instead of retrying software. AUTO already reaches the GL
+    // backend once the window is up; RENDERER_SOFTWARE is the only pin safe
+    // to use at this call site.
     retval &= (RendererInit(RENDERER_AUTO) != 0);
     LbSetTitle(PROGRAM_NAME);
     LbSetIcon(1);
