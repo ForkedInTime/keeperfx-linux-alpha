@@ -3,12 +3,24 @@
 #include "bflib_video.h"       // PALETTE_COLORS, lbWindow, SDL, vsync_enabled
 #include "bflib_vidsurface.h"  // lbDrawSurface (goes away when the framebuffer migrates)
 #include "bflib_mouse.h"       // LbMouseOnBeginSwap/EndSwap (software cursor around present)
+#include "kfx/platform/PlatformManager.h" // PlatformManager_RecreateWindowForSoftwareRenderer
 #include <SDL3_image/SDL_image.h> // IMG_SavePNG (screenshots)
 #include "post_inc.h"
 
 bool RendererSoftware::Init()
 {
-    return true;
+    // Every mode this fork registers ORs in KFX_WF_OPENGL under !_WIN32 (see
+    // LbRegisterVideoMode, bflib_video.c), so the window this backend inherits
+    // -- whether it fell back from a declined/failed GL backend, or was pinned
+    // here directly -- may still carry SDL_WINDOW_OPENGL. Strip it (and
+    // SDL_WINDOW_VULKAN) before ensure_present_target() creates an SDL_Renderer
+    // over that window: harmless on Linux, where SDL's default render driver
+    // is "opengl" regardless of the flag, but load-bearing on macOS, where the
+    // default is Metal and a Metal renderer over a GL-flagged window is
+    // exactly the failure this avoids. A no-op once the flag is already gone
+    // (no window yet, or a previous call already stripped it), so repeat mode
+    // changes while software stays active cost nothing here.
+    return PlatformManager_RecreateWindowForSoftwareRenderer() != 0;
 }
 
 void RendererSoftware::Shutdown()

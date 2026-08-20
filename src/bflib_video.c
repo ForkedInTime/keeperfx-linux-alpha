@@ -572,24 +572,6 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
         }
     }
 
-#ifndef _WIN32
-    // Attach the icon to the window itself. This is what X11 taskbars read; on
-    // Wayland it is ignored in favour of the app_id set before SDL_Init above,
-    // so both are needed to cover the two display servers. Non-fatal: a missing
-    // icon should never stop the game starting.
-    if (lbWindowIcon == NULL) {
-        char icon_path[2048];
-        lbWindowIcon = IMG_Load(LbFileCaseInsensitivePath("fxdata/keeperfx_icon.png",
-                                                          icon_path, sizeof(icon_path)));
-        if (lbWindowIcon == NULL) {
-            WARNLOG("Could not load window icon 'fxdata/keeperfx_icon.png': %s", SDL_GetError());
-        }
-    }
-    if (lbWindowIcon != NULL) {
-        SDL_SetWindowIcon(lbWindow, lbWindowIcon);
-    }
-#endif
-
     // The engine renders 8-bit indexed into a standalone draw surface; the software
     // backend presents it through an SDL_Renderer + texture (which is incompatible with
     // a window surface, so we no longer call SDL_GetWindowSurface here). SDL3 does not
@@ -626,6 +608,35 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     // in main() runs before any window does. It also re-arms the new backend's
     // palette, which is what a mode change used to lose.
     RendererReinit();
+
+#ifndef _WIN32
+    // Attach the icon to the window itself. This is what X11 taskbars read; on
+    // Wayland it is ignored in favour of the app_id set before SDL_Init above,
+    // so both are needed to cover the two display servers. Non-fatal: a missing
+    // icon should never stop the game starting.
+    //
+    // Deliberately placed after RendererReinit() rather than right after the
+    // window is created above: the software backend can recreate the window out
+    // from under lbWindow (WindowSystemSDL::RecreateForSoftwareRenderer, to
+    // strip SDL_WINDOW_OPENGL before an SDL_Renderer attaches -- see
+    // RendererSoftware::Init()), which happens inside RendererReinit(). Setting
+    // the icon before that point would land it on a window this call is about
+    // to destroy, leaving the survivor with no icon until the next mode change
+    // happened to re-run this block. Setting it here targets whichever window
+    // is actually left standing.
+    if (lbWindowIcon == NULL) {
+        char icon_path[2048];
+        lbWindowIcon = IMG_Load(LbFileCaseInsensitivePath("fxdata/keeperfx_icon.png",
+                                                          icon_path, sizeof(icon_path)));
+        if (lbWindowIcon == NULL) {
+            WARNLOG("Could not load window icon 'fxdata/keeperfx_icon.png': %s", SDL_GetError());
+        }
+    }
+    if (lbWindowIcon != NULL) {
+        SDL_SetWindowIcon(lbWindow, lbWindowIcon);
+    }
+#endif
+
     if (palette != NULL)
     {
         RendererPaletteSet(palette);

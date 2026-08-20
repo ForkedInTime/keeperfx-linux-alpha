@@ -309,8 +309,13 @@ bool WindowSystemSDL::CreateWindow(const char* title, int x, int y, int w, int h
 
 bool WindowSystemSDL::RecreateForSoftwareRenderer()
 {
+    // No window yet (the pre-window bootstrap RendererInit() call in main.cpp)
+    // is not a failure: there is nothing to strip a flag from, and the caller
+    // needs this to read as "proceed" the same way the already-stripped case
+    // below does, or the software backend can never come up before a window
+    // exists. Matches IWindowSystem's documented default (true = no-op).
     if (lbWindow == nullptr)
-        return false;
+        return true;
     SDL_WindowFlags cur_flags = SDL_GetWindowFlags(lbWindow);
     if (!(cur_flags & (SDL_WINDOW_OPENGL | SDL_WINDOW_VULKAN)))
         return true;
