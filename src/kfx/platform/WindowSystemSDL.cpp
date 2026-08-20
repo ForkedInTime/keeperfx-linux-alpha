@@ -286,6 +286,11 @@ bool WindowSystemSDL::CreateWindow(const char* title, int x, int y, int w, int h
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        // macOS requirement: without forward-compatible, macOS grants a legacy 2.1
+        // context instead of the requested 3.3 core one, and every #version 330
+        // core shader in this backend fails to compile. No-op on Linux, where the
+        // context is already core profile. Do not remove as dead weight.
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         sdl3_flags |= SDL_WINDOW_OPENGL;
     }

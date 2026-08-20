@@ -41,6 +41,7 @@
 
 #include "bflib_basics.h"
 #include "bflib_render_glworld.h"
+#include "bflib_video.h" // vsync_enabled
 
 /* Set by RendererGL when a context is up; see the header for who reads it.
  * Sits above the _WIN32 split for visibility, not for portability: this file is
@@ -827,20 +828,26 @@ TbBool gl_present_init(SDL_Window *window, int fb_width, int fb_height)
         return false;
     }
     /* Presentation pacing, overridable with KFX_VSYNC:
-     *    1 (default) vsync on -- SwapWindow blocks until the next vblank.
-     *   -1           adaptive -- vsync when a frame is on time, tear instead of
+     *    1  vsync on  -- SwapWindow blocks until the next vblank.
+     *   -1  adaptive  -- vsync when a frame is on time, tear instead of
      *                waiting a whole extra refresh when it is late.
-     *    0           off      -- never block, tears freely.
+     *    0  off       -- never block, tears freely.
      *
      * This matters because SwapWindow's wait lands inside the frame's measured
      * draw time. With plain vsync a frame that misses its vblank by a fraction
      * of a millisecond waits for the whole next one, which at 144Hz turns a
      * marginal frame into a visible ~7ms stall. Adaptive trades a tear for that
-     * stall. The default is unchanged; this only makes the alternatives testable
-     * without a rebuild.
+     * stall.
+     *
+     * The default (when KFX_VSYNC is unset) follows the game's own vsync_enabled
+     * setting (src/bflib_video.h), so the in-game option controls this backend
+     * the same as it controls the software one. vsync_enabled is a plain bool
+     * and cannot express adaptive, which is why KFX_VSYNC survives as an
+     * explicit power-user override: set it and it wins outright, letting
+     * adaptive (or a forced on/off) be tested without touching the config.
      */
     {
-        int want = gl_env_int("KFX_VSYNC", 1);
+        int want = gl_env_int("KFX_VSYNC", vsync_enabled ? 1 : 0);
         // SDL3 returns bool (true on success) where SDL2 returned 0 on success, so
         // these have to be negated rather than compared against 0 -- written the
         // SDL2 way they compile clean and log a failure every time they succeed.
