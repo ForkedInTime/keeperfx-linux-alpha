@@ -853,8 +853,12 @@ TbBool gl_present_init(SDL_Window *window, int fb_width, int fb_height)
         // SDL2 way they compile clean and log a failure every time they succeed.
         if (!SDL_GL_SetSwapInterval(want)) {
             LbWarnLog("gl_present: swap interval %d unavailable: %s\n", want, SDL_GetError());
-            if ((want != 1) && !SDL_GL_SetSwapInterval(1)) {
-                LbWarnLog("gl_present: vsync (SDL_GL_SetSwapInterval) unavailable: %s\n", SDL_GetError());
+            // Only the adaptive request (-1) falls back to plain vsync here. An
+            // explicit off (0) that the driver/compositor refuses must NOT be
+            // promoted to on -- that is the opposite of what was asked for, so
+            // it is left alone and SwapWindow runs at whatever SDL left in effect.
+            if ((want == -1) && !SDL_GL_SetSwapInterval(1)) {
+                LbWarnLog("gl_present: adaptive vsync unavailable, vsync (SDL_GL_SetSwapInterval) fallback also unavailable: %s\n", SDL_GetError());
             }
         }
         // SDL3 reports the interval through an out-parameter instead of returning it.
