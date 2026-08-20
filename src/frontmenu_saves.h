@@ -47,6 +47,7 @@ void gui_load_game_maintain(struct GuiButton *gbtn);
 void draw_load_button(struct GuiButton *gbtn);
 void gui_save_game(struct GuiButton *gbtn);
 void gui_delete_save_maintain(struct GuiButton *gbtn);
+void gui_delete_confirm_header_maintain(struct GuiButton *gbtn);
 void draw_delete_save_button(struct GuiButton *gbtn);
 void gui_ask_delete_save(struct GuiButton *gbtn);
 void gui_delete_save_confirmed(struct GuiButton *gbtn);

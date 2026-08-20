@@ -105,6 +105,17 @@ bool PlatformWindows::VideoInit()
     return true;
 }
 
+TbBool PlatformWindows::TrashFile(const char* /* abs_path */)
+{
+    // A real Recycle Bin move belongs here (SHFileOperation with FOF_ALLOWUNDO, or
+    // IFileOperation::MoveItem on newer SDKs), but it is untestable in this fork's
+    // build environment -- there is no mingw toolchain here to compile or run it
+    // against. Rather than ship an unverified WinAPI path, decline outright so the
+    // caller's own retained save/trash/ fallback (see delete_save_game() in
+    // game_saves.c) engages unconditionally on Windows.
+    return false;
+}
+
 namespace {
 
 MCIDEVICEID g_redbook_device = 0;

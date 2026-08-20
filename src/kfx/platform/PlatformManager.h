@@ -36,6 +36,11 @@ int          PlatformManager_IsCursorInWindow(void);
 int          PlatformManager_RecreateWindowForSoftwareRenderer(void);
 int          PlatformManager_GetDisplayRefreshRate(void);
 
+// Move abs_path into the OS-native trash/recycle bin. Returns 1 on success, 0
+// on failure ("not trashed" -- see IPlatform::TrashFile for the
+// false-means-untouched contract the caller relies on to fall back safely).
+int          PlatformManager_TrashFile(const char* abs_path);
+
 #ifdef __cplusplus
 }
 #endif

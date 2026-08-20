@@ -23,6 +23,8 @@ public:
     void ShutdownSteam() override;
 
     bool VideoInit() override;
+
+    TbBool TrashFile(const char* abs_path) override;
 };
 
 #endif // PLATFORM_LINUX_H

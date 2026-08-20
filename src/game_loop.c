@@ -804,6 +804,9 @@ static TbBool wait_at_frontend(void)
     }
     // Init load/save catalogue
     initialise_load_game_slots();
+    // Evict aged-out / over-count fallback-trash entries (save/trash/) once per
+    // run, rather than on the delete path -- see purge_save_trash_fallback().
+    purge_save_trash_fallback();
 
     #ifdef FUNCTESTING
     if(flag_is_set(start_params.functest_flags, FTF_Enabled)) //override for functional tests

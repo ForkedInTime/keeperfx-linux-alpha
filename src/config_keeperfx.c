@@ -64,6 +64,8 @@ unsigned long features_enabled = 0;
 TbBool exit_on_lua_error = false;
 TbBool FLEE_BUTTON_DEFAULT = false;
 TbBool IMPRISON_BUTTON_DEFAULT = false;
+long save_trash_max_count = 10;
+long save_trash_max_days = 30;
 
 /**
  * Language 3-char abbreviations.
@@ -163,6 +165,8 @@ const struct NamedCommand conf_commands[] = {
   {"ROTATE_AROUND_MOUSE"           , 43},
   {"VSYNC"                         , 44},
   {"RELATIVE_MOUSE_MODE"           , 45},
+  {"TRASH_MAX_COUNT"               , 46},
+  {"TRASH_MAX_DAYS"                , 47},
   {NULL,                   0},
   };
 
@@ -1009,6 +1013,28 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               features_enabled |= Ft_RelativeMouseMode;
           else
               features_enabled &= ~Ft_RelativeMouseMode;
+          break;
+      case 46: // TRASH_MAX_COUNT
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          {
+            i = atoi(word_buf);
+          }
+          if ((i >= 0) && (i <= 32768)) {
+              save_trash_max_count = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 47: // TRASH_MAX_DAYS
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          {
+            i = atoi(word_buf);
+          }
+          if ((i >= 0) && (i <= 32768)) {
+              save_trash_max_days = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
           break;
       case ccr_comment:
           break;

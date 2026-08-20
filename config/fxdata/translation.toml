@@ -139,3 +139,12 @@ _RUS = "Удалить: Удалить это сохранение"
 _SPA = "Eliminar: Eliminar esta partida guardada"
 _SWE = "Radera: Radera detta sparade spel"
 _UKR = "Видалити: Видалити це збереження"
+
+# Header line of the "are you sure" dialog for deleting a saved game
+# (gui_delete_confirm_header_maintain in frontmenu_saves.c). Deleting a save
+# moves it to the trash rather than erasing it outright, so this dialog gets
+# its own wording instead of the shared "are you sure" text used elsewhere
+# (e.g. quitting) -- this one is not a plain label, not a hover tooltip, so no
+# header:detail colon here.
+[SAVE_TRASH_CONFIRM]
+ENG = "Move save to Trash?"
