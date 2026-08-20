@@ -43,7 +43,9 @@
 #include "bflib_render_glworld.h"
 
 /* Set by RendererGL when a context is up; see the header for who reads it.
- * Defined outside the _WIN32 split so the Windows stub build links too. */
+ * Sits above the _WIN32 split for visibility, not for portability: this file is
+ * not in Makefile's object list, so it is a Linux-only translation unit and the
+ * stubs at the bottom serve a Windows build that is not currently wired up. */
 TbBool lbUseGLPresent = false;
 
 #ifndef _WIN32

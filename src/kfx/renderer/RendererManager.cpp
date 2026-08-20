@@ -1,7 +1,12 @@
 #include "pre_inc.h"
 #include "kfx/renderer/RendererManager.h"
 #include "kfx/renderer/RendererSoftware.h"
+#ifndef _WIN32
+// The GPU backend is Linux-only in this fork: bflib_render_gl.c is not in the
+// Windows build's object list at all, so referring to RendererGL there would be
+// an undefined reference rather than a backend that merely declines to start.
 #include "kfx/renderer/RendererGL.h"
+#endif
 #include "bflib_basics.h"
 #include "bflib_video.h"
 #include "post_inc.h"
@@ -21,7 +26,9 @@ static IRenderer* create_renderer(RendererType type)
 {
     switch (type)
     {
+#ifndef _WIN32
         case RENDERER_OPENGL:   return new RendererGL();
+#endif
         case RENDERER_SOFTWARE: return new RendererSoftware();
         default:                return nullptr;
     }
@@ -35,10 +42,18 @@ int RendererInit(RendererType type)
 
     // AUTO prefers the GPU backend and drops to software when it cannot come up:
     // no GL 3.3, or simply no window yet at the first call. Anything else is
-    // taken literally, so forcing a backend stays a one-word change.
-    static const RendererType auto_order[] = { RENDERER_OPENGL, RENDERER_SOFTWARE };
+    // taken literally, so forcing a backend stays a one-word change. Where the
+    // GPU backend is not built, AUTO is software and nothing else -- it must not
+    // fall through a type that has no factory case.
+    static const RendererType auto_order[] = {
+#ifndef _WIN32
+        RENDERER_OPENGL,
+#endif
+        RENDERER_SOFTWARE,
+    };
     const RendererType* order   = (type == RENDERER_AUTO) ? auto_order : &type;
-    const int           n_order = (type == RENDERER_AUTO) ? 2 : 1;
+    const int           n_order = (type == RENDERER_AUTO)
+                                ? (int)(sizeof(auto_order) / sizeof(auto_order[0])) : 1;
 
     for (int i = 0; i < n_order; i++)
     {
@@ -50,12 +65,17 @@ int RendererInit(RendererType type)
         }
         if (!rend->Init())
         {
-            // Never silent: a GPU backend that quietly stopped being selected is
-            // a tenfold present cost that nobody notices for a month.
-            if (type == RENDERER_AUTO)
-                SYNCLOG("Renderer backend '%s' unavailable; trying the next one", rend->GetName());
-            else
+            // Never silent once there is a window to judge against: a GPU backend
+            // that quietly stopped being selected is a tenfold present cost that
+            // nobody notices for a month. Before the window exists, though, a
+            // backend that needs one is *expected* to decline -- that is the
+            // bootstrap, not a failure -- and saying so makes an ordinary startup
+            // read like an OpenGL fault in every log a user sends us. The backend
+            // records the real reason at SYNCDBG(4) either way.
+            if (type != RENDERER_AUTO)
                 ERRORLOG("Renderer '%s' failed to initialise", rend->GetName());
+            else if (lbWindow != NULL)
+                SYNCLOG("Renderer backend '%s' unavailable; trying the next one", rend->GetName());
             delete rend;
             continue;
         }
