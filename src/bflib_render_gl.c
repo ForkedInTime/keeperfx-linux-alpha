@@ -1314,6 +1314,11 @@ void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch)
     SDL_GL_SwapWindow(gl.window);
 }
 
+TbBool gl_present_postfx_active(void)
+{
+    return gl.inited && gl.postfx_active;
+}
+
 void gl_present_shutdown(void)
 {
     if (gl.context != NULL) {
@@ -1369,6 +1374,10 @@ void gl_present_frame(const void *fb_pixels, int fb_width, int fb_height, int pi
 void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch)
 {
     (void)rgba; (void)w; (void)h; (void)pitch;
+}
+TbBool gl_present_postfx_active(void)
+{
+    return false;
 }
 void gl_present_shutdown(void)
 {

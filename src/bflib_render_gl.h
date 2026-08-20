@@ -86,6 +86,16 @@ void gl_present_frame(const void *fb_pixels, int fb_width, int fb_height, int pi
  */
 void gl_present_frame_rgba(const void *rgba, int w, int h, int pitch);
 
+/** True when the post-FX chain (bloom/tonemap/grade, KFX_POSTFX=1) is the
+ *  active present path for the current frame.
+ *
+ * Screenshots are saved from the pre-post-FX indexed surface (see
+ * RendererGL::ScheduleScreenshot); callers that care whether that surface
+ * matches the on-screen image read this first. Always false when the
+ * backend is not inited, and always false on Windows, where the backend is
+ * stubbed. */
+TbBool gl_present_postfx_active(void);
+
 /** Tear down all GL objects and the GL context. Safe to call when not inited. */
 void gl_present_shutdown(void);
 

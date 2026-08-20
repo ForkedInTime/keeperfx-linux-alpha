@@ -5,6 +5,7 @@
 #include "bflib_vidsurface.h"  // lbDrawSurface (goes away when the framebuffer migrates)
 #include "bflib_mouse.h"       // LbMouseOnBeginSwap/EndSwap (software cursor around present)
 #include "bflib_render_gl.h"   // gl_present_* -- every GL call this backend makes
+#include <SDL3_image/SDL_image.h> // IMG_SavePNG (screenshots)
 #include "post_inc.h"
 
 bool RendererGL::Init()
@@ -87,12 +88,42 @@ void RendererGL::UnlockFramebuffer()
 
 bool RendererGL::ScheduleScreenshot(const char* path, int fmt)
 {
-    // Deliberately unimplemented here: saving lbDrawSurface would miss anything
-    // the GPU adds after the palette lookup (the post-FX chain), so what a
-    // screenshot should contain on this backend is a decision of its own.
-    (void)path;
-    (void)fmt;
-    return false;
+    if (lbDrawSurface == NULL)
+        return false;
+    // Decision: always save the pre-post-FX indexed surface, exactly like
+    // RendererSoftware does -- even when the post-FX chain (bloom/tonemap/
+    // grade, KFX_POSTFX=1) is the active present path and the screen is
+    // showing something the surface no longer matches. Deliberate, not an
+    // oversight:
+    //  - It keeps screenshots byte-identical in content across backends
+    //    (AUTO can pick either one on a given machine), rather than having
+    //    the same key produce a different kind of image depending on which
+    //    backend won.
+    //  - Post-FX is an opt-in local "atmosphere" toggle, off by default; the
+    //    indexed surface is the faithful classic frame, which is the more
+    //    useful thing to archive and share (bug reports, comparisons) than
+    //    one player's exposure/bloom/grade settings baked in.
+    //  - A correct post-FX capture needs glReadPixels(GL_BACK) timed to land
+    //    between gl_run_composite() and SDL_GL_SwapWindow() in
+    //    gl_present_frame(), with the letterboxed viewport cropped back out
+    //    and a vertical flip undone -- real GL surface area (see
+    //    gl_present_postfx_active()'s doc comment) that a debug/QoL feature
+    //    does not need to earn just because it is possible.
+    if (gl_present_postfx_active())
+    {
+        SYNCDBG(2, "Screenshot captures the pre-post-FX frame; "
+                    "post-FX (KFX_POSTFX=1) output is not included");
+    }
+    bool ok;
+    switch (fmt)
+    {
+        case 1:  ok = IMG_SavePNG(lbDrawSurface, path); break;
+        case 2:  ok = SDL_SaveBMP(lbDrawSurface, path); break;
+        default: return false;
+    }
+    if (!ok)
+        ERRORLOG("Screenshot save failed (%s): %s", path, SDL_GetError());
+    return ok;
 }
 
 void RendererGL::PresentFrame()
