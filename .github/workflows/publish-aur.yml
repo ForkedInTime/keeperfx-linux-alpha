@@ -263,6 +263,16 @@ jobs:
             IdentitiesOnly yes
           EOF
 
+          # Diagnostics: this step reported "Host key verification failed" with both
+          # a scanned and a pinned known_hosts, so print what ssh actually sees
+          # rather than guessing at it again.
+          echo "--- HOME=[$HOME] whoami=$(whoami) ---"
+          ls -la ~/.ssh/
+          echo "--- known_hosts ---"; cat ~/.ssh/known_hosts
+          echo "--- config ---"; cat ~/.ssh/config
+          echo "--- ssh handshake ---"
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -vv aur@aur.archlinux.org 2>&1 | grep -iE "known_hosts|host key|Offering|Authenticat|debug1: Connect|Permission|Server accepts" | head -20 || true
+
           git config --global user.name  'KeeperFX Tux Edition CI'
           git config --global user.email 'noreply@users.noreply.github.com'
 
