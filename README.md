@@ -196,11 +196,25 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   are needed for the icon to actually appear. Fixed for X11 and Wayland alike, in every install method.
 
 **In-game quality of life**
-- **Delete a saved game.** The engine never could — the only way to reclaim one of the eight slots
-  was to overwrite it blind. Every slot on the Save and Load menus now carries a skull button
-  (Bullfrog's own "dead keeper" symbol) that asks first and **names the save it is about to
-  delete**. Clicking away from a save-name you are typing no longer freezes the menu, in any text
-  field in the game.
+- **Delete a saved game, and get it back.** The engine never could delete one — the only way to
+  reclaim a slot was to overwrite it blind. Every slot on the Save and Load menus now carries a
+  skull button (Bullfrog's own "dead keeper" symbol) that asks first and **names the save it is
+  about to delete**. Deleting moves the save to your **desktop Trash**, where *Restore* puts it
+  back where it belongs — it is the freedesktop standard, so your own file manager handles it. In
+  a sandbox that cannot reach a real Trash, the game keeps its own instead: the 10 most recent
+  deletions for 30 days, whichever comes first, both configurable. The list also closes up when
+  you delete, rather than leaving an `UNUSED` hole in the middle of it. Clicking away from a
+  save-name you are typing no longer freezes the menu, in any text field in the game.
+- **Your saved games survive an engine update.** A save is a raw copy of the engine's internal
+  state, so a single field added anywhere inside it makes every earlier save unreadable — the
+  bytes are intact, they simply mean something different to the newer engine. Upstream added one
+  four-byte field once and every save in existence stopped loading, silently. Three things now
+  stand in the way: loading an incompatible save **says so and returns you to the menu** instead
+  of the game quitting outright; **the engine that wrote your saves is kept** when you update
+  (three releases deep, on all three install methods) so those campaigns stay playable; and the
+  build **refuses to release** at all if the save format has moved without someone deciding it
+  should. Saves are never modified or deleted by any of this — a save always opens in the version
+  that wrote it.
 
 **Native Linux launcher** *(the KeeperFX team's `keeperfx-launcher-qt`, made to run natively)*
 - The team's Qt settings launcher compiles cross-platform but was written Windows-first (it launched the game
@@ -537,6 +551,33 @@ git merge upstream/master                   # merge (resolve any conflicts)
 </details>
 
 ## ❓ FAQ
+
+### Can I switch between stable and alpha without losing my saved games?
+
+Yes, and you can switch back. Your save files are never modified or deleted — but **a save opens
+in the version that wrote it**, so they do not travel between channels.
+
+In practice: a campaign tells you it needs the latest alpha, you switch to alpha, play it, then
+switch back to stable — and your stable saves are exactly where you left them. The reverse is
+equally true: progress you make on alpha stays on alpha, because stable cannot read it either.
+What you cannot do is start a campaign on one channel and continue it on the other.
+
+This is not a policy, it is the save format: a save is a raw copy of the engine's internal state,
+so it only makes sense to an engine laid out the same way. When a save cannot be loaded the game
+tells you so and returns you to the menu, and the engine that *can* read it is kept when you
+update — so the campaign is a version switch away, not lost.
+
+### How do I play a campaign my current version can no longer load?
+
+Run the version that saved it. Updating keeps the previous engine automatically, three releases
+deep, so it is already on your machine:
+
+- **Arch (AUR)** — `keeperfx-tux-previous` lists what is kept and sets up an isolated copy of the
+  game to play one. Its saves are separate from your current game and it cannot write to it.
+- **AppImage / Flatpak** — the engines are kept beside your game directory, under `previous/`.
+
+Nothing is copied out of your current install without being asked, and nothing you do there can
+touch the campaigns you are playing now.
 
 ### How do I install DK1 on Linux?
 
