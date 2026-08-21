@@ -28,6 +28,27 @@ if [ ! -e "$GAMEDIR/keeperfx.cfg" ] && [ -e /usr/share/keeperfx-tux/keeperfx.cfg
     cp /usr/share/keeperfx-tux/keeperfx.cfg "$GAMEDIR/keeperfx.cfg"
     chmod u+w "$GAMEDIR/keeperfx.cfg"
 fi
+
+# The folders the user installs content into must be their own, not links into the
+# read-only package. The engine's wrapper does this for the whole game directory,
+# but it only runs when the GAME is launched -- and installing a workshop map
+# happens in the launcher, which a user can open without ever starting the game.
+# Left to the engine's wrapper, "Install" fails until the player happens to launch
+# the game once, with an error naming a folder they never chose.
+#
+# Only the drop folders are handled here; the rest of the assembly stays where it
+# belongs. Same reason version.txt is refreshed below rather than seeded once: the
+# launcher is what users open first.
+for drop in levels/personal levels/legacy; do
+    target="$GAMEDIR/$drop"
+    src="/usr/share/keeperfx-tux-data/$drop"
+    [ -d "$src" ] || continue
+    if [ -L "$target" ]; then
+        rm -f "$target"            # removing a link never touches what it points at
+    fi
+    mkdir -p "$target" 2>/dev/null || continue
+    cp -rn "$src/." "$target/" 2>/dev/null || true
+done
 # Refresh it every time, not just when missing. pacman upgrades the engine
 # without touching the game directory, so a seed-once copy leaves version.txt
 # reporting whatever was installed the first time the launcher ever ran. The
