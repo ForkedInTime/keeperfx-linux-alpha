@@ -236,7 +236,16 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+          # Not silenced, and checked: an empty known_hosts makes every clone below
+          # fail with "Host key verification failed", which used to be misread as
+          # "the package is not on the AUR yet" and exit 0 -- a green run that
+          # published nothing. If the key cannot be fetched, stop here where the
+          # reason is still visible.
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          if ! grep -q 'aur.archlinux.org' ~/.ssh/known_hosts; then
+            echo "::error::could not fetch the AUR host key; refusing to continue (the publish would silently do nothing)"
+            exit 1
+          fi
           cat > ~/.ssh/config <<'EOF'
           Host aur.archlinux.org
             User aur
@@ -254,12 +263,22 @@ jobs:
             # imported yet (that first push has to be done by hand, CI only updates an
             # existing repo), and the AUR being in maintenance. Neither means this
             # release failed, so report and stop rather than failing the run.
+            #
+            # EVERYTHING ELSE MUST FAIL. This used to treat any non-maintenance error
+            # as "not imported yet" and exit 0, so a host-key failure -- which is what
+            # actually happened on the first real auto-publish -- produced a green run
+            # that pushed nothing, while the package sat on the AUR the whole time.
+            # A publish that does not publish has to be loud.
             if grep -qi 'maintenance' /tmp/aurerr; then
               echo "::notice::the AUR is in maintenance; skipping the AUR publish for this release"
-            else
-              echo "::notice::keeperfx-tux is not on the AUR yet; run packaging/aur/import-to-aur.sh once, then re-run this workflow"
+              exit 0
             fi
-            exit 0
+            if grep -qiE 'does not exist|not found|no such repository' /tmp/aurerr; then
+              echo "::notice::keeperfx-tux is not on the AUR yet; run packaging/aur/import-to-aur.sh once, then re-run this workflow"
+              exit 0
+            fi
+            echo "::error::could not reach the AUR repository; nothing was published. See the git error above."
+            exit 1
           fi
           # Every local file named in the PKGBUILD's source=() has to land in the
           # AUR repository -- that repository IS the build context, so one file
