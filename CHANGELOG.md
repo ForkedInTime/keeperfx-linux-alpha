@@ -4,6 +4,55 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5554 — 2026-08-21 — alpha
+
+**Updating the game no longer costs you your saved games.** A save is a raw copy of the
+engine's internal state, so one field added anywhere inside it makes every existing save
+unreadable — the bytes are intact, they simply mean something different to the newer
+engine. That happened between 1.4.0.5488 and this line: a single 4-byte field added
+upstream, multiplied by the 12,288 objects the engine tracks, moved the save format by 49KB
+and campaigns stopped loading with no warning. Three changes make that the last time.
+
+- **The game tells you, instead of vanishing.** Loading an incompatible save used to quit
+  the game outright — the window disappeared, with the reason only in the log. It now says
+  *"Saved by another game version — play it with that version"* and returns you to the
+  menu. The check runs before anything is loaded, so a refusal no longer leaves the session
+  half-switched to another campaign.
+- **The engine that wrote your save is kept.** Upgrading preserves the outgoing engine,
+  three releases deep. `keeperfx-tux-previous` lists what is kept and prepares an isolated
+  copy of the game to play one — its own save directory, holding only the saves that
+  version can read. It cannot write to your current game. The launcher does the same for
+  installs it updates itself.
+- **A release that breaks saves cannot ship unnoticed.** The build measures the save format
+  and compares it against a recorded baseline. If it moves, the release fails and has to be
+  accepted deliberately, and the notes say plainly that older saves will not load. The same
+  check runs on incoming upstream merges, which is where this one arrived from.
+
+**Deleting a saved game is no longer permanent.** Delete moves it to your desktop Trash,
+where *Restore* puts it back — the freedesktop standard, so your own file manager handles
+it. Where a real Trash is unreachable, such as a sandboxed Flatpak, the game keeps its own:
+the 10 most recent deletions for 30 days, whichever limit is reached first, both
+configurable with `TRASH_MAX_COUNT` and `TRASH_MAX_DAYS`.
+
+- The save list closes up when you delete, instead of leaving an `UNUSED` hole in the
+  middle of it.
+- Panel and button artwork missing from a loaded sheet is skipped rather than drawn as a
+  magenta checkerboard — which is what upstream's new possession-panel arrow looked like.
+- A malformed line in `keeperfx.cfg` is now reported and ignored, instead of silently
+  adopting an unrelated value from the line before it.
+
+**The fork's GPU present path now sits behind upstream's renderer seam.** Upstream
+introduced an `IRenderer` abstraction; this fork's OpenGL path — which is roughly ten times
+faster at getting a frame to the screen than the software blit — now lives behind it rather
+than beside it. That keeps the two in step instead of diverging, and leaves the door open
+for a macOS build: the GL context is created forward-compatible, which macOS requires.
+Screenshots work on the GL backend, and the VSync setting is honoured rather than ignored.
+
+Merged from upstream KeeperFX: a scrollbar and unlimited slots in the save/load menus,
+minimap zoom keys, a togglable relative mouse mode, more reliable multiplayer server
+messaging and lobby status, configurable boulder-destroys-room, allies kept safe from
+disease, and fixes for rectangular-map tagging, damage flashing and distorted panel icons.
+
 ## 1.4.0.5488 — 2026-08-10 — alpha
 
 **The creature-list corruption is fixed at the root.** The crash this fork guarded against
