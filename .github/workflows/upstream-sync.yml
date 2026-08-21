@@ -155,6 +155,18 @@ jobs:
           rm -f src/ver_defs.h
           make -f linux.mk BUILD_NUMBER="$(git rev-list --count HEAD)" VER_SUFFIX=alpha -j"$(nproc)"
 
+      # The save-format break of 2026-08-19 arrived exactly this way: an
+      # upstream commit added one field to struct Thing, the merge was clean,
+      # the build was green, and five campaigns in progress became unloadable.
+      # Nothing in the diff looked like a save-format change. Not fatal to the
+      # PR -- taking upstream may still be right -- but it must be on the PR
+      # before anyone clicks Merge, not discovered by a player afterwards.
+      - name: Save-format check (does this merge invalidate every saved game?)
+        id: saveformat
+        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: packaging/ci/check-save-format.sh
+
       - name: Open issue — merged clean but build failed
         if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'failure'
         run: |
@@ -178,6 +190,17 @@ jobs:
             echo "🔄 **Weekly upstream sync** — merged \`dkfans/keeperfx@master\` cleanly and it **builds** ✅"
             echo "_(compile-checked in CI; not playtested — merge ships it to users, so give it a glance.)_"
             echo
+            if [ "${{ steps.saveformat.outcome }}" != "success" ]; then
+              echo "> [!WARNING]"
+              echo "> **This merge breaks save compatibility.** \`sizeof(struct Game)\` changed, and the engine"
+              echo "> refuses any save whose size does not match the running build — so merging this makes"
+              echo "> every existing saved game, everyone's, unloadable."
+              echo ">"
+              echo "> The [run log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) shows the sizes and the likely field."
+              echo "> Either keep the new state out of \`struct Game\`, or accept the break by updating"
+              echo "> \`packaging/ci/save-format-baseline\` on this branch — read that file first."
+              echo
+            fi
             echo "### New upstream commits"
             cat new_commits.md
             echo; echo

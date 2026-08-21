@@ -118,6 +118,31 @@ a fresh release the archive is legitimately not there yet, so the workflow logs
 a notice and skips rather than failing. Re-run it once the AppImage build has
 uploaded.
 
+## The save-format guard
+
+A saved game is a raw memory dump of `struct Game`, and the engine loads one
+only if its length equals `sizeof(struct Game)` for the running build. That
+number is therefore the save format version, and a field added anywhere inside
+any struct it reaches invalidates every save in existence — with no warning, and
+nothing in the diff that looks like a save-format change. It happened on
+2026-08-19 (`+ GameTurn last_turn_damaged` in `struct Thing`, ×12288 things) and
+cost five campaigns in progress.
+
+`build-linux-alpha.yml` now measures the size of the build it is about to ship
+and compares it with `packaging/ci/save-format-baseline`; a mismatch fails the
+release build. The same check runs on the weekly upstream-sync PR, which is the
+direction the break came from. Run it yourself before tagging:
+
+```bash
+packaging/ci/check-save-format.sh
+```
+
+If it fails, read `packaging/ci/save-format-baseline` — the choice is to keep the
+new state out of `struct Game`, or to accept the break by editing that file in
+the same commit. Accepting it is a user-visible decision: it belongs in the
+changelog, and the release body gets an automatic "saves from earlier versions
+cannot be loaded" warning, written by the release build off that file's history.
+
 ## Build system
 
 This fork builds with `linux.mk`, not upstream's CMake. The reasons — their

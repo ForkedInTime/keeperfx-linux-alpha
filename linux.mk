@@ -391,6 +391,15 @@ clean:
 
 .PHONY: all clean
 
+# Prints sizeof(struct Game), which is the save-file format version whether or
+# not anyone intended it to be -- see packaging/ci/save_format_probe.c. Built
+# with $(KFX_CFLAGS), the same variable the engine's C objects below use, so the
+# number cannot drift from the shipped binary's: a flag or define added to the
+# engine build is added to this one in the same edit. Deliberately NOT in
+# KFX_SOURCES -- it has its own main() and is not part of the game.
+bin/save-format-probe: packaging/ci/save_format_probe.c src/ver_defs.h | bin $(DEPS_EXTRACTED)
+	$(CC) $(KFX_CFLAGS) -o $@ $<
+
 bin/keeperfx: $(KFX_OBJECTS) $(TOML_OBJECTS) deps/libcurl/lib/libcurl.a | bin
 	$(CXX) -o $@ $(KFX_OBJECTS) $(TOML_OBJECTS) $(KFX_LDFLAGS)
 
