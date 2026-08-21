@@ -136,8 +136,9 @@ TextStringId save_load_failure_stridx(void);
 
 /** True when the catalogue entry records a build other than the running one.
  *  Such a save may still load - the version is only fatal when the engine's
- *  saved state block actually changed shape - so this only drives how the save
- *  is labelled in the list, never whether it is offered. */
+ *  saved state block actually changed shape - so this only picks which of the
+ *  two failure messages to show when a load is refused, never whether the
+ *  save is offered or how it is labelled in the list. */
 TbBool save_entry_from_other_build(const struct CatalogueEntry *centry);
 
 TbBool load_game(long slot_idx);

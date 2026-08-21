@@ -103,34 +103,6 @@ static long loadsave_row_slot(const struct GuiButton *gbtn)
     return loadsave_compacted_slot(gui_vscroll_offset + row);
 }
 
-/** Tag a save-list row with the build that wrote it, when that is not the
- *  build now running.
- *
- *  A save from another build may or may not still load - the save format
- *  embeds a raw dump of the engine's game state, so it depends on whether that
- *  struct changed - but it is the only warning the player can get before
- *  clicking, so the row says which build it came from rather than claiming it
- *  is broken. Such saves stay in the list, stay clickable and stay deletable;
- *  hiding them would strand the player with files they can neither use nor
- *  remove.
- *
- *  The mark is the bare build number rather than a phrase: it needs no
- *  translation, it cannot push a long save name off the end of a 300px row,
- *  and it is the same number the log and the error box quote. */
-static void append_other_build_mark(char *buf, size_t buf_len, long slot_num)
-{
-    if ((slot_num < 0) || (slot_num >= save_game_catalogue_count))
-        return;
-    const struct CatalogueEntry *centry = &save_game_catalogue[slot_num];
-    if ((centry->flags & CEF_InUse) == 0)
-        return;
-    if (!save_entry_from_other_build(centry))
-        return;
-    size_t len = strlen(buf);
-    if (len + 1 < buf_len)
-        snprintf(buf + len, buf_len - len, " [%u]", (unsigned int)centry->game_ver_build);
-}
-
 void gui_load_game_maintain(struct GuiButton *gbtn)
 {
     long slot_num = loadsave_row_slot(gbtn);
@@ -187,7 +159,6 @@ void draw_load_button(struct GuiButton *gbtn)
     if (gbtn->content.str != NULL)
     {
         snprintf(gui_textbuf, sizeof(gui_textbuf), "%s", gbtn->content.str);
-        append_other_build_mark(gui_textbuf, sizeof(gui_textbuf), loadsave_row_slot(gbtn));
         draw_button_string(gbtn, (gbtn->width*32 + 16)/gbtn->height, gui_textbuf);
     }
 }
@@ -373,12 +344,7 @@ void frontend_draw_load_game_button(struct GuiButton *gbtn)
     int tx_units_per_px = (gbtn->height * 13 / 11) * 16 / LbTextLineHeight();
     int height = LbTextLineHeight() * tx_units_per_px / 16;
     LbTextSetWindow(gbtn->scr_pos_x, gbtn->scr_pos_y, gbtn->width, height);
-    // Same marking as the in-game list (append_other_build_mark), composed into
-    // a local buffer because this list draws straight from the catalogue.
-    char rowtext[SAVE_TEXTNAME_LEN + 16];
-    snprintf(rowtext, sizeof(rowtext), "%s", save_game_catalogue[i].textname);
-    append_other_build_mark(rowtext, sizeof(rowtext), i);
-    LbTextDrawResized(0, 0, tx_units_per_px, rowtext);
+    LbTextDrawResized(0, 0, tx_units_per_px, save_game_catalogue[i].textname);
 }
 
 void frontend_load_game_up_maintain(struct GuiButton *gbtn)
