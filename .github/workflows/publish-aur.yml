@@ -236,14 +236,24 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
-          # Not silenced, and checked: an empty known_hosts makes every clone below
-          # fail with "Host key verification failed", which used to be misread as
-          # "the package is not on the AUR yet" and exit 0 -- a green run that
-          # published nothing. If the key cannot be fetched, stop here where the
-          # reason is still visible.
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-          if ! grep -q 'aur.archlinux.org' ~/.ssh/known_hosts; then
-            echo "::error::could not fetch the AUR host key; refusing to continue (the publish would silently do nothing)"
+          # The AUR host keys, pinned rather than fetched with ssh-keyscan at run
+          # time. keyscan appeared to succeed in this container and the clone still
+          # failed with "Host key verification failed", so the publish depended on a
+          # step that could not be relied on -- and, being trust-on-first-use,
+          # verified nothing anyway. These are the keys aur.archlinux.org serves;
+          # the ed25519 fingerprint is SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4,
+          # which is the value published on the Arch wiki and can be checked against
+          # it. If the AUR ever rotates its keys this fails loudly, which is correct.
+          cat > ~/.ssh/known_hosts <<'KNOWN_HOSTS'
+          aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN
+          aur.archlinux.org ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLMiLrP8pVi5BFX2i3vepSUnpedeiewE5XptnUnau+ZoeUOPkpoCgZZuYfpaIQfhhJJI5qgnjJmr4hyJbe/zxow=
+          KNOWN_HOSTS
+          # The heredoc above is indented to match this YAML block; strip that
+          # leading whitespace or ssh ignores every line as malformed.
+          sed -i 's/^[[:space:]]*//' ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          if ! grep -q '^aur.archlinux.org ssh-ed25519 ' ~/.ssh/known_hosts; then
+            echo "::error::the pinned AUR host key did not land in known_hosts; refusing to continue (the publish would silently do nothing)"
             exit 1
           fi
           cat > ~/.ssh/config <<'EOF'
