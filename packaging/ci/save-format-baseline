@@ -1,0 +1,66 @@
+# Save-file compatibility baseline for KeeperFX: Tux Edition
+#
+# READ THIS BEFORE CHANGING THE NUMBER. If CI pointed you here, the number is
+# almost certainly NOT the thing that is wrong.
+#
+# WHAT THIS IS
+# ------------
+# A KeeperFX saved game is a raw memory dump of `struct Game`. When the engine
+# loads one, the ONLY compatibility check it performs is:
+#
+#     if (hdr.len != sizeof(struct Game))   -> refuse the save
+#                                              (src/game_saves.c)
+#
+# There is no version field, no field-by-field serialisation, no migration
+# path. So `sizeof(struct Game)` IS the save format version, whether anyone
+# intended it to be or not.
+#
+# `struct Game` is enormous and deeply nested -- it contains, among much else,
+# `struct Thing things_data[THINGS_COUNT]` with THINGS_COUNT = 8192 + 4096 =
+# 12288. Adding one field ANYWHERE inside ANY struct it reaches changes its
+# size, and every saved game ever written by an earlier build stops loading.
+# There is no warning, in review or at runtime: the player just finds their
+# campaign gone.
+#
+# WHY THE GUARD EXISTS
+# --------------------
+# On 2026-08-19 an upstream merge added a single field to `struct Thing`:
+#
+#     + GameTurn last_turn_damaged;      // 4 bytes
+#
+# multiplied by 12288 things, that is 49152 bytes, and `sizeof(struct Game)`
+# went 53269285 -> 53318509 between builds 5488 and 5539. Five campaigns in
+# progress became unloadable. Roughly a hundred builds before that one had all
+# been save-compatible, which is exactly why nobody was watching. Nothing in
+# the diff looked like a save-format change, because in this codebase nothing
+# ever does.
+#
+# HOW TO REACT WHEN THE CHECK FAILS
+# ---------------------------------
+# The check (packaging/ci/check-save-format.sh) measures the real size with
+# packaging/ci/save_format_probe.c, built by linux.mk with the engine's own
+# compiler flags, and compares it with the value below.
+#
+# A mismatch means: the change in your working tree WILL invalidate every
+# existing saved game, for you and for every player who updates.
+#
+#   * If that was NOT intended -- the usual case for an upstream merge, a
+#     "harmless" new field, a struct reorder -- do not touch this file. Fix the
+#     change instead. A field that only matters at runtime can live outside
+#     `struct Game`; if it must be per-thing, ask whether an existing padding
+#     byte or an unused field can carry it.
+#
+#   * If it IS intended and the break is accepted, update the number below in
+#     the SAME commit as the change that caused it, and say so in the commit
+#     message and the changelog. The release notes then have to tell players
+#     their saves will not load -- CI writes that warning automatically, off
+#     this file's history.
+#
+# Never "just make CI green" here. Silencing this line is the one action that
+# throws away other people's saved games with no trace.
+#
+# The value is for the x86_64 System V ABI, the only target this fork ships.
+# It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
+# mismatch is always a source change, never a toolchain difference.
+
+sizeof_struct_game=53318509

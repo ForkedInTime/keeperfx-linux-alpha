@@ -81,6 +81,14 @@ jobs:
           VER="$(sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h | tr ' ' '-')"
           echo "PKG_VER=$VER" >> "$GITHUB_ENV"
 
+      # A saved game is a raw dump of `struct Game`, and the engine loads one
+      # only if its length matches sizeof(struct Game) for the running build --
+      # so any field added anywhere inside that struct silently invalidates
+      # every save in existence. Run against the build that is about to ship,
+      # before it is packaged. See packaging/ci/save-format-baseline.
+      - name: Check the save format against the tracked baseline
+        run: packaging/ci/check-save-format.sh
+
       - name: Generate the UTF-8 fonts (needed since upstream #4920)
         run: |
           cd tools/fxfontmaker
@@ -119,3 +127,65 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: keeperfx-linux-alpha-*-x86_64-portable.tar.gz
+
+      # When the save format changed, players find out by loading a campaign and
+      # not finding it. The release body is the one place they read before
+      # updating, so say it there. Driven off the baseline file's history
+      # between this release's tag and the previous one: a human accepting the
+      # break edits that file, and this warning follows from the edit rather
+      # than from anyone remembering to write it.
+      #
+      # Edits made with GITHUB_TOKEN do not trigger further workflow runs, so
+      # rewriting the body here cannot loop back through the release triggers.
+      - name: Warn in the release notes if earlier saves cannot be loaded
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Without this, gh resolves to whatever repo it infers -- it has
+          # answered for dkfans/keeperfx before now.
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          # Newest release that is not the one being published. gh lists them
+          # newest-first, so this is the version players are updating FROM.
+          PREV=$(gh release list --limit 100 --json tagName \
+                   --jq '[.[] | select(.tagName != env.TAG)] | first.tagName // empty')
+          if [ -z "$PREV" ]; then
+            echo "No earlier release to compare the save format against."
+            exit 0
+          fi
+          echo "Comparing the save format with ${PREV}."
+          git fetch --tags --force --quiet origin || true
+
+          # Not `|| true`: a broken script must not look like "nothing to warn
+          # about". Exit 3 is the one benign failure -- PREV predates the
+          # baseline file, so the question is unanswerable, not answered "no".
+          set +e
+          NOTE=$(packaging/ci/check-save-format.sh --release-note "$PREV")
+          RC=$?
+          set -e
+          if [ "$RC" -eq 3 ]; then
+            echo "::notice::${PREV} predates the save-format guard; whether the format changed cannot be determined."
+            exit 0
+          elif [ "$RC" -ne 0 ]; then
+            echo "::error::the save-format release note could not be produced (exit ${RC})."
+            exit "$RC"
+          fi
+          if [ -z "$NOTE" ]; then
+            echo "Save format unchanged since ${PREV}; existing saves keep working."
+            exit 0
+          fi
+
+          BODY=$(gh release view "$TAG" --json body --jq .body)
+          if printf '%s' "$BODY" | grep -qF '<!-- save-format-guard -->'; then
+            echo "The release body already carries the warning; leaving it alone."
+            exit 0
+          fi
+
+          printf '%s\n\n%s\n' "$NOTE" "$BODY" > release_body.md
+          gh release edit "$TAG" --notes-file release_body.md
+          echo "::warning title=Saves invalidated::${TAG} changed the save format; the release notes now warn that earlier saves cannot be loaded."
+          echo "Prepended to the release notes:"
+          cat release_body.md
