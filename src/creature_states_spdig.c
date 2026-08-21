@@ -1835,10 +1835,37 @@ short creature_picks_up_trap_object(struct Thing *thing)
         set_start_state(thing);
         return 0;
     }
-    if (thing_is_dragged_or_pulled(cratetng)
-      || (traptng->class_id != TCls_Trap) || (crate_thing_to_workshop_item_model(cratetng) != traptng->model))
+    if (thing_is_dragged_or_pulled(cratetng))
     {
-        WARNLOG("Cannot use %s index %d to refill %s index %d",thing_model_name(cratetng),(int)cratetng->index,thing_model_name(traptng),(int)traptng->index);
+        // Ordinary contention, not a fault: between the moment this crate was
+        // earmarked and the moment its worker arrived, somebody else picked it
+        // up. Only creature_drag_object() raises the dragged flags, so the crate
+        // is in another creature's hands right now and will be consumed or put
+        // back down by them. Abandoning the task and re-deciding is the correct
+        // response, so this is a debug note rather than a warning.
+        SYNCDBG(7,"Cannot use %s index %d to refill %s index %d: another creature is carrying the crate",
+            thing_model_name(cratetng),(int)cratetng->index,thing_model_name(traptng),(int)traptng->index);
+        cctrl->arming_thing_id = 0;
+        set_start_state(thing);
+        return 0;
+    }
+    if (traptng->class_id != TCls_Trap)
+    {
+        // The earmarked trap index no longer holds a trap - a stale or reused
+        // thing index. That is an inconsistency and stays a warning.
+        WARNLOG("Cannot use %s index %d to refill %s index %d: the target is class %d, not a trap",
+            thing_model_name(cratetng),(int)cratetng->index,thing_model_name(traptng),(int)traptng->index,(int)traptng->class_id);
+        cctrl->arming_thing_id = 0;
+        set_start_state(thing);
+        return 0;
+    }
+    if (crate_thing_to_workshop_item_model(cratetng) != traptng->model)
+    {
+        // Crate and trap disagree on the model. Either the crate was mis-chosen
+        // or trapdoor.cfg maps this crate to a different trap. Real problem.
+        WARNLOG("Cannot use %s index %d to refill %s index %d: the crate arms trap model %d, not %d",
+            thing_model_name(cratetng),(int)cratetng->index,thing_model_name(traptng),(int)traptng->index,
+            (int)crate_thing_to_workshop_item_model(cratetng),(int)traptng->model);
         cctrl->arming_thing_id = 0;
         set_start_state(thing);
         return 0;
