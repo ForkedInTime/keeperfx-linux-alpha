@@ -159,7 +159,20 @@ jobs:
           echo "Comparing the save format with ${PREV}."
           git fetch --tags --force --quiet origin || true
 
-          NOTE=$(packaging/ci/check-save-format.sh --release-note "$PREV" || true)
+          # Not `|| true`: a broken script must not look like "nothing to warn
+          # about". Exit 3 is the one benign failure -- PREV predates the
+          # baseline file, so the question is unanswerable, not answered "no".
+          set +e
+          NOTE=$(packaging/ci/check-save-format.sh --release-note "$PREV")
+          RC=$?
+          set -e
+          if [ "$RC" -eq 3 ]; then
+            echo "::notice::${PREV} predates the save-format guard; whether the format changed cannot be determined."
+            exit 0
+          elif [ "$RC" -ne 0 ]; then
+            echo "::error::the save-format release note could not be produced (exit ${RC})."
+            exit "$RC"
+          fi
           if [ -z "$NOTE" ]; then
             echo "Save format unchanged since ${PREV}; existing saves keep working."
             exit 0

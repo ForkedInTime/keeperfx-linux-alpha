@@ -17,8 +17,9 @@
 #   check-save-format.sh --release-note <git-ref>
 #       Print the markdown warning for a release body IF the baseline differs
 #       from the one at <git-ref> (the previous release's tag). Prints nothing
-#       when the format is unchanged, so the caller can append unconditionally.
-#       Reads git history only -- it does not build anything.
+#       and exits 0 when the format is unchanged; exits 3 when <git-ref>
+#       predates the baseline file, i.e. the answer is not knowable rather than
+#       "no". Reads git history only -- it does not build anything.
 #
 # Run it by hand exactly as CI does, from the repository root:
 #     packaging/ci/check-save-format.sh
@@ -48,7 +49,7 @@ if [ "${1:-}" = "--release-note" ]; then
         # nothing is the safe answer: a wrong "your saves are dead" banner on a
         # release that did not break anything costs more trust than a missing one.
         echo "no ${BASELINE_FILE} at ${prev_ref}; cannot tell whether the save format changed" >&2
-        exit 0
+        exit 3
     fi
     prev="$(printf '%s\n' "$prev_blob" | read_baseline)"
 
