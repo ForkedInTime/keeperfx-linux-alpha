@@ -148,3 +148,46 @@ _UKR = "Видалити: Видалити це збереження"
 # header:detail colon here.
 [SAVE_TRASH_CONFIRM]
 ENG = "Move save to Trash?"
+
+# Shown when a saved game will not load. The save format embeds a raw dump of
+# the engine's game state, so a build that changes it cannot read older saves;
+# that is a different thing from a damaged file, and the player can act on the
+# difference (an old save is simply finished with, a damaged one may be worth
+# investigating), so the two cases get their own wording.
+# Both are message-box lines rather than hover tooltips, so no header:detail
+# colon here -- see DELETE_SAVED_GAME above for the tooltip convention.
+[SAVE_LOAD_FAILED_VERSION]
+ENG = "Saved by another game version - cannot be loaded"
+_CHI = "由其他游戏版本保存 - 无法载入"
+_CZE = "Uloženo jinou verzí hry - nelze načíst"
+_DUT = "Opgeslagen door een andere spelversie - kan niet worden geladen"
+_FRE = "Sauvegarde d'une autre version du jeu - chargement impossible"
+_GER = "Von einer anderen Spielversion gespeichert - kann nicht geladen werden"
+_ITA = "Salvato da un'altra versione del gioco - impossibile caricare"
+_JPN = "別のバージョンで保存されたため読み込めません"
+_KOR = "다른 게임 버전에서 저장됨 - 불러올 수 없습니다"
+_LAT = "Ab alia ludi versione servatum - legi non potest"
+_POL = "Zapisano inną wersją gry - nie można wczytać"
+_POR = "Guardado por outra versão do jogo - impossível carregar"
+_RUS = "Сохранено другой версией игры - загрузка невозможна"
+_SPA = "Guardado por otra versión del juego - no se puede cargar"
+_SWE = "Sparat av en annan spelversion - kan inte laddas"
+_UKR = "Збережено іншою версією гри - завантаження неможливе"
+
+[SAVE_LOAD_FAILED_UNREADABLE]
+ENG = "This saved game is damaged and cannot be loaded"
+_CHI = "此存档已损坏，无法载入"
+_CZE = "Tato uložená hra je poškozená a nelze ji načíst"
+_DUT = "Dit opgeslagen spel is beschadigd en kan niet worden geladen"
+_FRE = "Cette sauvegarde est endommagée et ne peut être chargée"
+_GER = "Dieser Spielstand ist beschädigt und kann nicht geladen werden"
+_ITA = "Questo salvataggio è danneggiato e non può essere caricato"
+_JPN = "このセーブデータは破損しているため読み込めません"
+_KOR = "이 저장된 게임은 손상되어 불러올 수 없습니다"
+_LAT = "Hoc ludum servatum corruptum est nec legi potest"
+_POL = "Ten zapisany stan gry jest uszkodzony i nie można go wczytać"
+_POR = "Este jogo guardado está danificado e não pode ser carregado"
+_RUS = "Это сохранение повреждено и не может быть загружено"
+_SPA = "Esta partida guardada está dañada y no se puede cargar"
+_SWE = "Detta sparade spel är skadat och kan inte laddas"
+_UKR = "Це збереження пошкоджене і не може бути завантажене"

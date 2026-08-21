@@ -742,6 +742,24 @@ static TbBool faststartup_saved_packet_game(void)
     return true;
 }
 
+/** How long the "that save could not be loaded" box stays up in the frontend.
+ *  The clock starts before the frontend is re-entered, and re-entry has to
+ *  restore the video mode, reload the frontend data and fade in - several
+ *  seconds of the budget are gone before the box is ever drawn. Sized like the
+ *  comparable "map content is missing or incompatible" box in main_game.c;
+ *  Escape closes it sooner. */
+#define SAVE_LOAD_ERROR_SHOW_TIME 15000
+
+/** Menu to open on the next entry to the frontend instead of the usual startup
+ *  menu, or FeSt_INITIAL for none.
+ *
+ *  Loading a savegame happens after the frontend loop has already been left, so
+ *  a failure there cannot simply call frontend_set_state() - re-entry overwrites
+ *  it with get_startup_menu_state(). This carries the intent across, so a save
+ *  that refuses to load puts the player back on the load list they clicked in
+ *  rather than dumping them at the main menu. Consumed once. */
+static FrontendMenuState frontend_reentry_state = FeSt_INITIAL;
+
 static TbBool wait_at_frontend(void)
 {
     struct PlayerInfo *player;
@@ -867,7 +885,15 @@ static TbBool wait_at_frontend(void)
     }
     memset(scratch, 0, PALETTE_SIZE);
     RendererPaletteSet(scratch);
-    frontend_set_state(get_startup_menu_state());
+    if (frontend_reentry_state != FeSt_INITIAL)
+    {
+        FrontendMenuState reentry = frontend_reentry_state;
+        frontend_reentry_state = FeSt_INITIAL;
+        frontend_set_state(reentry);
+    } else
+    {
+        frontend_set_state(get_startup_menu_state());
+    }
 
     // Once the Mouse Sprite initialization is complete, the sprite's position needs to be reset because it defaults to (0, 0).
     // Note that we cannot use LbMoveGameCursorToHostCursor for this, because the buffer position may remain unchanged.
@@ -984,8 +1010,15 @@ static TbBool wait_at_frontend(void)
           RendererPresentFrame();
           if (!load_game(game.save_game_slot))
           {
-              ERRORLOG("Loading game %d failed; quitting.",(int)game.save_game_slot);
-              quit_game = 1;
+              // load_game() refuses a save it cannot read before touching any
+              // global state, so there is nothing to unwind: go back to the
+              // load list with an error box saying why, rather than closing the
+              // game on a player who only clicked an old save.
+              WARNLOG("Loading game %d failed; returning to the load menu.",(int)game.save_game_slot);
+              create_frontend_error_box(SAVE_LOAD_ERROR_SHOW_TIME, save_load_failure_text());
+              game.save_game_slot = flgmem;
+              frontend_reentry_state = FeSt_FELOAD_GAME;
+              return false;
           }
           game.save_game_slot = flgmem;
           break;

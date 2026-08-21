@@ -28,6 +28,8 @@
 #include "config.h"
 #include "config_keeperfx.h"
 #include "config_campaigns.h"
+#include "config_strings.h"
+#include "config_translation.h"
 #include "kfx/platform/PlatformManager.h"
 #include "dungeon_stats.h"
 #include "config_creature.h"
@@ -578,8 +580,68 @@ void purge_save_trash_fallback(void)
     free(entries);
 }
 
+enum SaveLoadFailure last_save_load_failure = SaveLoadFail_None;
+
+TbBool save_entry_from_other_build(const struct CatalogueEntry *centry)
+{
+    if (centry == NULL)
+        return false;
+    return (centry->game_ver_major != VER_MAJOR) || (centry->game_ver_minor != VER_MINOR) ||
+           (centry->game_ver_release != VER_RELEASE) || (centry->game_ver_build != VER_BUILD);
+}
+
+TextStringId save_load_failure_stridx(void)
+{
+    // Resolved on every call rather than cached: campaigns, maps and mods may
+    // each add their own translation.toml, and that renumbers the table.
+    const char *alias = (last_save_load_failure == SaveLoadFail_Version)
+                      ? "SAVE_LOAD_FAILED_VERSION" : "SAVE_LOAD_FAILED_UNREADABLE";
+    TextStringId stridx = get_string_id_by_alias(alias);
+    return (stridx > 0) ? stridx : GUIStr_Error;
+}
+
+const char *save_load_failure_text(void)
+{
+    const char *text = get_string(save_load_failure_stridx());
+    return (text != NULL) ? text : "";
+}
+
+/** Pre-flight scan of a savegame's chunk table: is its game-state block the
+ *  size this build compiles?
+ *
+ *  The save format embeds a raw dump of `struct Game`, so any change to that
+ *  struct invalidates every existing save. load_game_chunks() only discovers
+ *  that half way through - by then it has already switched campaign, reloaded
+ *  the stats files and re-opened a Lua script, which is exactly the state we
+ *  must not leave behind when the answer is "this save cannot be loaded".
+ *  Walking the headers first costs a few seeks and lets the load be refused
+ *  before anything global is touched.
+ *
+ *  Deliberately keyed on the chunk size, not on the version fields: a save from
+ *  a different build whose struct Game happens to be unchanged still loads
+ *  fine today, and refusing it on the version number alone would be a
+ *  regression. The file position is left undefined; the caller seeks back. */
+static TbBool save_file_state_chunk_fits(TbFileHandle fhandle)
+{
+    if (LbFileSeek(fhandle, 0, Lb_FILE_SEEK_BEGINNING) < 0)
+        return false;
+    while (!LbFileEof(fhandle))
+    {
+        struct FileChunkHeader hdr;
+        if (LbFileRead(fhandle, &hdr, sizeof(struct FileChunkHeader)) != sizeof(struct FileChunkHeader))
+            break;
+        if (hdr.id == SGC_GameOrig)
+            return (hdr.len == sizeof(struct Game));
+        if (LbFileSeek(fhandle, hdr.len, Lb_FILE_SEEK_CURRENT) < 0)
+            break;
+    }
+    // No game-state chunk at all: not a savegame we can restore.
+    return false;
+}
+
 TbBool load_game(long slot_num)
 {
+    last_save_load_failure = SaveLoadFail_Unreadable;
     if (!ensure_catalogue_slot(slot_num))
     {
         ERRORLOG("Outranged slot index %d",(int)slot_num);
@@ -589,7 +651,6 @@ TbBool load_game(long slot_num)
 //  unsigned char buf[14];
 //  char cmpgn_fname[CAMPAIGN_FNAME_LEN];
     SYNCDBG(6,"Starting");
-    reset_eye_lenses();
     {
         // Use fname only here - it is overwritten by next use of prepare_file_fmtpath()
         char* fname = prepare_file_fmtpath(FGrp_Save, saved_game_filename, slot_num);
@@ -612,16 +673,26 @@ TbBool load_game(long slot_num)
     }
     struct CatalogueEntry* centry = &save_game_catalogue[slot_num];
 
-        // Check if the game version is compatible
-    if ((centry->game_ver_major != VER_MAJOR) || (centry->game_ver_minor != VER_MINOR) ||
-        (centry->game_ver_release != VER_RELEASE) || (centry->game_ver_build != VER_BUILD))
+    TbBool other_build = save_entry_from_other_build(centry);
+    if (other_build)
     {
         WARNLOG("loading savegame made in different version %d.%d.%d.%d current %d.%d.%d.%d",
             (int)centry->game_ver_major, (int)centry->game_ver_minor,
             (int)centry->game_ver_release, (int)centry->game_ver_build,
             VER_MAJOR, VER_MINOR, VER_RELEASE, VER_BUILD);
     }
+    // Refuse an unloadable save before any global state is disturbed, so the
+    // caller can put the player back in the menu with the session intact.
+    if (!save_file_state_chunk_fits(fh))
+    {
+        LbFileClose(fh);
+        last_save_load_failure = other_build ? SaveLoadFail_Version : SaveLoadFail_Unreadable;
+        WARNMSG("Saved game in slot %d cannot be loaded by this build (%s).",(int)slot_num,
+            other_build ? "made by another version" : "unusable game state block");
+        return false;
+    }
 
+    reset_eye_lenses();
     LbFileSeek(fh, 0, Lb_FILE_SEEK_BEGINNING);
     // Here is the actual loading
     if (load_game_chunks(fh,centry) != GLoad_SavedGame)
@@ -631,9 +702,11 @@ TbBool load_game(long slot_num)
         {
             game.loaded_level_number = centry->level_num;
         }
+        last_save_load_failure = other_build ? SaveLoadFail_Version : SaveLoadFail_Unreadable;
         WARNMSG("Couldn't correctly load saved game in slot %d.",(int)slot_num);
         return false;
     }
+    last_save_load_failure = SaveLoadFail_None;
     my_player_number = game.local_plyr_idx;
     LbFileClose(fh);
     // Re-apply creature sound overrides: SGC_GameOrig restored game.conf with

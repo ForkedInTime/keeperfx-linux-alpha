@@ -66,6 +66,17 @@ enum GameLoadStatus {
     GLoad_PacketStart,
     GLoad_PacketContinue,
 };
+
+/** Why the last load_game() call failed, so the menus can say something useful
+ *  instead of the caller having to guess. Set on every load_game() entry. */
+enum SaveLoadFailure {
+    SaveLoadFail_None = 0,
+    /** The file is intact but its game-state block is not the shape this build
+     *  compiles - i.e. it was written by a different build of the engine. */
+    SaveLoadFail_Version,
+    /** Missing, truncated, or otherwise unusable regardless of version. */
+    SaveLoadFail_Unreadable,
+};
 /******************************************************************************/
 #pragma pack(1)
 
@@ -112,6 +123,23 @@ TbBool fill_game_catalogue_entry(struct CatalogueEntry *centry,const char *textn
 TbBool save_game_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry);
 TbBool save_packet_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry);
 /******************************************************************************/
+extern enum SaveLoadFailure last_save_load_failure;
+
+/** Translated one-line explanation of the last load_game() failure, for an
+ *  error box. Never NULL. */
+const char *save_load_failure_text(void);
+
+/** Same text as a string id, for create_error_box(). Falls back to the stock
+ *  GUIStr_Error when the translation.toml entry is missing (a mod may ship its
+ *  own translation.toml without it). */
+TextStringId save_load_failure_stridx(void);
+
+/** True when the catalogue entry records a build other than the running one.
+ *  Such a save may still load - the version is only fatal when the engine's
+ *  saved state block actually changed shape - so this only drives how the save
+ *  is labelled in the list, never whether it is offered. */
+TbBool save_entry_from_other_build(const struct CatalogueEntry *centry);
+
 TbBool load_game(long slot_idx);
 TbBool save_game(long slot_idx);
 TbBool initialise_load_game_slots(void);
