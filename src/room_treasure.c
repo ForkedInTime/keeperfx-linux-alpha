@@ -149,15 +149,66 @@ struct Thing *treasure_room_eats_gold_piles(struct Room *room, MapSlabCoord slb_
     return hoardtng;
 }
 
+/**
+ * Sums what a gold storage room is currently holding, without changing anything.
+ * @param room The room to measure.
+ * @param gold_out Receives the total gold stored in the room's hoards.
+ * @param wealth_out Receives the total wealth size of those hoards, ie. the
+ *   room's true used capacity.
+ */
+static void measure_gold_hoardes_in_room(struct Room *room, GoldAmount *gold_out, int *wealth_out)
+{
+    GoldAmount gold = 0;
+    int wealth = 0;
+    unsigned long k = 0;
+    long i = room->slabs_list;
+    while (i > 0)
+    {
+        MapSlabCoord slb_x = slb_num_decode_x(i);
+        MapSlabCoord slb_y = slb_num_decode_y(i);
+        struct Thing* gldtng = find_gold_hoarde_at(slab_subtile_center(slb_x), slab_subtile_center(slb_y));
+        if (!thing_is_invalid(gldtng) && (gldtng->valuable.gold_stored > 0))
+        {
+            gold += gldtng->valuable.gold_stored;
+            wealth += get_wealth_size_of_gold_amount(gldtng->valuable.gold_stored);
+        }
+        i = get_next_slab_number_in_room(i);
+        k++;
+        if (k > game.map_tiles_x * game.map_tiles_y)
+        {
+            ERRORLOG("Infinite loop detected when sweeping room slabs");
+            break;
+        }
+    }
+    *gold_out = gold;
+    *wealth_out = wealth;
+}
+
 void count_gold_hoardes_in_room(struct Room *room)
 {
     GoldAmount all_gold_amount = 0;
     int all_wealth_size = 0;
     long wealth_size_holds = game.conf.rules[room->owner].gameplay.gold_per_hoard / get_wealth_size_types_count();
     GoldAmount max_hoard_size_in_room = wealth_size_holds * room->total_capacity / room->slabs_count;
-    // First, set the values to something big; this will prevent logging warnings on add/remove_gold_from_hoarde()
-    room->used_capacity = room->total_capacity;
-    room->capacity_used_for_storage = room->used_capacity * wealth_size_holds;
+    // The sweep below calls add_gold_to_hoarde() and remove_gold_from_hoarde(),
+    // which maintain room->used_capacity incrementally and rightly complain when
+    // it does not cover the hoard they were handed. Seed both counters with what
+    // the room is actually holding, so those calls start from the truth.
+    //
+    // This used to seed used_capacity with total_capacity and capacity_used_for_
+    // storage with the matching amount of gold - "something big", to keep those
+    // calls quiet. That only holds until the seed is spent: each oversized hoard
+    // the sweep shrinks takes its old wealth size out of the seed and puts a
+    // smaller one back, so on a full room that has just lost capacity (a slab
+    // sold or destroyed, a claim, any drop in efficiency) the seed runs down and
+    // every remaining hoard trips the guard and is clamped away.
+    {
+        GoldAmount seed_gold;
+        int seed_wealth;
+        measure_gold_hoardes_in_room(room, &seed_gold, &seed_wealth);
+        room->used_capacity = seed_wealth;
+        room->capacity_used_for_storage = seed_gold;
+    }
     unsigned long k = 0;
     long i = room->slabs_list;
     while (i > 0)
