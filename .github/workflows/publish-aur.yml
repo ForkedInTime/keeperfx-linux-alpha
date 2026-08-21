@@ -89,9 +89,22 @@ jobs:
         run: |
           # One split package builds both outputs, so there is a single version to
           # bump and engine/data cannot drift apart.
+          current_pkgver=$(sed -n 's|^pkgver=||p' PKGBUILD)
           sed -i "s|^_tag=.*|_tag=${{ steps.tag.outputs.tag }}|" PKGBUILD
           sed -i "s|^pkgver=.*|pkgver=${{ steps.tag.outputs.pkgver }}|" PKGBUILD
-          sed -i "s|^pkgrel=.*|pkgrel=1|" PKGBUILD
+          # pkgrel resets to 1 for a NEW version: a release is always a fresh build.
+          # A republish of the SAME version must NOT reset it. That happens when the
+          # packaging changes without the engine -- shipping a pacman hook ahead of
+          # the release that needs it, for instance, which has to be done because
+          # pacman reads hooks at transaction start and a hook shipped in the
+          # breaking upgrade never runs for it. Against a live -4, a -1 is a
+          # downgrade: pacman would not offer it and the change would silently
+          # never reach anyone.
+          if [ "$current_pkgver" != "${{ steps.tag.outputs.pkgver }}" ]; then
+            sed -i "s|^pkgrel=.*|pkgrel=1|" PKGBUILD
+          else
+            echo "::notice::Republishing ${current_pkgver}; keeping pkgrel=$(sed -n 's|^pkgrel=||p' PKGBUILD) rather than resetting to 1"
+          fi
           grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
 
       - name: Recompute the data archive checksum
@@ -279,8 +292,9 @@ jobs:
           if git diff --cached --quiet; then
             echo "AUR already up to date"
           else
-            # pkgrel is forced to 1 above: a release is always a fresh build.
-            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}-1"
+            # Read the rel back rather than assuming 1: a same-version republish
+            # keeps the rel the recipe carries (see the bump step above).
+            git commit -m "Update to ${{ steps.tag.outputs.pkgver }}-$(sed -n 's|^pkgrel=||p' PKGBUILD)"
             git push
           fi
 

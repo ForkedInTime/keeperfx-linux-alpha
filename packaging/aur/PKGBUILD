@@ -18,7 +18,16 @@ pkgver=1.4.0.5425
 # rel 4: ship the pacman hook that reports a library break the soname
 # dependencies below cannot catch, and pick up the launcher fix that stops a
 # crash report carrying a log the failing run never wrote.
-pkgrel=4
+#
+# rel 5: ship the previous-engine hook AHEAD of the engine release that needs it.
+# A saved game is a raw dump of struct Game, and that struct grew between this
+# stable and the next one, so upgrading past this point makes every existing
+# save unreadable. The hook preserves the outgoing engine so those saves stay
+# playable -- but pacman reads hooks at transaction start, so a hook shipped IN
+# the breaking upgrade does not run for it. It has to already be installed.
+# Hence this: same engine tag, same pkgver, packaging only. Nothing here changes
+# the game; it puts the safety net in place before the fall.
+pkgrel=5
 arch=('x86_64')
 url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
 license=('GPL-2.0-or-later')
