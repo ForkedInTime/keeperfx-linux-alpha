@@ -256,11 +256,24 @@ jobs:
           # put it there and `git add -A` leaves untouched files alone, so it
           # would have silently gone stale the moment it changed.
           for f in PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop \
-                   keeperfx-tux-launcher.sh keeperfx-tux.hook keeperfx-tux-libcheck.sh; do
+                   keeperfx-tux-launcher.sh keeperfx-tux.hook keeperfx-tux-libcheck.sh \
+                   keeperfx-tux-stash.sh keeperfx-tux-stash.hook \
+                   keeperfx-tux-unstash.hook keeperfx-tux-previous.sh; do
             [ -f "packaging/aur/$f" ] \
               || { echo "::error::packaging/aur/$f is missing; the AUR build context would be incomplete"; exit 1; }
             cp "packaging/aur/$f" /tmp/aur/
           done
+          # The list above is maintained by hand and has already been wrong once.
+          # Rather than trust the next person to remember, check it against the
+          # PKGBUILD itself: every plain (non-URL) entry in source=() is a local
+          # file that must have been copied. Catches the omission here, where the
+          # message can say so, instead of in every user's failing build.
+          awk '/^source=\(/,/^\)/' packaging/aur/PKGBUILD \
+            | grep -oE "^[[:space:]]*'[^']+'" | tr -d " '" \
+            | while read -r want; do
+                [ -f "/tmp/aur/$want" ] \
+                  || { echo "::error::packaging/aur/$want is in the PKGBUILD's source=() but is not copied to the AUR repository; add it to the list above"; exit 1; }
+              done || exit 1
           cd /tmp/aur
           git add -A
           if git diff --cached --quiet; then
