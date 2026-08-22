@@ -238,6 +238,9 @@ jobs:
             exit 1
           fi
           echo "payload base taken from: $BASE_TAG"
+          # Shell variables do not survive into the next step, and the patch step
+          # needs to know what this payload was built on top of.
+          echo "BASE_TAG=$BASE_TAG" >> "$GITHUB_ENV"
           wget -q "https://github.com/${GITHUB_REPOSITORY}/releases/download/${BASE_TAG}/keeperfx-linux-alpha-x86_64-full.7z"
           7z x -bso0 keeperfx-linux-alpha-x86_64-full.7z -opkg
 
@@ -306,6 +309,104 @@ jobs:
           # engine, launcher and data the AppImage does.
           ( cd "$P" && 7z a -bso0 "$GITHUB_WORKSPACE/keeperfx-linux-alpha-x86_64-full.7z" . )
           ls -la "$GITHUB_WORKSPACE/keeperfx-linux-alpha-x86_64-full.7z"
+
+      # Update patches: the same payload, minus everything that did not change.
+      #
+      # Almost nothing moves between releases. Measured on 1.4.0.5425 -> 1.4.0.5488,
+      # 40 of 5674 files differed and the patch is 8.5MB against a 392MB full
+      # payload -- 2.2% of the download, and most of that is the two binaries.
+      # Sending the whole payload every time costs a player 390MB to receive what is
+      # usually an engine and a launcher.
+      #
+      # Purely additive: full.7z is still built and attached exactly as before, and
+      # nothing consumes these yet. A patch that cannot be built is a warning, never
+      # a failed release -- the full payload remains the guaranteed path.
+      #
+      # One patch per plausible starting point: the payload base (the previous
+      # stable, already downloaded above) and, when different, the newest release on
+      # this release's own channel. The FROM version is in the filename so a client
+      # can tell which patch applies to it.
+      - name: Build update patches
+        continue-on-error: true
+        working-directory: launcher
+        run: |
+          set -uo pipefail
+          # Spelled out rather than reusing $APPDIR: that is a shell variable from an
+          # earlier step and does not exist here. The assemble step builds the AppDir
+          # at $PWD/AppDir with working-directory: launcher, so this is that path.
+          PATCH_SRC="$GITHUB_WORKSPACE/launcher/AppDir/payload"
+          if [ ! -d "$PATCH_SRC" ]; then
+              echo "::warning::no assembled payload at $PATCH_SRC; skipping patches"
+              exit 0
+          fi
+          made=0
+
+          emit_patch() {
+              local from_tag="$1" archive="$2"
+              local from_ver="${from_tag#v}"; from_ver="${from_ver%-alpha}"
+              local out="$GITHUB_WORKSPACE/keeperfx-linux-alpha-x86_64-patch-from-${from_ver}.7z"
+              echo "--- patch from ${from_tag} ---"
+              # Captured explicitly: reading $? inside an if/else branch is easy to
+              # get subtly wrong, and the difference here matters -- 2 means "nothing
+              # changed", which is normal, and anything else is a real failure.
+              bash "$GITHUB_WORKSPACE/packaging/ci/make-payload-patch.sh" \
+                   "$PATCH_SRC" "$archive" "$out"
+              local rc=$?
+              if [ "$rc" -eq 0 ]; then
+                  made=$((made + 1))
+              elif [ "$rc" -eq 2 ]; then
+                  echo "::notice::no patch from ${from_tag}: payload is unchanged"
+              else
+                  echo "::warning::could not build a patch from ${from_tag} (exit $rc)"
+              fi
+          }
+
+          # The base payload this release was assembled on top of, downloaded earlier
+          # in this job and still sitting in the working directory.
+          if [ -n "${BASE_TAG:-}" ] && [ -f keeperfx-linux-alpha-x86_64-full.7z ]; then
+              emit_patch "$BASE_TAG" "keeperfx-linux-alpha-x86_64-full.7z"
+          else
+              echo "::warning::no base payload on disk; skipping the base patch"
+          fi
+
+          # The newest release on this release's own channel, which for an alpha is a
+          # different (and more useful) starting point than the stable base.
+          CUR_TAG="${GITHUB_REF_NAME}"
+          case "$CUR_TAG" in
+              *-alpha) WANT='select(.prerelease == true)   | select(.tag_name | endswith("-alpha"))' ;;
+              *)       WANT='select(.prerelease == false)  | select(.tag_name | endswith("-alpha") | not)' ;;
+          esac
+          PREV_TAG=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            | jq -r --arg cur "$CUR_TAG" "[.[] | select(.draft == false) | $WANT | select(.tag_name != \$cur) | select(any(.assets[]; .name == \"keeperfx-linux-alpha-x86_64-full.7z\")) | .tag_name] | first // empty")
+
+          # Only if it is genuinely EARLIER than what is being released. The query
+          # asks for the newest release on this channel that is not the current tag,
+          # which on a re-run of an older release's workflow returns something newer
+          # -- and "patch-from-<a newer version>" is a backwards patch nobody can
+          # use. Compare numerically; a plain string compare orders 5488 after 55554.
+          prev_num="${PREV_TAG#v}"; prev_num="${prev_num%-alpha}"
+          cur_num="${CUR_TAG#v}";   cur_num="${cur_num%-alpha}"
+          if [ -n "$PREV_TAG" ] \
+             && [ "$(printf '%s\n%s\n' "$prev_num" "$cur_num" | sort -V | head -1)" != "$cur_num" ]; then
+              :
+          else
+              [ -n "$PREV_TAG" ] && echo "::notice::${PREV_TAG} is not earlier than ${CUR_TAG}; no same-channel patch"
+              PREV_TAG=""
+          fi
+
+          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "${BASE_TAG:-}" ]; then
+              if wget -q -O prev-payload.7z \
+                   "https://github.com/${GITHUB_REPOSITORY}/releases/download/${PREV_TAG}/keeperfx-linux-alpha-x86_64-full.7z"; then
+                  emit_patch "$PREV_TAG" "prev-payload.7z"
+                  rm -f prev-payload.7z
+              else
+                  echo "::warning::could not download ${PREV_TAG}'s payload; skipping that patch"
+              fi
+          fi
+
+          echo "patches built: $made"
+          ls -la "$GITHUB_WORKSPACE"/keeperfx-linux-alpha-x86_64-patch-from-*.7z 2>/dev/null || true
 
       - name: Get linuxdeploy + Qt plugin + appimagetool
         working-directory: launcher
@@ -417,3 +518,11 @@ jobs:
           gh release upload "${{ github.event.release.tag_name }}" \
             KeeperFX-Linux-Alpha-x86_64.AppImage \
             keeperfx-linux-alpha-x86_64-full.7z --clobber
+          # Patches attach separately and never block the release: the full payload
+          # above is the guaranteed path, and a missing patch only costs a player a
+          # larger download.
+          for p in keeperfx-linux-alpha-x86_64-patch-from-*.7z; do
+            [ -e "$p" ] || continue
+            gh release upload "${{ github.event.release.tag_name }}" "$p" --clobber \
+              || echo "::warning::could not attach $p"
+          done
