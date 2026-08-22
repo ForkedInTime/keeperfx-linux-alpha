@@ -299,6 +299,22 @@ jobs:
           # reading the same list, so shipping them means sending data purely for the
           # launcher to throw away.
           ../packaging/ci/prune-payload.sh "$P" ../docs/launcher-auto-file-removal.txt
+          # Ship the same list the prune just used.
+          #
+          # The launcher deletes retired files from a player's install by reading
+          # launcher-auto-file-removal.txt FROM THE GAME DIRECTORY -- so the copy
+          # that matters is the one in the payload, not the one in this repository.
+          # Nothing ever put it there: the payload is assembled from the previous
+          # release's payload, and this file was not in the overlay above, so the
+          # shipped copy stayed frozen at whatever it was when it first arrived.
+          # By 1.4.0.5488 the repository's list had 1582 entries and the payload's
+          # 1523, and the 59-entry gap was the deletions that never reached anyone.
+          #
+          # Among them: multiplayer/classic/map00123.{apt,lgt,tng}. That map is
+          # still shipped, without those three files -- all of which the engine
+          # reads -- so an install that kept them loaded different action points,
+          # lights and things for that map than a fresh install did.
+          cp -f ../docs/launcher-auto-file-removal.txt "$P/launcher-auto-file-removal.txt"
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
           echo "Stamped version: $(cat "$P/version.txt")"
           cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"

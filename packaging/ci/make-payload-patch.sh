@@ -89,28 +89,39 @@ if [ "$n_gone" -gt 0 ]; then
         echo "::error::$n_gone file(s) dropped from the payload but there is no launcher-auto-file-removal.txt to list them"
         exit 1
     fi
-    # Entries are absolute-from-game-root ("/campgns/x/y.dat"); comments start '#'.
-    grep -v '^[[:space:]]*#' "$REMOVAL_LIST" | sed 's|^/||' | sed 's|[[:space:]]*$||' \
+    # The list is grouped into "[1.4.0.5273]" version sections, with one path per
+    # line beneath each. Comments start '#', and paths may be written with or
+    # without a leading slash. Drop the section headers as well as the comments --
+    # left in, each header became a phantom "listed file" that matches nothing.
+    # Harmless as it happens, since a bogus extra entry can only fail to match, but
+    # it made the listed-set 16 lines longer than the truth.
+    grep -vE '^[[:space:]]*(#|\[)' "$REMOVAL_LIST" | sed 's|^/||' | sed 's|[[:space:]]*$||' \
       | grep -v '^$' | LC_ALL=C sort -u > "$WORK/removal-list.txt"
     LC_ALL=C comm -23 "$GONE" "$WORK/removal-list.txt" > "$WORK/unlisted.txt"
     n_unlisted=$(wc -l < "$WORK/unlisted.txt")
     if [ "$n_unlisted" -gt 0 ]; then
-        # A warning, not an error, and deliberately so.
+        # Fatal, because the alternative is an install that quietly differs from a
+        # fresh one and nobody finds out for months.
         #
-        # These files are dropped from the payload but not named in the removal
-        # list, so a patched install keeps them where a fresh install would not.
-        # That divergence is real and worth knowing about -- but the fix is to add
-        # them to a list that makes the launcher DELETE them from players'
-        # directories, and that is not a decision to take automatically from a set
-        # difference. levels/standard/MAP00457.une is the example that proves it:
-        # the rest of MAP00457 is still shipped, so the file is not obviously
-        # obsolete, and deleting something a level may read is worse than leaving a
-        # stale file behind.
+        # A file dropped from the payload but not named in the list is never deleted
+        # from a player's directory, so an updated install keeps it and a fresh
+        # install does not. That is not always harmless: multiplayer/classic/
+        # map00123.{apt,lgt,tng} were dropped while map00123 itself is still shipped,
+        # and .apt, .lgt and .tng are all read by the engine -- so the two installs
+        # loaded different action points, lights and things for the same multiplayer
+        # map. Players in one game, starting from different state.
         #
-        # So: report precisely, block nothing. The leftovers are inert files.
-        echo "::warning::$n_unlisted file(s) dropped from the payload are not named in launcher-auto-file-removal.txt;"
-        echo "::warning::a patched install will keep them. They are inert, but a fresh install would not have them."
+        # This was a warning while the shipped list was stale: the payload carried an
+        # old copy of launcher-auto-file-removal.txt, 59 entries behind the
+        # repository's, so genuinely-listed files looked unlisted. That is fixed
+        # where it belongs -- the payload now ships the same list the prune uses --
+        # which leaves this check meaning what it says. If it fires now, a file was
+        # retired and nobody said what should happen to the copies already out there.
+        echo "::error::$n_unlisted file(s) dropped from the payload are not named in launcher-auto-file-removal.txt."
+        echo "::error::Updated installs would keep them while fresh installs would not. Add them to the list,"
+        echo "::error::or keep shipping them. Do not leave the two kinds of install disagreeing."
         sed 's/^/  unlisted: /' "$WORK/unlisted.txt" >&2
+        exit 1
     fi
     echo "dropped files:      $n_gone ($((n_gone - n_unlisted)) named in the removal list)"
 fi
