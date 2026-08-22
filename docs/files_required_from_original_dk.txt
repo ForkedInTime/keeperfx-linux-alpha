@@ -22,6 +22,19 @@ can be used, but only those inside CD image file
 shipped with that version. The CD image has to be
 extracted or mounted to use these files.
 
+NOTE for the Tux Edition (Linux fork)
+------------------------------------
+Two entries below are NO LONGER required from your own Dungeon Keeper copy:
+
+  ./data/main.pal
+  ./data/mapfadeg.dat
+
+KeeperFX ships both itself, so this Linux port copies 14 files from your
+original game, not the 16 listed here: 11 from ./data/ and 3 from ./sound/.
+The launcher's own list (DkFiles::dataFiles / DkFiles::soundFiles) is what
+actually runs, and it is the 14. The full list is kept below because it still
+describes what the original CD contains.
+
 List of required files will follow:
 
 ./data/bluepal.dat

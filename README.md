@@ -425,6 +425,12 @@ any of these.</sub>
 
 Tested on Arch Linux (x86-64). Package **names** differ across distros, but the set is the same.
 
+> **A source checkout is not a playable game, by design.** The repository tracks the engine and the
+> campaigns' *scripts and configuration* — `campgns/keeporig` is 26 `.txt` files here, and 315 files
+> in a release, the difference being the binary map data (`.slb`, `.own`, `.tng`, `.wib`, `.lgt`).
+> That content comes from the upstream release payload during release assembly, so building from
+> source gives you an engine, and you still need a release (or the launcher) for something to play.
+
 **1. Install build dependencies** (Arch / derivatives):
 ```bash
 sudo pacman -S --needed base-devel git python \
@@ -475,17 +481,23 @@ Upstream builds with CMake and we deliberately do not. This is the single bigges
 difference between the two trees, so it is worth stating plainly rather than leaving people to
 discover it in a build error.
 
-Their CMake **does not build a working Linux target**, and each of these was measured, not assumed:
+Their CMake **does not build a working Linux target**, measured against the current tree rather
+than remembered — upstream has improved it since this section was first written, and two of the
+three problems it used to describe are gone:
 
-- **It cannot find SDL3 on Linux.** It probes pkg-config for `SDL3_image` and `SDL3_mixer`, but SDL
-  ships those modules as `sdl3-image` and `sdl3-mixer`. The check fails on *every* distribution —
-  including Arch and Fedora, which package SDL3 properly — and configuration then falls through to
-  `FetchContent`, silently rebuilding the whole of SDL from source on each configure.
-- **Its Linux dependency set is missing libraries the engine links.** `libswscale` is absent although
-  `bflib_fmvids.cpp` calls `sws_scale`, and `libepoxy` is absent entirely although the OpenGL present
-  backend needs it. `KFX_OS=linux ./build-cmake.sh` fails at link with undefined symbols.
-- **It is Windows-first.** Its `WIN32` source filter excludes only `src/linux.cpp`, so a Windows
-  build still tries to compile our OpenGL sources against headers that are not there.
+- **It configures cleanly now.** SDL3 detection was fixed: it probes `sdl3-image` and `sdl3-mixer`,
+  the names SDL actually ships, and falls back to the capitalised spellings. `cmake -S . -B build`
+  completes in seconds with no `FetchContent` fallback. It also filters platform sources correctly
+  in both directions, rather than only excluding a Linux file from Windows builds.
+- **It still does not link.** Two libraries the engine calls are absent from its Linux dependency
+  set: `libepoxy`, which every GL entry point in the OpenGL present backend resolves through, and
+  `libswscale`, which `bflib_fmvids.cpp` calls for video scaling. A full build gets all the way to
+  the link step and stops with **498 undefined `epoxy_gl*` symbols and 4 for `swscale`**, producing
+  no binary. `linux.mk` links both.
+
+So the conclusion is unchanged and the reason is now a single one: the dependency list is short by
+two libraries. That is a much smaller gap than it was, and worth revisiting rather than treating as
+permanent.
 
 None of that is a criticism of upstream: KeeperFX is a Windows project, their CMake serves their
 platform, and the Linux path in it is untested because nobody there runs it.
