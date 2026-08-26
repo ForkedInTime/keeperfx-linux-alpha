@@ -793,8 +793,6 @@ static void delete_from_party_check(const struct ScriptLine *scline)
     }
 }
 
-static TbBool get_custom_icon_from_value(const char* txt, short* icon_idx);
-
 static void display_objective_check(const struct ScriptLine *scline)
 {
     ALLOCATE_SCRIPT_VALUE(scline->command, ALL_PLAYERS);
@@ -833,28 +831,16 @@ static void display_objective_check(const struct ScriptLine *scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
-    value->shorts[5] = -1;
-
-    const char *icon = (scline->command == Cmd_DISPLAY_OBJECTIVE)
-        ? scline->tp[2] : scline->tp[3];
-    if (icon[0] != '\0' && !get_custom_icon_from_value(icon, &value->shorts[5]))
-    {
-        SCRPTERRLOG("Invalid custom icon (%s)", icon);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
-    }
-
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void display_objective_process(struct ScriptContext *context)
 {
-    set_general_objective_with_icon(context->value->shorts[0],
-        context->player_idx,
-        context->value->ulongs[2],
-        context->value->shorts[3],
-        context->value->shorts[4],
-        context->value->shorts[5]);
+    set_general_objective(context->value->shorts[0],
+    context->player_idx,
+    context->value->ulongs[2],
+    context->value->shorts[3],
+    context->value->shorts[4]);
 }
 
 static void display_player_objective_check(const struct ScriptLine* scline)
@@ -887,17 +873,6 @@ static void display_player_objective_check(const struct ScriptLine* scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
-    value->shorts[5] = -1;
-
-    const char *icon = (scline->command == Cmd_DISPLAY_PLAYER_OBJECTIVE)
-        ? scline->tp[3] : scline->tp[4];
-    if (icon[0] != '\0' && !get_custom_icon_from_value(icon, &value->shorts[5]))
-    {
-        SCRPTERRLOG("Invalid custom icon (%s)", icon);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
-    }
-
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
@@ -949,29 +924,12 @@ static void quick_objective_check(const struct ScriptLine* scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
-    value->shorts[5] = -1;
-
-    const char *icon = (scline->command == Cmd_QUICK_OBJECTIVE)
-        ? scline->tp[3] : scline->tp[4];
-    if (icon[0] != '\0' && !get_custom_icon_from_value(icon, &value->shorts[5]))
-    {
-        SCRPTERRLOG("Invalid custom icon (%s)", icon);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
-    }
-
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void quick_objective_process(struct ScriptContext* context)
 {
-    process_objective_with_icon(
-        game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT],
-        context->player_idx,
-        context->value->ulongs[2],
-        context->value->shorts[3],
-        context->value->shorts[4],
-        context->value->shorts[5]);
+    process_objective(game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT],context->player_idx, context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4]);
 }
 
 static void quick_player_objective_check(const struct ScriptLine* scline)
@@ -1022,28 +980,7 @@ static void quick_player_objective_check(const struct ScriptLine* scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
-    value->shorts[5] = -1;
-
-    const char *icon = (scline->command == Cmd_QUICK_PLAYER_OBJECTIVE)
-        ? scline->tp[4] : scline->tp[5];
-    if (icon[0] != '\0' && !get_custom_icon_from_value(icon, &value->shorts[5]))
-    {
-        SCRPTERRLOG("Invalid custom icon (%s)", icon);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
-    }
-
     PROCESS_SCRIPT_VALUE(scline->command);
-}
-
-static TbBool get_custom_icon_from_value(const char* txt, short* icon_idx)
-{
-    if (txt[0] == '\0')
-        return false;
-
-    short idx = get_icon_id(txt);
-    *icon_idx = idx;
-    return true;
 }
 
 static void quick_information_check(const struct ScriptLine* scline)
@@ -1094,19 +1031,12 @@ static void quick_information_check(const struct ScriptLine* scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
-    value->shorts[5] = -1;
-    if (scline->tp[3][0] != '\0' && !get_custom_icon_from_value(scline->tp[3], &value->shorts[5]))
-    {
-        SCRPTERRLOG("Invalid custom icon (%s)", scline->tp[3]);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
-    }
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void quick_information_process(struct ScriptContext* context)
 {
-    set_quick_information_with_icon(context->value->shorts[0], context->player_idx, context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4], context->value->shorts[5]);
+    set_quick_information(context->value->shorts[0], context->player_idx, context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4]);
 }
 
 static void quick_player_information_check(const struct ScriptLine* scline)
@@ -1199,20 +1129,13 @@ static void display_information_check(const struct ScriptLine* scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
-    value->shorts[5] = -1;
-    if (scline->tp[2][0] != '\0' && !get_custom_icon_from_value(scline->tp[2], &value->shorts[5]))
-    {
-        SCRPTERRLOG("Invalid custom icon (%s)", scline->tp[2]);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
-    }
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void display_information_process(struct ScriptContext* context)
 {
-    set_general_information_with_icon(context->value->shorts[0], context->player_idx,
-        context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4], context->value->shorts[5]);
+    set_general_information(context->value->shorts[0], context->player_idx,
+        context->value->ulongs[2], context->value->shorts[3], context->value->shorts[4]);
 }
 
 static void display_player_information_check(const struct ScriptLine* scline)
@@ -5877,17 +5800,17 @@ static void quick_message_check(const struct ScriptLine* scline)
     }
     snprintf(game.quick_messages[scline->np[0]], MESSAGE_TEXT_LEN, "%s", scline->tp[1]);
     // Store the message index in shorts[0] (bytes 0-1), NOT longs[0] (bytes 0-7): the
-    // chat icon below is written into shorts[2]/chars[6] (bytes 4-6), which alias longs[0]
+    // chat icon below is written into chars[4]/chars[5] (bytes 4-5), which alias longs[0]
     // and would otherwise corrupt the index into a huge out-of-bounds value at process
     // time (crashes e.g. the Tempest Keeper campaign's QUICK_MESSAGE(... PLAYER1)).
     value->shorts[0] = scline->np[0];
-    get_chat_icon_from_value(scline->tp[2], &value->shorts[2], &value->chars[6]);
+    get_chat_icon_from_value(scline->tp[2], &value->chars[4], &value->chars[5]);
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void quick_message_process(struct ScriptContext* context)
 {
-    message_add_fmt(context->value->chars[6], context->value->shorts[2], "%s", game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT]);
+    message_add_fmt(context->value->chars[5], context->value->chars[4], "%s", game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT]);
 }
 
 static void display_message_check(const struct ScriptLine* scline)
@@ -5902,16 +5825,16 @@ static void display_message_check(const struct ScriptLine* scline)
         return;
     }
     // Store the string id in ulongs[1] (bytes 8-15), NOT ulongs[0] (bytes 0-7): the chat
-    // icon below is written into shorts[2]/chars[6] (bytes 4-6), which alias ulongs[0] and
+    // icon below is written into chars[4]/chars[5] (bytes 4-5), which alias ulongs[0] and
     // would otherwise corrupt the id into an out-of-bounds value passed to get_string().
     value->ulongs[1] = msg_num;
-    get_chat_icon_from_value(scline->tp[1], &value->shorts[2], &value->chars[6]);
+    get_chat_icon_from_value(scline->tp[1], &value->chars[4], &value->chars[5]);
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void display_message_process(struct ScriptContext* context)
 {
-    message_add_fmt(context->value->chars[6], context->value->shorts[2], "%s", get_string(context->value->ulongs[1]));
+    message_add_fmt(context->value->chars[5], context->value->chars[4], "%s", get_string(context->value->ulongs[1]));
 }
 
 static void clear_message_check(const struct ScriptLine* scline)
@@ -6810,20 +6733,20 @@ const struct CommandDesc command_desc[] = {
   {"MAX_CREATURES",                     "PN      ", Cmd_MAX_CREATURES, NULL, NULL},
   {"NEXT_COMMAND_REUSABLE",             "        ", Cmd_NEXT_COMMAND_REUSABLE, NULL, NULL},
   {"DOOR_AVAILABLE",                    "PANN    ", Cmd_DOOR_AVAILABLE, NULL, NULL},
-  {"DISPLAY_OBJECTIVE",                 "Ala     ", Cmd_DISPLAY_OBJECTIVE, &display_objective_check, &display_objective_process},
-  {"DISPLAY_OBJECTIVE_WITH_POS",        "ANNa    ", Cmd_DISPLAY_OBJECTIVE_WITH_POS, &display_objective_check, &display_objective_process},
-  {"DISPLAY_INFORMATION",               "Ala     ", Cmd_DISPLAY_INFORMATION, &display_information_check, &display_information_process},
+  {"DISPLAY_OBJECTIVE",                 "Al      ", Cmd_DISPLAY_OBJECTIVE, &display_objective_check, &display_objective_process},
+  {"DISPLAY_OBJECTIVE_WITH_POS",        "ANN     ", Cmd_DISPLAY_OBJECTIVE_WITH_POS, &display_objective_check, &display_objective_process},
+  {"DISPLAY_INFORMATION",               "Al      ", Cmd_DISPLAY_INFORMATION, &display_information_check, &display_information_process},
   {"DISPLAY_INFORMATION_WITH_POS",      "ANN     ", Cmd_DISPLAY_INFORMATION_WITH_POS, &display_information_check, &display_information_process},
-  {"DISPLAY_PLAYER_OBJECTIVE",          "APla    ", Cmd_DISPLAY_PLAYER_OBJECTIVE, &display_player_objective_check, &display_objective_process},
-  {"DISPLAY_PLAYER_OBJECTIVE_WITH_POS", "APNNa   ", Cmd_DISPLAY_PLAYER_OBJECTIVE_WITH_POS, &display_player_objective_check, &display_objective_process},
+  {"DISPLAY_PLAYER_OBJECTIVE",          "APl     ", Cmd_DISPLAY_PLAYER_OBJECTIVE, &display_player_objective_check, &display_objective_process},
+  {"DISPLAY_PLAYER_OBJECTIVE_WITH_POS", "APNN    ", Cmd_DISPLAY_PLAYER_OBJECTIVE_WITH_POS, &display_player_objective_check, &display_objective_process},
   {"DISPLAY_PLAYER_INFORMATION",        "APl     ", Cmd_DISPLAY_PLAYER_INFORMATION, &display_player_information_check, &display_information_process},
   {"DISPLAY_PLAYER_INFORMATION_WITH_POS", "APNN    ", Cmd_DISPLAY_PLAYER_INFORMATION_WITH_POS, &display_player_information_check, &display_information_process},
-  {"QUICK_OBJECTIVE",                   "NAla    ", Cmd_QUICK_OBJECTIVE, &quick_objective_check, &quick_objective_process},
-  {"QUICK_OBJECTIVE_WITH_POS",          "NANNa   ", Cmd_QUICK_OBJECTIVE_WITH_POS, &quick_objective_check, &quick_objective_process},
-  {"QUICK_INFORMATION",                 "NAla    ", Cmd_QUICK_INFORMATION, &quick_information_check, &quick_information_process},
+  {"QUICK_OBJECTIVE",                   "NAl     ", Cmd_QUICK_OBJECTIVE, &quick_objective_check, &quick_objective_process},
+  {"QUICK_OBJECTIVE_WITH_POS",          "NANN    ", Cmd_QUICK_OBJECTIVE_WITH_POS, &quick_objective_check, &quick_objective_process},
+  {"QUICK_INFORMATION",                 "NAl     ", Cmd_QUICK_INFORMATION, &quick_information_check, &quick_information_process},
   {"QUICK_INFORMATION_WITH_POS",        "NANN    ", Cmd_QUICK_INFORMATION_WITH_POS, &quick_information_check, &quick_information_process},
-  {"QUICK_PLAYER_OBJECTIVE",            "NPala   ", Cmd_QUICK_PLAYER_OBJECTIVE, &quick_player_objective_check, &quick_objective_process},
-  {"QUICK_PLAYER_OBJECTIVE_WITH_POS",   "NPANNa  ", Cmd_QUICK_PLAYER_OBJECTIVE_WITH_POS, &quick_player_objective_check, &quick_objective_process},
+  {"QUICK_PLAYER_OBJECTIVE",            "NPAl    ", Cmd_QUICK_PLAYER_OBJECTIVE, &quick_player_objective_check, &quick_objective_process},
+  {"QUICK_PLAYER_OBJECTIVE_WITH_POS",   "NPANN   ", Cmd_QUICK_PLAYER_OBJECTIVE_WITH_POS, &quick_player_objective_check, &quick_objective_process},
   {"QUICK_PLAYER_INFORMATION",          "NPAl    ", Cmd_QUICK_PLAYER_INFORMATION, &quick_player_information_check, &quick_information_process},
   {"QUICK_PLAYER_INFORMATION_WITH_POS", "NPANN   ", Cmd_QUICK_PLAYER_INFORMATION_WITH_POS, &quick_player_information_check, &quick_information_process},
   {"DISPLAY_MESSAGE",                   "AA      ", Cmd_DISPLAY_MESSAGE, &display_message_check, &display_message_process},

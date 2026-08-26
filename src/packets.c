@@ -447,7 +447,8 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
         }
     }
 
-    const TbBool use_rotate_pos = flag_is_set(pckt->control_flags, PCtr_ViewRotatePos | PCtr_MapCoordsValid);
+    const TbBool use_rotate_pos = (pckt->control_flags & PCtr_MapCoordsValid) != 0
+                               && (pckt->control_flags & PCtr_ViewRotatePos) != 0;
     const MapCoord rot_x = use_rotate_pos ? pckt->pos_x : -1;
     const MapCoord rot_y = use_rotate_pos ? pckt->pos_y : -1;
     if ((pckt->control_flags & PCtr_ViewRotateCCW) != 0)
@@ -508,7 +509,8 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
     }
     const int32_t zoom_min = max(CAMERA_ZOOM_MIN, zoom_distance_setting);
     const int32_t zoom_max = CAMERA_ZOOM_MAX;
-    const TbBool use_zoom_pos = flag_is_set(pckt->control_flags, PCtr_ViewZoomPos | PCtr_MapCoordsValid);
+    const TbBool use_zoom_pos = (pckt->control_flags & PCtr_MapCoordsValid) != 0
+                             && (pckt->control_flags & PCtr_ViewZoomPos) != 0;
     const MapCoord zoom_x = use_zoom_pos ? pckt->pos_x : -1;
     const MapCoord zoom_y = use_zoom_pos ? pckt->pos_y : -1;
     if (pckt->control_flags & PCtr_ViewZoomIn)
@@ -607,7 +609,6 @@ static void set_all_cameras_rotation(struct Camera cams[], int32_t angle)
     cams[CamIV_Parchment].rotation_angle_x = angle;
     cams[CamIV_FrontView].rotation_angle_x = angle;
     cams[CamIV_Isometric].rotation_angle_x = angle;
-    cams[CamIV_Isometric].inertia_rotation = 0;
 }
 
 void process_camera_action(struct Camera cams[], const struct Packet *pckt)
@@ -874,7 +875,7 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
       set_player_instance(player, PI_ZoomToPos, 0);
       return 0;
   case PckA_ToggleComputerProcessing:
-      game.view_mode_flags ^= GNFldD_ComputerPlayerProcessing;
+      game.view_mode_flags ^= (game.view_mode_flags ^ (GNFldD_ComputerPlayerProcessing * ((game.view_mode_flags & GNFldD_ComputerPlayerProcessing) == 0))) & GNFldD_ComputerPlayerProcessing;
       return 0;
   case PckA_PwrCTADis:
       turn_off_power_call_to_arms(plyr_idx);
@@ -975,7 +976,7 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
   case PckA_SaveViewType:
     {
             struct Camera* camera = get_player_active_camera(player);
-            if (camera != NULL && player->view_type != pckt->actn_par1)
+            if (camera != NULL)
                 player->view_mode_restore = camera->view_mode;
       set_player_mode(player, pckt->actn_par1);
       return false;

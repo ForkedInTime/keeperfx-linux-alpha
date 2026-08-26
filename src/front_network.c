@@ -22,14 +22,12 @@
 
 #include "globals.h"
 #include "bflib_basics.h"
-#include "bflib_enet.h"
 
 #include "net_exchange_common.h"
 #include "net_lobby.h"
 #include "bflib_netsession.h"
 #include "bflib_guibtns.h"
 #include "bflib_keybrd.h"
-#include "bflib_sound.h"
 #include "bflib_vidraw.h"
 #include "bflib_sprfnt.h"
 #include "bflib_datetm.h"
@@ -38,12 +36,10 @@
 #include "gui_draw.h"
 #include "front_simple.h"
 #include "front_landview.h"
-#include "frontmenu_net.h"
 #include "frontend.h"
 #include "player_data.h"
 #include "net_game.h"
 #include "config.h"
-#include "config_sounds.h"
 #include "config_strings.h"
 #include "game_merge.h"
 #include "game_legacy.h"
@@ -149,7 +145,6 @@ void process_frontend_chat_message(int player_id, const char *message)
     struct PlayerInfo *player = prepare_network_chat_message(player_id, message);
     if (message[0] != '\0' && !try_starting_level_from_chat(player->mp_message_text, player_id)) {
         add_message(player_id, player->mp_message_text);
-        play_non_3d_sample(snd_chat_message[player_id == my_player_number]);
     }
     memset(player->mp_message_text, 0, PLAYER_MP_MESSAGE_LEN);
 }
@@ -388,6 +383,27 @@ void frontnet_session_update(void)
     }
 }
 
+void frontnet_rewite_net_messages(void)
+{
+    struct NetMessage lmsg[NET_MESSAGES_COUNT];
+    long k = 0;
+    long i = net_number_of_messages;
+    for (i=0; i < NET_MESSAGES_COUNT; i++)
+      memset(&lmsg[i], 0, sizeof(struct NetMessage));
+    for (i=0; i < net_number_of_messages; i++)
+    {
+        struct NetMessage* nmsg = &net_message[i];
+        if (network_player_active(nmsg->plyr_idx))
+        {
+            memcpy(&lmsg[k], nmsg, sizeof(struct NetMessage));
+            k++;
+      }
+    }
+    net_number_of_messages = k;
+    for (i=0; i < NET_MESSAGES_COUNT; i++)
+      memcpy(&net_message[i], &lmsg[i], sizeof(struct NetMessage));
+}
+
 static TbBool check_frontend_version_mismatch(void)
 {
   int32_t active_players = 0;
@@ -409,9 +425,6 @@ static TbBool check_frontend_version_mismatch(void)
     }
   }
   TbBool player_joined = active_players > previous_active_players;
-  if (active_players < previous_active_players && snd_lobby_player_leave_count > 0) {
-    play_non_3d_sample(snd_lobby_player_leave + SOUND_RANDOM(snd_lobby_player_leave_count));
-  }
   previous_active_players = active_players;
   if (remote_id == -1 || (!player_joined && !start_requested)) {
     return remote_id != -1;
@@ -428,9 +441,6 @@ static TbBool check_frontend_version_mismatch(void)
 
 static void process_frontend_packets(void)
 {
-  if (!frontnet_matchmaking_update()) {
-    return;
-  }
   int32_t i;
   for (i = 0; i < MAX_NET_USERS; i++) {
     net_screen_packet[i].networkstatus_flags &= ~NetStat_PlayerConnected;
@@ -511,16 +521,6 @@ static void process_frontend_packets(void)
   }
 }
 
-TbBool frontnet_matchmaking_update(void)
-{
-    if (my_player_number == get_host_player_id() && frontnet_service_selected(FrontendNetSvc_Online) && enet_matchmaking_host_update() < 0) {
-        frontnet_return_to_session_menu(NULL);
-        create_frontend_error_box(0, get_string(GUIStr_NetLobbyConnectionLost));
-        return false;
-    }
-    return true;
-}
-
 void frontnet_send_campaign_change_message(const char* campaign_fname)
 {
     char base_name[64];
@@ -598,6 +598,7 @@ void frontnet_start_update(void)
       net_message_scroll_offset = net_number_of_messages-1;
     }
     process_frontend_packets();
+    frontnet_rewite_net_messages();
 
     if (frontnet_service_selected(FrontendNetSvc_LAN)) {
         lan_host_update();

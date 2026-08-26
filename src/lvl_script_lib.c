@@ -16,12 +16,13 @@
 #include "globals.h"
 #include "config_creature.h"
 #include "creature_states_pray.h"
-#include "custom_sprites.h"
 #include "dungeon_data.h"
 #include "gui_msgs.h"
 #include "lvl_filesdk1.h"
 #include "lvl_script_lib.h"
 #include "lvl_script_conditions.h"
+#include "lvl_script_commands.h"
+#include "magic_powers.h"
 #include "room_util.h"
 #include "thing_corpses.h"
 #include "thing_factory.h"
@@ -343,9 +344,9 @@ long get_players_range_single_f(long plr_range_id, const char *func_name, long l
     return -2;
 }
 
-void get_chat_icon_from_value(const char* txt, short* id, char* type)
+void get_chat_icon_from_value(const char* txt, char* id, char* type)
 {
-    short idx;
+    char idx;
     if (strcasecmp(txt, "None") == 0)
     {
         *id = 0;
@@ -461,8 +462,8 @@ void get_chat_icon_from_value(const char* txt, short* id, char* type)
                             }
                             else
                             {
-                                *id = get_icon_id(txt);
-                                *type = MsgType_Custom;
+                                *id = atoi(txt);
+                                *type = MsgType_Player;
                             }
                         }
                     }

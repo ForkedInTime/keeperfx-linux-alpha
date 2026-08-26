@@ -41,7 +41,6 @@
 #include "config_keeperfx.h"
 #include "config_settings.h"
 #include "game_lghtshdw.h"
-#include "game_merge.h"
 #include "light_data.h"
 #include "lvl_filesdk1.h"
 #include "room_list.h"
@@ -57,7 +56,6 @@
 #include "front_input.h"
 #include "net_game.h"
 #include "keeperfx.hpp"
-#include "api.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -1097,7 +1095,6 @@ TbBool frontmap_load(void)
     fe_computer_players = 0;
     update_ensigns_visibility();
     SYNCDBG(7,"Finished");
-    api_event("CAMPAIGN_LOADED");
     return true;
 }
 
