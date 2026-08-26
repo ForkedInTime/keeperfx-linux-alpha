@@ -4,6 +4,30 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5596 — 2026-08-25 — alpha
+
+**Upstream sync — 23 commits.** Custom-icon support for message and objective/information
+script commands, unlimited possible lair enemies, a 17% engine performance improvement,
+several multiplayer fixes (chat, lobby permanence, input lag, getting stuck in parchment
+view), Spanish translation for The Good Campaign, and a handful of smaller combat/UI/creature
+fixes — taken as upstream shipped them.
+
+- **Rotate-around-mouse simplified.** Upstream collapsed the option down to ON/OFF plus
+  ROTATION_KEYS/MOVEMENT_KEYS (dropping the separate FOLLOW/NO_FOLLOW flag) and reset the
+  shipped default to OFF. We'd previously defaulted this fork to on; upstream's own commit
+  message flagged the reset as a deliberate correction, so we followed it rather than keep
+  our prior default.
+- **Kept: the message/objective location fix from build 937eeb15.** Upstream's new
+  custom-icon code reads a script command's saved location from a union offset that overlaps
+  adjacent fields on this fork's 64-bit build — the same class of bug already fixed once for
+  `QUICK_MESSAGE`/`DISPLAY_MESSAGE`. Took upstream's new icon-aware functions, kept this
+  fork's safe offsets underneath them.
+
+**Saved games from build 5554 and earlier cannot be loaded by this release.** Upstream's
+custom-icon feature added a field to every event/objective marker, which is part of the save.
+See the warning below, or use the game's own "keep the previous engine" feature to finish
+anything in progress first.
+
 ## 1.4.0.5554 — 2026-08-21 — alpha
 
 **Updating the game no longer costs you your saved games.** A save is a raw copy of the

@@ -63,4 +63,15 @@
 # It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
 # mismatch is always a source change, never a toolchain difference.
 
-sizeof_struct_game=53318509
+sizeof_struct_game=53350681
+
+# 2026-08-25: upstream's custom-icon feature (#5147, #5139) added
+#     short icon_idx;   // 2 bytes (+ padding)
+# to `struct Event`, embedded as `struct Event event[EVENTS_COUNT]` in
+# `struct Game` (EVENTS_COUNT = 200). 53318509 -> 53350681 between builds
+# 5554 and this one. Accepted deliberately: the field records which custom
+# icon a QUICK_OBJECTIVE/QUICK_INFORMATION event/objective marker was given,
+# and needs to persist for the marker's lifetime, which can span a save/load
+# -- dropping it from the save would silently revert a custom icon back to
+# the default one after loading, a real (if minor) behavioural regression
+# from what upstream shipped, not merely a compatibility inconvenience.
