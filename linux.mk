@@ -314,8 +314,8 @@ KFX_INCLUDES = \
 # one root cause -- QFile::copy, QDir::rename, SDL_TryLockMutex, all compiling
 # clean while a failure silently became a success. The engine builds with zero
 # such warnings today, so this costs nothing and keeps the class out.
-KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Werror=unused-result -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
-KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Werror=unused-result -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare
+KFX_CFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Werror=unused-result -Wno-unused-parameter -Wno-absolute-value -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare -MMD -MP
+KFX_CXXFLAGS += -g -DDEBUG -DBFDEBUG_LEVEL=0 -O3 -march=x86-64 $(KFX_INCLUDES) -Wall -Wextra -Wno-error -Werror=unused-result -Wno-unused-parameter -Wno-unknown-pragmas -Wno-format-truncation -Wno-sign-compare -MMD -MP
 
 # SANITIZE=1: AddressSanitizer + UndefinedBehaviorSanitizer build, for the local
 # regression pass (tests/sanitize-regression.sh) -- not for release. UBSan is
@@ -425,6 +425,22 @@ src/net_holepunch.c: deps/enet6/include/enet6/enet.h
 src/net_matchmaking.c: deps/libcurl/include/curl/curl.h
 deps/centitoml/toml_api.c: deps/centijson/include/json.h
 deps/centitoml/toml_conv.c: deps/centijson/include/json.h
+
+# -MMD -MP (above) makes each compile emit a .d file listing the headers it
+# actually pulled in; without this, make only ever looks at a .c/.cpp file's
+# own mtime, so a header-only change (e.g. a struct gaining a field) left every
+# .o that transitively includes it looking "up to date" after a plain
+# `git checkout`/branch switch -- silently linking mismatched struct layouts
+# across translation units. Reproduced once: incrementally building 862029101
+# then e1e47edb3 in the same obj/ produced a binary that corrupted netstate
+# every turn; a from-scratch build of e1e47edb3 was clean. `make clean` before
+# switching commits was the only prior mitigation, easy to forget.
+#
+# Does NOT close the gap when DISTCC_HOSTS routes a compile to the remote
+# host: distcc does not always bring the .d file back with the .o (confirmed
+# missing for ~19% of objects in one run here). Still always `make clean`
+# before an incremental build after switching commits when distributing.
+-include $(KFX_OBJECTS:.o=.d) $(TOML_OBJECTS:.o=.d)
 
 deps/astronomy-lin64.tar.gz:
 	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20250418/astronomy-lin64.tar.gz"
