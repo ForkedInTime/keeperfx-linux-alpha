@@ -29,6 +29,11 @@ extern "C" int kfxmain(int, char **) { return 0; }
 class WindowSystemSDL;
 WindowSystemSDL* GetSDLWindowSystem() { return nullptr; }
 
+// PlatformLinux::TrashFile timestamps the freedesktop .trashinfo it writes.
+// The file-find tests never delete anything, so this only has to resolve.
+#include "../src/bflib_datetm.h"
+extern "C" TbResult LbDateTime(struct TbDate *, struct TbTime *) { return Lb_SUCCESS; }
+
 static int g_failures = 0;
 
 static void expect(bool ok, const char * what)
