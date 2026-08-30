@@ -112,6 +112,22 @@ jobs:
             echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
           } >> "$GITHUB_ENV"
 
+      # The launcher extracts archives through whatever 7z.so sits beside it. The
+      # copy committed at launcher/ext/7z.so cannot decompress RAR (it has the
+      # NArchive::NRar5 handler but no NCompress::NRar5 decoder), so a RAR
+      # workshop item listed its contents and then failed with "Unsupported
+      # method" -- which is what broke installing item 414, "Infernal Rift".
+      # Build 7-Zip's full-format library instead; the script refuses to emit one
+      # without the RAR decoders, so this cannot silently regress.
+      - name: Cache the 7-Zip library
+        uses: actions/cache@v4
+        with:
+          path: deps/7zip
+          key: 7zip-${{ runner.os }}-${{ hashFiles('packaging/ci/build-7zip-lib.sh') }}
+
+      - name: Build the 7-Zip library (RAR-capable, replaces launcher/ext/7z.so)
+        run: packaging/ci/build-7zip-lib.sh
+
       - name: Cache compiled objects (ccache)
         uses: actions/cache@v4
         with:
@@ -205,7 +221,11 @@ jobs:
           APPDIR="$PWD/AppDir"
           mkdir -p "$APPDIR/usr/bin"
           cp build/keeperfx-launcher-qt "$APPDIR/usr/bin/"
-          cp ext/7z.so "$APPDIR/usr/bin/"
+          # RAR-capable build from packaging/ci/build-7zip-lib.sh, not the
+          # RAR-less ext/7z.so committed in the launcher repo.
+          cp ../deps/7zip/7z.so "$APPDIR/usr/bin/"
+          install -Dm644 ../deps/7zip/7-zip-License.txt \
+            "$APPDIR/usr/share/licenses/7-zip/License.txt"
           install -Dm644 packaging/keeperfx-launcher-qt.png \
             "$APPDIR/usr/share/icons/hicolor/256x256/apps/keeperfx-launcher-qt.png"
           install -Dm644 packaging/keeperfx-launcher-qt.desktop \
@@ -318,7 +338,8 @@ jobs:
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' ../src/ver_defs.h > "$P/version.txt"
           echo "Stamped version: $(cat "$P/version.txt")"
           cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"
-          cp -f ext/7z.so "$P/7z.so"
+          cp -f ../deps/7zip/7z.so "$P/7z.so"
+          cp -f ../deps/7zip/7-zip-License.txt "$P/7-zip-License.txt"
           cp -f ../bin/keeperfx "$APPDIR/usr/bin/keeperfx"   # for linuxdeploy lib scan
           # Repackage that exact payload as the in-launcher update archive. This is what
           # the launcher's self-updater downloads, so it carries the same freshly built

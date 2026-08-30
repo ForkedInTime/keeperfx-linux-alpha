@@ -104,6 +104,15 @@ prepare() {
 build() {
   cd "${srcdir}/${pkgbase}"
 
+  # 7-Zip's full-format library, for the launcher's archive handling. Built from
+  # source by the same script the release workflows use, so the package and the
+  # AppImage cannot end up with libraries of different capability. Guarded so a
+  # stable tag predating the script still builds -- it simply ships without one,
+  # exactly as it does today.
+  if [ -x packaging/ci/build-7zip-lib.sh ]; then
+    packaging/ci/build-7zip-lib.sh "${srcdir}/${pkgbase}/deps/7zip"
+  fi
+
   # ver_defs.h is only regenerated when version.mk changes, so a stale build
   # number would otherwise be baked in -- and the launcher gates settings on it.
   rm -f src/ver_defs.h
@@ -316,6 +325,22 @@ package_keeperfx-tux-launcher() {
   # therefore cannot live in /usr/bin and be linked in; the wrapper copies it.
   install -Dm755 build/keeperfx-launcher-qt "${pkgdir}/usr/lib/${pkgbase}/keeperfx-launcher-qt"
   install -Dm755 "${srcdir}/keeperfx-tux-launcher.sh" "${pkgdir}/usr/bin/keeperfx-tux-launcher"
+
+  # The launcher reads every archive through this 7-Zip library, loaded from
+  # beside its own binary. It was never packaged: installs only had one as a
+  # leftover from the AppImage era, so a genuinely fresh package install had no
+  # archive support at all. The copy the launcher repo commits also cannot
+  # decompress RAR, which is what broke installing RAR workshop items -- so
+  # build 7-Zip's full-format library from source, the same script the release
+  # workflows use, and let the wrapper stage it next to the launcher.
+  # Conditional to match the guard in build(): a stable tag predating the build
+  # script produces no library, and must still package.
+  if [ -f "${srcdir}/${pkgbase}/deps/7zip/7z.so" ]; then
+    install -Dm755 "${srcdir}/${pkgbase}/deps/7zip/7z.so" \
+      "${pkgdir}/usr/lib/${pkgbase}/7z.so"
+    install -Dm644 "${srcdir}/${pkgbase}/deps/7zip/7-zip-License.txt" \
+      "${pkgdir}/usr/share/licenses/${pkgname}/7-zip-License.txt"
+  fi
 
   install -Dm644 packaging/keeperfx-launcher-qt.png \
     "${pkgdir}/usr/share/icons/hicolor/256x256/apps/keeperfx-tux-launcher.png"

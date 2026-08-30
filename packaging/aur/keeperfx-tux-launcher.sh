@@ -65,5 +65,16 @@ if [ ! -e "$DST" ] || ! cmp -s "$SRC" "$DST"; then
     chmod u+rwx "$DST"
 fi
 
+# The launcher loads its 7-Zip library from beside its own binary, so it has to
+# be staged into the game directory too. Refreshed on mismatch, like the binary
+# above: installs that predate this carry an old library left over from the
+# AppImage era -- including one that cannot decompress RAR, which is what made
+# RAR workshop items fail to install.
+LIB_SRC="/usr/lib/keeperfx-tux/7z.so"
+LIB_DST="$GAMEDIR/7z.so"
+if [ -f "$LIB_SRC" ] && { [ ! -e "$LIB_DST" ] || ! cmp -s "$LIB_SRC" "$LIB_DST"; }; then
+    cp -f "$LIB_SRC" "$LIB_DST" 2>/dev/null || true
+fi
+
 cd "$GAMEDIR"
 exec "$DST" "$@"

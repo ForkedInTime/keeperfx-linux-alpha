@@ -115,6 +115,25 @@ jobs:
             echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
           } >> "$GITHUB_ENV"
 
+      # The launcher's bundled 7z.so cannot decompress RAR, which is why RAR
+      # workshop items failed to install. Build 7-Zip's full-format library
+      # instead. Era-guarded exactly like the SDL3 step above: this workflow
+      # builds the current STABLE tag, and a stable that predates the script
+      # simply keeps shipping the old ext/7z.so until the next stable carries it.
+      - name: Cache the 7-Zip library
+        uses: actions/cache@v4
+        with:
+          path: deps/7zip
+          key: 7zip-${{ runner.os }}-${{ hashFiles('packaging/ci/build-7zip-lib.sh') }}
+
+      - name: Build the 7-Zip library (only when this tree carries the script)
+        run: |
+          if [ ! -x packaging/ci/build-7zip-lib.sh ]; then
+            echo "Pre-7zip-script tree: the committed launcher/ext/7z.so will be used."
+            exit 0
+          fi
+          packaging/ci/build-7zip-lib.sh
+
       - name: Cache compiled objects (ccache)
         uses: actions/cache@v4
         with:
@@ -187,7 +206,15 @@ jobs:
           APPDIR="$PWD/AppDir"
           mkdir -p "$APPDIR/usr/bin"
           cp build/keeperfx-launcher-qt "$APPDIR/usr/bin/"
-          cp ext/7z.so "$APPDIR/usr/bin/"
+          # Prefer the RAR-capable library built above; fall back to the
+          # committed one on stable trees that predate the build script.
+          if [ -f ../deps/7zip/7z.so ]; then
+            cp ../deps/7zip/7z.so "$APPDIR/usr/bin/"
+            install -Dm644 ../deps/7zip/7-zip-License.txt \
+              "$APPDIR/usr/share/licenses/7-zip/License.txt"
+          else
+            cp ext/7z.so "$APPDIR/usr/bin/"
+          fi
           install -Dm644 packaging/keeperfx-launcher-qt.png \
             "$APPDIR/usr/share/icons/hicolor/256x256/apps/keeperfx-launcher-qt.png"
           install -Dm644 packaging/keeperfx-launcher-qt.desktop \
@@ -276,7 +303,12 @@ jobs:
             exit 1
           fi
           cp -f build/keeperfx-launcher-qt "$P/keeperfx-launcher-qt"
-          cp -f ext/7z.so "$P/7z.so"
+          if [ -f ../deps/7zip/7z.so ]; then
+            cp -f ../deps/7zip/7z.so "$P/7z.so"
+            cp -f ../deps/7zip/7-zip-License.txt "$P/7-zip-License.txt"
+          else
+            cp -f ext/7z.so "$P/7z.so"
+          fi
           cp -f ../bin/keeperfx "$APPDIR/usr/bin/keeperfx"   # for linuxdeploy lib scan
 
       - name: Get linuxdeploy + Qt plugin
