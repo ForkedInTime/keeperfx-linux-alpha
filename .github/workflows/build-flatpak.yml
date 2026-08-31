@@ -331,6 +331,15 @@ jobs:
           # the engine runs from the payload, not usr/bin — drop the duplicate
           rm -f AppDir/usr/bin/keeperfx
 
+          # Same transitive gap linuxdeploy leaves in the AppImage build: it
+          # bundles libgcrypt/libkrb5/libgnutls but skips their dependencies as
+          # "assumed present". Fedora 41 and Debian 13 do not have all three, and
+          # the launcher died before Qt loaded. See build-appimage.yml.
+          for lib in libgpg-error.so.0 libcom_err.so.2 libgmp.so.10; do
+            src="$(find /usr/lib/x86_64-linux-gnu -maxdepth 1 -name "$lib" | head -1)"
+            [ -n "$src" ] && cp -L "$src" "AppDir/usr/lib/$lib" && echo "bundled $lib"
+          done
+
       - name: Install Flatpak runtime + builder
         run: |
           flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo

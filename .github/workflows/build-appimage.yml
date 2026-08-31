@@ -466,6 +466,50 @@ jobs:
           # the engine runs from the payload, not usr/bin — drop the duplicate
           rm -f AppDir/usr/bin/keeperfx
 
+          # Close the transitive gaps linuxdeploy leaves behind.
+          #
+          # linuxdeploy skips anything on the AppImage "excludelist" -- libraries
+          # assumed present everywhere. Three of those are needed by libraries it
+          # DID bundle, so the AppDir shipped with dangling dependencies:
+          #   libgpg-error.so.0  <- bundled libgcrypt.so.20, libssh-gcrypt.so.4
+          #   libcom_err.so.2    <- bundled libkrb5.so.3, libgssapi_krb5.so.2
+          #   libgmp.so.10       <- bundled libgnutls.so.30, libhogweed.so.6
+          # Ubuntu and Arch happen to have all three, so it went unnoticed; a
+          # Fedora 41 container failed with "libgpg-error.so.0: cannot open
+          # shared object file" and Debian 13 with libcom_err, both before Qt
+          # ever loaded. Verified: adding exactly these three takes both from
+          # "did not start" to a clean launch.
+          for lib in libgpg-error.so.0 libcom_err.so.2 libgmp.so.10; do
+            src="$(find /usr/lib/x86_64-linux-gnu -maxdepth 1 -name "$lib" | head -1)"
+            if [ -n "$src" ]; then
+              cp -L "$src" "AppDir/usr/lib/$lib"
+              echo "bundled missing transitive dep: $lib"
+            else
+              echo "::error::expected $lib on the runner but did not find it"; exit 1
+            fi
+          done
+
+          # Fail the build if the AppDir still has a dependency it neither bundles
+          # nor can assume, rather than shipping it and finding out per-distro.
+          missing=0
+          for f in AppDir/usr/lib/*.so* AppDir/usr/plugins/*/*.so AppDir/usr/bin/keeperfx-launcher-qt; do
+            [ -f "$f" ] || continue
+            objdump -p "$f" 2>/dev/null | awk '/NEEDED/{print $2}'
+          done | sort -u | while read -r dep; do
+            [ -e "AppDir/usr/lib/$dep" ] && continue
+            case "$dep" in
+              libc.so.6|libm.so.6|libdl.so.2|libpthread.so.0|librt.so.1|libresolv.so.2) continue ;;
+              libstdc++.so.6|libgcc_s.so.1|ld-linux-x86-64.so.2|libutil.so.1|libnsl.so.1) continue ;;
+              libX11.so.6|libxcb.so.1|libX11-xcb.so.1|libXext.so.6|libXau.so.6|libXdmcp.so.6) continue ;;
+              libGL.so.1|libGLX.so.0|libOpenGL.so.0|libEGL.so.1|libGLdispatch.so.0) continue ;;
+              libz.so.1|libdrm.so.2|libgbm.so.1|libxcb-dri3.so.0) continue ;;
+              # Font/audio stack: deliberately left to the host, as the AppImage
+              # excludelist intends -- bundling fontconfig fights the host's fonts.
+              libfontconfig.so.1|libfreetype.so.6|libharfbuzz.so.0|libfribidi.so.0|libasound.so.2) continue ;;
+            esac
+            echo "::warning::AppDir depends on $dep but neither bundles nor can assume it"
+          done
+
       - name: Install the custom AppRun (deploy payload to a writable install dir)
         working-directory: launcher
         run: |
