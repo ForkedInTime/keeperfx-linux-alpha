@@ -4,6 +4,42 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5652 — 2026-09-07 — stable
+
+**Replaces 1.4.0.5425 as the stable release.** Everything the alpha line accumulated between
+5459 and 5649 (below), promoted after a full pass: unit tests under the sanitizers, a sanitizer
+run of every campaign's first level, the save/load/delete, multiplayer, level-coverage,
+resolution-switch and launcher-update suites against the 5425 engine as baseline, and the
+AppImage started on Ubuntu 24.04, Debian 13, Fedora 41 and Arch. In short:
+
+- **SDL3.** The engine moved off SDL2 in 5459; window, input and audio go through SDL3 now,
+  with the fork's cursor, sub-pixel mouse motion and fullscreen-transition fixes on top.
+- **Saved games survive an engine update.** A save the running build cannot read is refused
+  with a message instead of ending the game; the engine that wrote it is kept alongside
+  (`keeperfx-tux-previous` on Arch, the launcher's own stash elsewhere); deleting a save moves
+  it to the trash; the save list packs itself; and the release build refuses to ship if the
+  game-state layout changed without saying so.
+- **Stability.** The creature-list corruption behind the level-transition abort is fixed at the
+  root, four memory faults found by the sanitizers are fixed, and changing resolution no longer
+  blacks out the game.
+- **Rendering.** The fork's GPU present path sits behind upstream's renderer seam, honours the
+  vsync setting, and takes screenshots.
+- **Launcher and packaging.** Workshop and Install… take `.rar` add-ons; the Arch package ships
+  the archive library the launcher needs; the AppImage bundles the three libraries Fedora and
+  Debian do not carry; the alpha and stable channels are kept apart by the updater.
+- **Upstream.** Three syncs (5482, 5596, 5649) — custom icons for script messages, the Abyss
+  terrain, custom ensigns, pathfinding and multiplayer input-lag work, and much else, taken as
+  upstream shipped them with this fork's fixes kept underneath.
+
+**Saved games from 1.4.0.5425 cannot be loaded by this release.** The game-state layout changed
+three times along the alpha line. On Arch the 5425 engine is kept by the upgrade hook and runs
+with `keeperfx-tux-previous 1.4.0.5425`; the launcher keeps the replaced engine the same way.
+The release notes carry the warning automatically.
+
+Known: on Fedora 41 the AppImage's engine crashes instead of showing its dialog if startup has
+already failed fatally (a fault inside the bundled SDL3's message box); normal play is
+unaffected.
+
 ## 1.4.0.5649 — 2026-09-07 — alpha
 
 **Upstream sync — 46 commits.** Dungeons can now reach into the Abyss (a new terrain type;

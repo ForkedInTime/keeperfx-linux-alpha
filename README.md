@@ -392,6 +392,8 @@ and I own the bug report. Found something sloppy or broken?
   library (glibc 2.39) is newer than what 22.04 and earlier provide — the binaries simply won't start on
   them. Older systems must [build from source](#build-from-source) instead.
 - An OpenGL 3.3-capable GPU.
+- The system's own OpenGL, ALSA, fontconfig and fribidi libraries. Every desktop install has them; the
+  AppImage leaves exactly these to the host on purpose, so a bare container or a server image will not do.
 
 ## Other ways to install
 
