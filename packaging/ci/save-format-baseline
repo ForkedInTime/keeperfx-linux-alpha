@@ -87,3 +87,10 @@ sizeof_struct_game=53362616
 #     SET_NEXT_LEVEL can name levels above 127 from bonus levels.
 # Accepted: both are upstream design corrections; carrying the old layout
 # would mean forking struct Game itself.
+
+# Sizes of releases that predate this file, measured afterwards by compiling
+# packaging/ci/save_format_probe.c against the tagged tree. The release-note
+# check consults these when the previous release of the channel has no
+# baseline of its own -- without them the first stable after the guard was
+# added would have shipped with no warning at all.
+sizeof_struct_game@v1.4.0.5425=53269285

@@ -44,7 +44,17 @@ if [ "${1:-}" = "--release-note" ]; then
     fi
 
     now="$(read_baseline < "$BASELINE_FILE")"
-    if ! prev_blob="$(git show "${prev_ref}:${BASELINE_FILE}" 2>/dev/null)"; then
+    # A release that predates this guard has no baseline file of its own, but
+    # its size may be recorded in the current file as
+    #     sizeof_struct_game@<tag>=<bytes>
+    # -- measured after the fact by compiling the probe against that tag. That
+    # is what lets the first stable after the guard was added still get its
+    # warning: stable players update from a release far older than the last
+    # alpha, and "cannot tell" would have read to them as "nothing to worry about".
+    hist="$(sed -n "s/^${KEY}@${prev_ref}=\([0-9][0-9]*\).*/\1/p" "$BASELINE_FILE" | tail -n 1)"
+    if [ -n "$hist" ]; then
+        prev_blob="${KEY}=${hist}"
+    elif ! prev_blob="$(git show "${prev_ref}:${BASELINE_FILE}" 2>/dev/null)"; then
         # The previous release predates this guard, or its tag is gone. Saying
         # nothing is the safe answer: a wrong "your saves are dead" banner on a
         # release that did not break anything costs more trust than a missing one.

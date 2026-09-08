@@ -148,10 +148,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Newest release that is not the one being published. gh lists them
-          # newest-first, so this is the version players are updating FROM.
-          PREV=$(gh release list --limit 100 --json tagName \
-                   --jq '[.[] | select(.tagName != env.TAG)] | first.tagName // empty')
+          # Newest release OF THE SAME CHANNEL that is not the one being
+          # published. gh lists newest-first, so this is the version players on
+          # this channel are updating FROM. The channel matters: a stable cut
+          # right after an alpha would otherwise compare against that alpha and
+          # report "unchanged" while stable players, coming from the previous
+          # stable, lose every save.
+          PRE=$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease)
+          PREV=$(gh release list --limit 100 --json tagName,isPrerelease \
+                   --jq --argjson pre "$PRE" '[.[] | select(.tagName != env.TAG and .isPrerelease == $pre)] | first.tagName // empty')
           if [ -z "$PREV" ]; then
             echo "No earlier release to compare the save format against."
             exit 0
