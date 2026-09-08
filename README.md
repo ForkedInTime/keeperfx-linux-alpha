@@ -8,6 +8,8 @@
 ![Platform](https://img.shields.io/badge/platform-Linux%20x86__64-1793D1?style=flat-square)
 ![Render](https://img.shields.io/badge/display-GPU%20OpenGL%203.3-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--2.0-blue?style=flat-square)
+[![Stable](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?label=stable&style=flat-square&color=2ea44f)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest)
+[![Alpha](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?include_prereleases&label=alpha&style=flat-square&color=orange)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)
 
 **Dungeon Keeper, native on Linux.** One file on most distros — a proper AUR package on Arch.
 
@@ -21,6 +23,10 @@
 > been played and left alone for a while. **Alpha** is where the work happens and can change under you;
 > its releases are tagged `-alpha`. The launcher has a release-channel setting in its Settings dialog, and
 > it only ever offers you releases from the channel you picked. Not sure? Stay on stable.
+>
+> **Stable is 1.4.0.5652 (7 September 2026)** — the first stable on SDL3, carrying everything the alpha line
+> proved over August: saves that survive an engine update, the creature-list root fix, the GPU present path,
+> RAR add-ons, and three upstream syncs. The badges above track both channels live.
 
 ```bash
 chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
