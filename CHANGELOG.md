@@ -4,6 +4,49 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5649 — 2026-09-07 — alpha
+
+**Upstream sync — 46 commits.** Dungeons can now reach into the Abyss (a new terrain type;
+creatures and things that fall in are lost, with a Lua hook to rescue them); pathfinding no longer
+stalls on unreachable jobs or on paths behind lava; the multiplayer input-lag controller now
+samples by time rather than by turn, and packet-history repair is spread across peers; custom
+ensigns for campaign and multiplayer maps; transformed creatures keep their lair and health;
+computer players sacrifice imps according to `keepcompp.cfg`; the `TRIGGER_ACTION_POINT` and
+`DISPLAY_VARIABLE_WITH_LABEL` script commands; level-load timing in the log; and a run of smaller
+combat, effect, wibble and Lua fixes — taken as upstream shipped them.
+
+- **New settings, same names on Linux.** `CAPTURE_CURSOR=OFF` in `keeperfx.cfg` is now the config
+  equivalent of `-altinput`; `MATCHMAKING_SERVER` and `MULTIPLAYER_PORT` are configurable; `-nick`
+  sets the multiplayer name and `-waitusers` the lobby size from the command line.
+- **`SKIP_HEART_ZOOM` left the config file.** Upstream moved it to a `-skipheartzoom` command-line
+  flag; a value still in `keeperfx.cfg` is ignored (with a log line), not an error. `-level` now
+  skips the splash screens as well.
+- **Kept: the sprite-decoder bounds fix.** Upstream's new shared PNG decoder — which now also feeds
+  the ensign loader for map zips — sized its buffer with the pre-hardening formula this fork had
+  already replaced. The worst-case size is re-applied inside it, so a crafted archive cannot
+  overflow the sprite buffer.
+- **Renderer sources moved.** Upstream relocated the software raster under
+  `src/kfx/renderer/software/` behind a routing layer; this fork's GPU present path bypasses the
+  layer and its cost was measured at under 0.05% of samples either way.
+
+**Also since 5596, on this fork:**
+
+- **RAR add-ons install.** The launcher's Install… and the Workshop browser now handle `.rar`
+  archives (workshop items such as *Infernal Rift* ship that way), detecting the format from the
+  file rather than its name. The Arch package now ships the archive library the launcher needs;
+  fresh `yay -S keeperfx-tux` installs previously had no archive support at all — no workshop
+  installs and no self-update — unless a leftover from the AppImage era happened to be present.
+- **AppImage starts on Fedora and Debian.** Three libraries that bundled dependencies need
+  (`libgpg-error`, `libcom_err`, `libgmp`) were left to the host and are absent on Fedora 41 and
+  Debian 13. They are bundled now, and the build warns about any future unresolved dependency.
+- **Unit-test link restored** after upstream's platform-seam move had silently taken the weekly
+  sanitizer job down since 2026-08-24.
+
+**Saved games from build 5596 and earlier cannot be loaded by this release.** Upstream moved
+local-only view state out of the per-player record and widened the campaign's next-level field,
+both inside the saved game state. See the warning below, or use the game's own "keep the
+previous engine" feature to finish anything in progress first.
+
 ## 1.4.0.5596 — 2026-08-25 — alpha
 
 **Upstream sync — 23 commits.** Custom-icon support for message and objective/information

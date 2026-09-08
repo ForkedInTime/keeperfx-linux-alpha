@@ -40,7 +40,7 @@ It opens the settings launcher, finds your *Dungeon Keeper* install, lets you se
 > **[How do I install DK1 on Linux?](#how-do-i-install-dk1-on-linux)** for getting your GOG/Steam/EA
 > copy installed (via Lutris or Heroic) so the launcher can find it.
 
-Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Fedora, Arch, Steam Deck, … &nbsp;
+Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Debian 13, Fedora, Arch, Steam Deck, … &nbsp;
 *(not Ubuntu 22.04 or older — see [requirements](#system-requirements)).*
 
 <details>
@@ -169,8 +169,8 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 185 commits of ours on top
-> of theirs, on top of 16 upstream merges. The sections below are the line items.</sub>
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 246 commits of ours on top
+> of theirs, on top of 22 upstream merges. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -224,7 +224,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 - **Built-in updates.** The launcher checks *this* repo's releases and shows **"Update available — vX"** when a
   newer build is out; one click downloads just the updated game package (no need to re-download the whole
   AppImage). It notifies — it never auto-overwrites.
-- **One-click mods, campaigns & map packs.** A Mod Manager with an **Install…** button takes a `.7z`/`.zip`
+- **One-click mods, campaigns & map packs.** A Mod Manager with an **Install…** button takes a `.7z`/`.zip`/`.rar`
   (e.g. a [keeperfx.net workshop](https://keeperfx.net/workshop) download) and drops it into the right place —
   mods into `mods/`, campaigns into `campgns/`, map packs into `levels/` — generating a `mod.cfg` if the
   archive lacks one. Mods get an Enabled toggle that writes the load order for you.
