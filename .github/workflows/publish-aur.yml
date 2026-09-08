@@ -105,7 +105,18 @@ jobs:
           else
             echo "::notice::Republishing ${current_pkgver}; keeping pkgrel=$(sed -n 's|^pkgrel=||p' PKGBUILD) rather than resetting to 1"
           fi
-          grep -E '^(_tag|pkgver|pkgrel)=' PKGBUILD
+          # The launcher is pinned by commit and has to move with the engine: the
+          # AppImage for this same release is built from the launcher's alpha
+          # branch, so the Arch package pins that branch's head. Left alone, the
+          # pin stayed at the previous stable's launcher -- v1.4.0.5652 went out
+          # that way, with an engine a month newer than its launcher.
+          L=$(git ls-remote https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git refs/heads/alpha | cut -f1)
+          if [ -n "$L" ]; then
+            sed -i "s|^_launcher_commit=.*|_launcher_commit=$L|" PKGBUILD
+          else
+            echo "::warning::could not resolve the launcher's alpha head; keeping the committed _launcher_commit"
+          fi
+          grep -E '^(_tag|pkgver|pkgrel|_launcher_commit)=' PKGBUILD
 
       - name: Recompute the data archive checksum
         if: steps.tag.outputs.skip_channel != '1'
