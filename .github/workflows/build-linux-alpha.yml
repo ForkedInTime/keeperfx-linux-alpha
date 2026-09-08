@@ -155,8 +155,10 @@ jobs:
           # report "unchanged" while stable players, coming from the previous
           # stable, lose every save.
           PRE=$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease)
+          # gh's --jq takes only the expression, not jq's own --argjson, so the
+          # flag is spliced in as a literal true/false (it is one or the other).
           PREV=$(gh release list --limit 100 --json tagName,isPrerelease \
-                   --jq --argjson pre "$PRE" '[.[] | select(.tagName != env.TAG and .isPrerelease == $pre)] | first.tagName // empty')
+                   --jq "[.[] | select(.tagName != \"$TAG\" and .isPrerelease == $PRE)] | first.tagName // empty")
           if [ -z "$PREV" ]; then
             echo "No earlier release to compare the save format against."
             exit 0
