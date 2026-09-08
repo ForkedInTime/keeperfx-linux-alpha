@@ -9,7 +9,7 @@
 ![Render](https://img.shields.io/badge/display-GPU%20OpenGL%203.3-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--2.0-blue?style=flat-square)
 [![Stable](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?label=stable&style=flat-square&color=2ea44f)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest)
-[![Alpha](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?include_prereleases&label=alpha&style=flat-square&color=orange)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)
+[![Alpha](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?include_prereleases&filter=*-alpha&label=alpha&style=flat-square&color=orange)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)
 
 **Dungeon Keeper, native on Linux.** One file on most distros — a proper AUR package on Arch.
 
