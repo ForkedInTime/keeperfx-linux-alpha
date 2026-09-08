@@ -63,7 +63,7 @@
 # It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
 # mismatch is always a source change, never a toolchain difference.
 
-sizeof_struct_game=53350681
+sizeof_struct_game=53362616
 
 # 2026-08-25: upstream's custom-icon feature (#5147, #5139) added
 #     short icon_idx;   // 2 bytes (+ padding)
@@ -75,3 +75,15 @@ sizeof_struct_game=53350681
 # -- dropping it from the save would silently revert a custom icon back to
 # the default one after loading, a real (if minor) behavioural regression
 # from what upstream shipped, not merely a compatibility inconvenience.
+
+# 2026-09-07: upstream sync (dkfans 33e94e51b). 53350681 -> 53362616 between
+# builds 5596 and this one. Two layout changes inside `struct Game`:
+#   - #5216 moved the local-only view state (engine window, minimap position
+#     and zoom, palette fade steps, lens/main palette pointers, the
+#     tooltip/status-menu/pause restore flags) out of `struct PlayerInfo`,
+#     embedded as `players[PLAYERS_COUNT]`, into a separate `local_info`
+#     that is not saved. Correct: none of it belongs to the game state.
+#   - #5207 widened `IntralevelData.next_level` from char to LevelNumber so
+#     SET_NEXT_LEVEL can name levels above 127 from bonus levels.
+# Accepted: both are upstream design corrections; carrying the old layout
+# would mean forking struct Game itself.

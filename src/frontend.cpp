@@ -498,7 +498,7 @@ void add_message(long plyr_idx, char *msg)
     }
     nmsg = &net_message[i];
     nmsg->plyr_idx = plyr_idx;
-    nmsg->connection_id = net_player_info[plyr_idx].connection_id;
+    nmsg->connection_id = net_user_info[plyr_idx].connection_id;
     snprintf(nmsg->text, NET_MESSAGE_LEN, "%s", msg);
     i++;
     net_number_of_messages = i;
@@ -2037,8 +2037,6 @@ int create_button(struct GuiMenu *gmnu, struct GuiButtonInit *gbinit, int units_
 
 long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
 {
-  struct PlayerInfo *player;
-  player = get_my_player();
   long scaled_width;
   scaled_width = (menu_width * units_per_px + 8) / 16;
   long pos;
@@ -2048,7 +2046,7 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
       pos = GetMouseX() - (scaled_width >> 1);
       break;
   case POS_GAMECTR: // Player-based positioning
-      pos = (player->engine_window_x) + (player->engine_window_width >> 1) - (scaled_width >> 1);
+      pos = (local_info.engine_window_x) + (local_info.engine_window_width >> 1) - (scaled_width >> 1);
       break;
   case POS_MOUSPRV: // Place menu centered over previous mouse position
       pos = old_menu_mouse_x - (scaled_width >> 1);
@@ -2074,8 +2072,8 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
   {
     if (pos+scaled_width > MyScreenWidth)
       pos = MyScreenWidth-scaled_width;
-    if (pos < player->engine_window_x)
-      pos = player->engine_window_x;
+    if (pos < local_info.engine_window_x)
+      pos = local_info.engine_window_x;
   } else
   {
     if (pos+scaled_width > MyScreenWidth)
@@ -2088,7 +2086,6 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
 
 long compute_menu_position_y(long desired_pos,int menu_height, int units_per_px)
 {
-    struct PlayerInfo *player = get_my_player();
     long scaled_height;
     scaled_height = (menu_height * units_per_px + 8) / 16;
     long pos;
@@ -2098,7 +2095,7 @@ long compute_menu_position_y(long desired_pos,int menu_height, int units_per_px)
         pos = GetMouseY() - (scaled_height >> 1);
         break;
     case POS_GAMECTR: // Player-based positioning
-        pos = (player->engine_window_height >> 1) - ((scaled_height+20*units_per_px/16) >> 1);
+        pos = (local_info.engine_window_height >> 1) - ((scaled_height+20*units_per_px/16) >> 1);
         break;
     case POS_MOUSPRV: // Place menu centered over previous mouse position
         pos = old_menu_mouse_y - (scaled_height >> 1);
@@ -3470,7 +3467,7 @@ void update_player_objectives(PlayerNumber plyr_idx)
           break;
       case VicS_LostLevel:
           TextStringId msg_idx = CpgStr_LevelLost;
-          if (network_is_active() && (player->id_number == get_host_player_id()) && network_human_contenders_remain()) {
+          if (network_is_active() && (player->id_number == get_net_user_player_number(SERVER_ID)) && network_human_contenders_remain()) {
               msg_idx = GUIStr_NetHostLostWaitingForPlayers;
           }
           set_level_objective(player->id_number, get_string(msg_idx));

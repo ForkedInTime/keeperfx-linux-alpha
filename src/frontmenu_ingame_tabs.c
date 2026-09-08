@@ -190,20 +190,18 @@ short get_pixels_scaled_and_zoomed(long basic_zoom)
 
 void gui_zoom_in(struct GuiButton *gbtn)
 {
-    struct PlayerInfo* player = get_my_player();
-    if (player->minimap_zoom > 128) {
-        player->minimap_zoom >>= 1;
-        settings.minimap_zoom = player->minimap_zoom;
+    if (local_info.minimap_zoom > 128) {
+        local_info.minimap_zoom >>= 1;
+        settings.minimap_zoom = local_info.minimap_zoom;
         save_settings();
     }
 }
 
 void gui_zoom_out(struct GuiButton *gbtn)
 {
-    struct PlayerInfo* player = get_my_player();
-    if (player->minimap_zoom < 2048) {
-        player->minimap_zoom <<= 1;
-        settings.minimap_zoom = player->minimap_zoom;
+    if (local_info.minimap_zoom < 2048) {
+        local_info.minimap_zoom <<= 1;
+        settings.minimap_zoom = local_info.minimap_zoom;
         save_settings();
     }
 }
@@ -563,7 +561,7 @@ void gui_remove_area_for_rooms(struct GuiButton *gbtn)
     game.chosen_room_kind = 0;
     game.chosen_room_spridx = 0;
     game.chosen_room_tooltip = 0;
-    struct Packet* pckt = get_packet(my_player_number);
+    struct Packet* pckt = get_local_packet();
     set_packet_action(pckt, PckA_SetPlyrState, PSt_Sell, 0, 0, 0);
 }
 
@@ -725,17 +723,16 @@ void gui_choose_spell(struct GuiButton *gbtn)
     choose_spell(gbtn->content.lval, gbtn->tooltip_stridx);
 }
 
-void go_to_next_spell_of_type(PowerKind pwkind, PlayerNumber plyr_idx)
+void go_to_next_spell_of_type(PowerKind pwkind)
 {
-    struct Packet* pckt = get_packet(plyr_idx);
+    struct Packet* pckt = get_local_packet();
     set_packet_action(pckt, PckA_ZoomToSpell, pwkind, 0, 0, 0);
 }
 
 void gui_go_to_next_spell(struct GuiButton *gbtn)
 {
     PowerKind pwkind = gbtn->content.lval;
-    struct PlayerInfo* player = get_my_player();
-    go_to_next_spell_of_type(pwkind, player->id_number);
+    go_to_next_spell_of_type(pwkind);
     set_chosen_power(pwkind, gbtn->tooltip_stridx);
 }
 
@@ -937,7 +934,7 @@ void go_to_next_trap_of_type(ThingModel tngmodel, PlayerNumber plyr_idx)
     }
     i = seltrap[tngmodel];
     if (i > 0) {
-        struct Packet* pckt = get_packet(plyr_idx);
+        struct Packet* pckt = get_local_packet();
         set_packet_action(pckt, PckA_ZoomToTrap, i, 0, 0, 0);
     }
 }
@@ -992,7 +989,7 @@ void go_to_next_door_of_type(ThingModel tngmodel, PlayerNumber plyr_idx)
     }
     i = seldoor[tngmodel];
     if (i > 0) {
-        struct Packet* pckt = get_packet(plyr_idx);
+        struct Packet* pckt = get_local_packet();
         set_packet_action(pckt, PckA_ZoomToDoor, i, 0, 0, 0);
     }
 }
@@ -2288,7 +2285,7 @@ void gui_toggle_ally(struct GuiButton *gbtn)
     if(plyr_idx == -1)
         return;
     if ((gbtn->flags & LbBtnF_Enabled) != 0) {
-        struct Packet* pckt = get_packet(my_player_number);
+        struct Packet* pckt = get_local_packet();
         set_packet_action(pckt, PckA_PlyrToggleAlly, plyr_idx, 0, 0, 0);
     }
 }
@@ -2660,11 +2657,11 @@ void draw_whole_status_panel(void)
     // Draws gold amount; note that button_sprite[] is used instead of full font
     draw_gold_total(player->id_number, gmnu->pos_x + gmnu->width/2, gmnu->pos_y + gmnu->height*67/200, fs_units_per_px, dungeon->total_money_owned);
     if (16/mm_units_per_px < 3)
-        mmzoom = (player->minimap_zoom) / scale_value_for_resolution_with_upp(2,mm_units_per_px);
+        mmzoom = (local_info.minimap_zoom) / scale_value_for_resolution_with_upp(2,mm_units_per_px);
     else
-        mmzoom = player->minimap_zoom;
-    panel_map_draw_slabs(player->minimap_pos_x, player->minimap_pos_y, mm_units_per_px, mmzoom);
-    long basic_zoom = player->minimap_zoom;
+        mmzoom = local_info.minimap_zoom;
+    panel_map_draw_slabs(local_info.minimap_pos_x, local_info.minimap_pos_y, mm_units_per_px, mmzoom);
+    long basic_zoom = local_info.minimap_zoom;
     panel_map_draw_overlay_things(mm_units_per_px, mmzoom, basic_zoom);
     unsigned char placefill_threshold = (LbScreenHeight() >= 400) ? 80 : 40;
     if (LbScreenHeight() - gmnu->height >= placefill_threshold)
@@ -2905,7 +2902,7 @@ void gui_query_next_creature_of_owner_and_model(struct GuiButton *gbtn)
     ThingIndex next_creature = get_index_of_next_creature_of_owner_and_model(creatng, creatng->owner, creatng->model, player);
     if (next_creature != player->influenced_thing_idx)
     {
-        struct Packet* pckt = get_packet(player->id_number);
+        struct Packet* pckt = get_local_packet();
         set_packet_action(pckt, PckA_PlyrQueryCreature, next_creature, 0, 1, 0);
         play_non_3d_sample(snd_tab_click);
     }
@@ -2918,7 +2915,7 @@ void gui_query_next_creature_of_owner(struct GuiButton *gbtn)
     ThingIndex next_creature = get_index_of_next_creature_of_owner_and_model(creatng, creatng->owner, 0, player);
     if (next_creature != player->influenced_thing_idx)
     {
-        struct Packet* pckt = get_packet(player->id_number);
+        struct Packet* pckt = get_local_packet();
         set_packet_action(pckt, PckA_PlyrQueryCreature, next_creature, 0, 1, 0);
         play_non_3d_sample(snd_tab_click);
     }

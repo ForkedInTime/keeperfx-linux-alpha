@@ -44,6 +44,7 @@
 #include "room_list.h"
 #include "vidfade.h"
 #include "vidmode.h"
+#include "custom_sprites.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -259,7 +260,7 @@ static void get_hand_packet(PlayerNumber plyr_idx, struct ScreenPacket *nspck, i
     nspck->action_par1 = fe_net_level_selected;
     set_screen_packet_position(nspck, GetMouseX()*16/units_per_pixel_landview + map_info.screen_shift_x, GetMouseY()*16/units_per_pixel_landview + map_info.screen_shift_y);
     LevelNumber selected_level_number = get_selected_level_number();
-    if ((my_player_number == get_host_player_id()) && (selected_level_number > SINGLEPLAYER_NOTSTARTED)) {
+    if (network_is_host() && (selected_level_number > SINGLEPLAYER_NOTSTARTED)) {
         screen_packet_set_action(nspck, NetAct_HostStartLevel);
         nspck->action_par1 = selected_level_number;
         return;
@@ -310,7 +311,7 @@ static void draw_netmap_players_hands(void)
             slap_frame = get_slap_anim_frame(net_map_local.local_slap_anim_start, now);
         }
         get_hand_packet(i, &nspck, slap_frame, now);
-        plyr_nam = network_player_name(i);
+        plyr_nam = network_user_name(i);
         colr = net_player_colours[i];
         spr = get_hand_sprite_for_packet(&nspck, anim_frame, &x, &y);
         x -= (long)map_info.screen_shift_x;
@@ -426,6 +427,8 @@ TbBool frontnetmap_load(void)
         map_flag = load_spritesheet("ldata/netflag_ens.dat", "ldata/netflag_ens.tab");
         break;
     }
+    
+    map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette); 
     map_font = load_spritesheet("ldata/netfont.dat", "ldata/netfont.tab");
     prepare_file_path_buf(hand_data_path, sizeof(hand_data_path), FGrp_LandView, "maphand.dat");
     prepare_file_path_buf(hand_index_path, sizeof(hand_index_path), FGrp_LandView, "maphand.tab");
@@ -507,10 +510,8 @@ static LevelNumber frontnetmap_update_players(void)
     if (!fe_network_active && (fe_net_level_selected > SINGLEPLAYER_NOTSTARTED)) {
         return fe_net_level_selected;
     }
-    const PlayerNumber host_player_number = get_host_player_id();
-    const TbBool is_host = my_player_number == host_player_number;
     const TbBool level_not_selected = get_selected_level_number() <= SINGLEPLAYER_NOTSTARTED;
-    const TbBool can_start_level = is_host && level_not_selected;
+    const TbBool can_start_level = network_is_host() && level_not_selected;
     struct ScreenPacket* my_nspck = &net_screen_packet[my_player_number];
     TbBool slap_hit_confirmed = false;
     int32_t leading_votes = 0;
@@ -518,15 +519,17 @@ static LevelNumber frontnetmap_update_players(void)
     if (can_start_level) {
         memset(scratch, 0, PALETTE_SIZE);
     }
-    for (int32_t i = 0; i < MAX_NET_USERS; i++) {
+    for (NetUserId i = 0; i < MAX_NET_USERS; i++) {
         struct ScreenPacket* nspck = &net_screen_packet[i];
         unsigned char action;
         TbBool remote_player;
+        TbBool host_player;
         if (!is_connected_screen_packet(nspck)) {
             continue;
         }
         remote_player = i != my_player_number;
-        if (remote_player && !network_player_active(i)) {
+        host_player = i == SERVER_ID;
+        if (remote_player && !network_user_active(i)) {
             LbNetwork_EnableNewPlayers(1);
             frontend_set_state(FeSt_NET_START);
             return SINGLEPLAYER_NOTSTARTED;
@@ -543,7 +546,7 @@ static LevelNumber frontnetmap_update_players(void)
             return SINGLEPLAYER_NOTSTARTED;
         }
         action = screen_packet_action(nspck);
-        if ((i == host_player_number) && (action == NetAct_HostStartLevel) && (nspck->action_par1 > SINGLEPLAYER_NOTSTARTED)) {
+        if (host_player && (action == NetAct_HostStartLevel) && (nspck->action_par1 > SINGLEPLAYER_NOTSTARTED)) {
             return nspck->action_par1;
         }
         if (can_start_level) {

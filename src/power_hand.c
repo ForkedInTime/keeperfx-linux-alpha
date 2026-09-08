@@ -221,6 +221,9 @@ TbBool armageddon_blocks_creature_pickup(const struct Thing *thing, PlayerNumber
 
 long can_thing_be_picked_up_by_player(const struct Thing *thing, PlayerNumber plyr_idx)
 {
+    if (flag_is_set(thing->state_flags, TF1_FallingIntoAbyss)) {
+        return false;
+    }
     if (thing_is_creature(thing) && flag_is_set(get_creature_model_flags(thing), CMF_CannotPickUp)) {
         return false;
     }
@@ -557,7 +560,7 @@ void draw_power_hand(void)
     }
     // Now draw
     if (((game.operation_flags & GOF_ShowGui) != 0) && (game.small_map_state != 2)
-      && mouse_is_over_panel_map(player->minimap_pos_x, player->minimap_pos_y))
+      && mouse_is_over_panel_map(local_info.minimap_pos_x, local_info.minimap_pos_y))
     {
         MapSubtlCoord stl_x;
         MapSubtlCoord stl_y;

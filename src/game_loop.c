@@ -530,6 +530,16 @@ void gameplay_loop_draw()
     }
 }
 
+void network_yield_waiting_gameplay_packets()
+{
+    poll_inputs();
+    gameplay_loop_draw();
+    update_gameplay_delta_time();
+    // Reduce game speed during lag spikes.
+    if (game.process_turn_time > 2.0)
+        game.process_turn_time = 2.0;
+}
+
 static void gameplay_loop_logic()
 {
     if(flag_is_set(start_params.debug_flags, DFlg_PauseAtGameTurn))
@@ -982,6 +992,7 @@ static TbBool wait_at_frontend(void)
     }
     reenter_video_mode();
 
+    level_load_time_phase(LevelLoadTime_EngineStartup);
     display_loading_screen();
 
     short flgmem;
@@ -1008,6 +1019,7 @@ static TbBool wait_at_frontend(void)
           clear_flag(game.system_flags, GSF_NetworkActive);
           RendererClearScreen(0);
           RendererPresentFrame();
+          level_load_time_phase(LevelLoadTime_Data);
           if (!load_game(game.save_game_slot))
           {
               // load_game() refuses a save it cannot read before touching any
@@ -1020,6 +1032,7 @@ static TbBool wait_at_frontend(void)
               frontend_reentry_state = FeSt_FELOAD_GAME;
               return false;
           }
+          level_load_time_phase(LevelLoadTime_GameSetup);
           game.save_game_slot = flgmem;
           break;
     case FeSt_PACKET_DEMO:

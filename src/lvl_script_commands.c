@@ -794,6 +794,7 @@ static void delete_from_party_check(const struct ScriptLine *scline)
 }
 
 static TbBool get_custom_icon_from_value(const char* txt, short* icon_idx);
+static TbBool get_custom_ensign_from_value(const char* txt, short* ensign_id);
 
 static void display_objective_check(const struct ScriptLine *scline)
 {
@@ -1046,6 +1047,19 @@ static TbBool get_custom_icon_from_value(const char* txt, short* icon_idx)
     return true;
 }
 
+static TbBool get_custom_ensign_from_value(const char* txt, short* ensign_id)
+{
+    if (txt[0] == '\0')
+        return false;   
+    if(strncmp(txt,"RESET",5) == 0 || strncmp(txt,"-1",2) == 0){
+        *ensign_id = -1;
+        return true;
+    }
+    short idx = get_ensign_id(txt);    
+    *ensign_id = CUSTOM_ENSIGN_BASE + idx;
+    return true;
+}
+
 static void quick_information_check(const struct ScriptLine* scline)
 {
     ALLOCATE_SCRIPT_VALUE(scline->command, ALL_PLAYERS);
@@ -1095,11 +1109,14 @@ static void quick_information_check(const struct ScriptLine* scline)
     value->shorts[3] = x;
     value->shorts[4] = y;
     value->shorts[5] = -1;
-    if (scline->tp[3][0] != '\0' && !get_custom_icon_from_value(scline->tp[3], &value->shorts[5]))
+    if (scline->command == Cmd_QUICK_INFORMATION)
     {
-        SCRPTERRLOG("Invalid custom icon (%s)", scline->tp[3]);
-        DEALLOCATE_SCRIPT_VALUE
-        return;
+        if (scline->tp[3][0] != '\0' && !get_custom_icon_from_value(scline->tp[3], &value->shorts[5]))
+        {
+            SCRPTERRLOG("Invalid custom icon (%s)", scline->tp[3]);
+            DEALLOCATE_SCRIPT_VALUE
+            return;
+        }
     }
     PROCESS_SCRIPT_VALUE(scline->command);
 }
@@ -1254,6 +1271,7 @@ static void display_player_information_check(const struct ScriptLine* scline)
     value->ulongs[2] = location;   // ulongs[2] (bytes 16-23): clear of shorts[4]=y (bytes 8-9)
     value->shorts[3] = x;
     value->shorts[4] = y;
+    value->shorts[5] = -1;
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
@@ -3637,15 +3655,68 @@ static void display_variable_check(const struct ScriptLine *scline)
 }
 
 static void display_variable_process(struct ScriptContext *context)
+{    	
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&game.script_variables[i], &game.script_variables[i-1], sizeof(struct ScriptVariable));
+    }    
+    game.script_variables[0].variable_player = context->player_idx;
+    game.script_variables[0].value_type = context->value->bytes[2];
+    game.script_variables[0].value_id = context->value->longs[1];
+    game.script_variables[0].variable_target = context->value->longs[2];
+    game.script_variables[0].variable_target_type = context->value->bytes[1];
+    
+    game.script_variables[0].include_icon = false;
+    game.script_variables[0].icon_idx = -1;
+    if (game.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        game.active_script_var_count++;
+    }	
+	
+    game.flags_gui |= GGUI_Variable;
+}
+static void display_variable_with_label_check(const struct ScriptLine *scline)
 {
-   game.script_variable_player = context->player_idx;
-   game.script_value_type = context->value->bytes[2];
-   game.script_value_id = context->value->longs[1];
-   game.script_variable_target = context->value->longs[2];
-   game.script_variable_target_type = context->value->bytes[1];
-   game.flags_gui |= GGUI_Variable;
+    int32_t varib_id, varib_type;
+    if (!parse_get_varib(scline->tp[1], &varib_id, &varib_type, level_file_version))
+    {
+        SCRPTERRLOG("Unknown variable, '%s'", scline->tp[1]);
+        return;
+    }
+    ALLOCATE_SCRIPT_VALUE(scline->command, scline->np[0]);
+
+    value->bytes[2] = varib_type;
+    value->longs[1] = varib_id;    
+    value->shorts[4] = -1;
+    const char *icon = scline->tp[2];
+
+    if (icon[0] != '\0' && !get_custom_icon_from_value(icon, &value->shorts[4]))
+    {
+        SCRPTERRLOG("Invalid custom icon (%s)", icon);
+        DEALLOCATE_SCRIPT_VALUE
+        return;
+    }
+
+    PROCESS_SCRIPT_VALUE(scline->command);
 }
 
+static void display_variable_with_label_process(struct ScriptContext *context)
+{    	
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&game.script_variables[i], &game.script_variables[i-1], sizeof(struct ScriptVariable));
+    }    
+    
+    game.script_variables[0].variable_player = context->player_idx;
+    game.script_variables[0].value_type = context->value->bytes[2];
+    game.script_variables[0].value_id = context->value->longs[1];
+    game.script_variables[0].include_icon = true;
+    game.script_variables[0].icon_idx = context->value->shorts[4];
+    if (game.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        game.active_script_var_count++;
+    }	
+	
+    game.flags_gui |= GGUI_Variable;
+}
 static void display_countdown_check(const struct ScriptLine *scline)
 {
     if (scline->np[2] <= 0)
@@ -3680,7 +3751,9 @@ static void hide_timer_process(struct ScriptContext *context)
 
 static void hide_variable_process(struct ScriptContext *context)
 {
-   game.flags_gui &= ~GGUI_Variable;
+    memset(game.script_variables, 0, sizeof(game.script_variables));
+    game.active_script_var_count = 0;
+    game.flags_gui &= ~GGUI_Variable;
 }
 
 static void create_effect_check(const struct ScriptLine *scline)
@@ -5831,7 +5904,7 @@ static void set_creature_max_level_process(struct ScriptContext* context)
     }
 }
 
-static void reset_action_point_check(const struct ScriptLine* scline)
+static void reset_or_trigger_action_point_check(const struct ScriptLine* scline)
 {
     ALLOCATE_SCRIPT_VALUE(scline->command, 0);
     long apt_idx = action_point_number_to_index(scline->np[0]);
@@ -6583,12 +6656,46 @@ static void set_next_level_check(const struct ScriptLine* scline)
     }
 
     value->shorts[1] = next_level;
+    if (is_bonus_level(game.loaded_level_number) || is_extra_level(game.loaded_level_number))
+    {
+        value->shorts[2] = true; // On bonus levels we have to force moving on.
+    }
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void set_next_level_process(struct ScriptContext* context)
 {
+    TbBool force_now = context->value->shorts[2];
     intralvl.next_level = context->value->shorts[1];
+    if (force_now)
+    {
+        set_continue_level_number(intralvl.next_level);
+    }
+}
+
+static void set_level_ensign_check(const struct ScriptLine* scline)
+{
+    ALLOCATE_SCRIPT_VALUE(scline->command, 0);
+    short lvlnum = scline->np[0];
+    if (!is_campaign_level(lvlnum))
+    {
+        SCRPTERRLOG("Script command %s only functions in campaigns.", scline->tcmnd);
+        DEALLOCATE_SCRIPT_VALUE
+        return;
+    }
+    if (scline->tp[1][0] != '\0' && !get_custom_ensign_from_value(scline->tp[1], &value->shorts[2]))
+    {
+        SCRPTERRLOG("Invalid custom ensign (%s)", scline->tp[1]);
+        DEALLOCATE_SCRIPT_VALUE
+        return;
+    }
+    value->shorts[1] = lvlnum;
+    PROCESS_SCRIPT_VALUE(scline->command);
+}
+
+static void set_level_ensign_process(struct ScriptContext* context)
+{
+    set_level_ensign(context->value->shorts[1], context->value->shorts[2]);
 }
 
 static void show_bonus_level_check(const struct ScriptLine* scline)
@@ -6777,6 +6884,11 @@ static void tutorial_flash_button_process(struct ScriptContext* context)
     }
 }
 
+static void trigger_action_point_process(struct ScriptContext* context)
+{
+    action_point_trigger_idx(context->value->longs[0], context->value->chars[4]);
+}
+
 /**
  * Descriptions of script commands for parser.
  * Arguments are: A-string, N-integer, C-creature model, P-player, R-room kind, L-location, O-operator, S-slab kind, B-boolean
@@ -6833,7 +6945,7 @@ const struct CommandDesc command_desc[] = {
   {"HEART_LOST_QUICK_OBJECTIVE",        "NAl     ", Cmd_HEART_LOST_QUICK_OBJECTIVE, &heart_lost_quick_objective_check, &heart_lost_quick_objective_process},
   {"ADD_TUNNELLER_PARTY_TO_LEVEL",      "PAAANNN ", Cmd_ADD_TUNNELLER_PARTY_TO_LEVEL, NULL, NULL},
   {"ADD_CREATURE_TO_POOL",              "CN      ", Cmd_ADD_CREATURE_TO_POOL, NULL, NULL},
-  {"RESET_ACTION_POINT",                "Na      ", Cmd_RESET_ACTION_POINT, &reset_action_point_check, &reset_action_point_process},
+  {"RESET_ACTION_POINT",                "Na      ", Cmd_RESET_ACTION_POINT, &reset_or_trigger_action_point_check, &reset_action_point_process},
   {"SET_CREATURE_MAX_LEVEL",            "PC!N    ", Cmd_SET_CREATURE_MAX_LEVEL, &set_creature_max_level_check, &set_creature_max_level_process},
   {"SET_MUSIC",                         "A       ", Cmd_SET_MUSIC, &set_music_check, &set_music_process},
   {"TUTORIAL_FLASH_BUTTON",             "AN      ", Cmd_TUTORIAL_FLASH_BUTTON, &tutorial_flash_button_check, &tutorial_flash_button_process},
@@ -6889,6 +7001,7 @@ const struct CommandDesc command_desc[] = {
   {"SET_NEXT_LEVEL",                    "N       ", Cmd_SET_NEXT_LEVEL, &set_next_level_check, &set_next_level_process},
   {"SHOW_BONUS_LEVEL",                  "N       ", Cmd_SHOW_BONUS_LEVEL, &show_bonus_level_check, &show_bonus_level_process},
   {"HIDE_BONUS_LEVEL",                  "N       ", Cmd_HIDE_BONUS_LEVEL, &show_bonus_level_check, &hide_bonus_level_process},
+  {"SET_LEVEL_ENSIGN",                  "NA      ", Cmd_SET_LEVEL_ENSIGN, &set_level_ensign_check, &set_level_ensign_process},
   {"LEVEL_UP_CREATURE",                 "PC!AN   ", Cmd_LEVEL_UP_CREATURE, NULL, NULL},
   {"LEVEL_UP_PLAYERS_CREATURES",        "PC!n    ", Cmd_LEVEL_UP_PLAYERS_CREATURES, &level_up_players_creatures_check, level_up_players_creatures_process},
   {"CHANGE_CREATURE_OWNER",             "PC!AP   ", Cmd_CHANGE_CREATURE_OWNER, NULL, NULL},
@@ -6919,6 +7032,7 @@ const struct CommandDesc command_desc[] = {
   {"ADD_TO_TIMER",                      "PAN     ", Cmd_ADD_TO_TIMER, &add_to_timer_check, &add_to_timer_process},
   {"ADD_BONUS_TIME",                    "N       ", Cmd_ADD_BONUS_TIME, &add_bonus_time_check, &add_bonus_time_process},
   {"DISPLAY_VARIABLE",                  "PAnn    ", Cmd_DISPLAY_VARIABLE, &display_variable_check, &display_variable_process},
+  {"DISPLAY_VARIABLE_WITH_LABEL",       "PAa    ", Cmd_DISPLAY_VARIABLE_WITH_LABEL, &display_variable_with_label_check, &display_variable_with_label_process},
   {"DISPLAY_COUNTDOWN",                 "PANb    ", Cmd_DISPLAY_COUNTDOWN, &display_countdown_check, &display_timer_process},
   {"HIDE_TIMER",                        "        ", Cmd_HIDE_TIMER, &cmd_no_param_check, &hide_timer_process},
   {"HIDE_VARIABLE",                     "        ", Cmd_HIDE_VARIABLE, &cmd_no_param_check, &hide_variable_process},
@@ -6955,6 +7069,7 @@ const struct CommandDesc command_desc[] = {
   {"LOCK_POSSESSION",                   "PB!     ", Cmd_LOCK_POSSESSION, &lock_possession_check, &lock_possession_process},
   {"SET_DIGGER",                        "PC      ", Cmd_SET_DIGGER , &set_digger_check, &set_digger_process},
   {"RUN_LUA_CODE",                      "A       ", Cmd_RUN_LUA_CODE , &run_lua_code_check, &run_lua_code_process},
+  {"TRIGGER_ACTION_POINT",              "Na      ", Cmd_TRIGGER_ACTION_POINT, &reset_or_trigger_action_point_check, &trigger_action_point_process},
   {NULL,                                "        ", Cmd_NONE, NULL, NULL},
 };
 
@@ -6989,7 +7104,7 @@ const struct CommandDesc dk1_command_desc[] = {
   {"DISPLAY_INFORMATION_WITH_POS", "ANN     ", Cmd_DISPLAY_INFORMATION_WITH_POS, &display_information_check, &display_information_process},
   {"ADD_TUNNELLER_PARTY_TO_LEVEL", "PAAANNN ", Cmd_ADD_TUNNELLER_PARTY_TO_LEVEL, NULL, NULL},
   {"ADD_CREATURE_TO_POOL",         "CN      ", Cmd_ADD_CREATURE_TO_POOL, NULL, NULL},
-  {"RESET_ACTION_POINT",           "N       ", Cmd_RESET_ACTION_POINT, &reset_action_point_check, &reset_action_point_process},
+  {"RESET_ACTION_POINT",           "N       ", Cmd_RESET_ACTION_POINT, &reset_or_trigger_action_point_check, &reset_action_point_process},
   {"SET_CREATURE_MAX_LEVEL",       "PC!N    ", Cmd_SET_CREATURE_MAX_LEVEL, &set_creature_max_level_check, &set_creature_max_level_process},
   {"SET_MUSIC",                    "N       ", Cmd_SET_MUSIC, NULL, NULL},
   {"TUTORIAL_FLASH_BUTTON",        "NN      ", Cmd_TUTORIAL_FLASH_BUTTON, &tutorial_flash_button_check, &tutorial_flash_button_process},

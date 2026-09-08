@@ -943,9 +943,9 @@ void count_crates_in_room(struct Room *room)
 }
 
 void send_manufacture_complete_event(struct Dungeon *dungeon, PlayerNumber plyr_idx)
-{
-    const char *kind_description;
-    const char *class_description;
+{   
+    const char *kind_description = NULL;
+    const char *class_description = NULL;
 
     switch (dungeon->manufacture_class)
     {
@@ -957,6 +957,9 @@ void send_manufacture_complete_event(struct Dungeon *dungeon, PlayerNumber plyr_
             kind_description = door_code_name(dungeon->manufacture_kind);
             class_description = "Door";
             break;
+        default:
+            ERRORLOG("Invalid manufacture class %d", (int)dungeon->manufacture_class);
+            return;
     }
 
     struct ApiEventData event_data[] = {
