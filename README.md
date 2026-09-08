@@ -88,10 +88,12 @@ same recipe.
 <details>
 <summary><b>What the package does and doesn't include</b></summary>
 
-> It installs as two pieces from one recipe: `keeperfx-tux`, the engine, compiled against your system's
-> SDL3/ffmpeg/OpenAL rather than bundling copies; and `keeperfx-tux-data`, everything KeeperFX itself
-> provides — campaigns, graphics, sounds and language files. You only ever ask for the first; pacman
-> brings the second.
+> It installs as three packages from one recipe: `keeperfx-tux`, the engine, compiled against your
+> system's SDL3/ffmpeg/OpenAL rather than bundling copies; `keeperfx-tux-data`, everything KeeperFX
+> itself provides — campaigns, graphics, sounds and language files; and `keeperfx-tux-launcher`, the Qt
+> launcher, pinned to the same launcher commit the AppImage of that release was built from. You only
+> ever ask for the first; pacman brings the other two, and an upgrade keeps the previous engine so
+> your saves stay playable.
 >
 > On first launch the game directory is assembled at `~/.local/share/keeperfx-alpha` (set `KEEPERFX_HOME`
 > to put it elsewhere). **You still need to own the original game**, same as every other install method
@@ -100,7 +102,7 @@ same recipe.
 > find an installation and copy them for you.
 >
 > The recipe lives in `packaging/aur/` in this repository, so what you build with `makepkg` above is
-> exactly what will be published to the AUR — same PKGBUILD, same two packages, same paths.
+> exactly what will be published to the AUR — same PKGBUILD, same three packages, same paths.
 
 </details>
 
@@ -168,14 +170,14 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | | What we added | Roughly |
 > |---|---|---|
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
-> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found five memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
+> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 9 wins |
 > | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 246 commits of ours on top
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 256 commits of ours on top
 > of theirs, on top of 22 upstream merges. The sections below are the line items.</sub>
 
 <details>
@@ -303,7 +305,7 @@ first.)
   picture through a colour table uploaded only when it changes — but rebuilding the backend on a
   resolution switch produced a fresh, empty table that the "unchanged" check then never refilled.
   Every pixel looked up black, permanently. The table is refilled on every backend rebuild.
-- **Five memory faults found by our sanitizer pass** — the engine now builds under AddressSanitizer and
+- **Four memory faults found by our sanitizer pass** — the engine now builds under AddressSanitizer and
   every campaign is run through it before a release. Its first runs caught an array overflow on every
   game start, out-of-bounds reads on every level load and script parse, and a C++ destructor fault on
   every retired sound message — inherited faults dating from 2008 to 2025, all still present upstream.
@@ -554,11 +556,12 @@ the Windows *plumbing*, leave the shared *source* alone — that's what keeps th
 actually keep doing.
 
 After the sync PR is merged, a release is cut, and publishing it is the whole job: CI builds the AppImage,
-the game package (`full.7z`) and the portable tarball, and attaches all three to the release. Each build
-layers the KeeperFX team's current data package over ours, so their new content arrives on its own rather
-than waiting to be noticed. The Flatpak is rebuilt on a monthly schedule (it self-updates its game package
-on launch, so it catches up in between). Existing installs are offered the new build by the launcher's
-built-in updater.
+the game package (`full.7z`), the portable tarball and a small update patch from the previous release of
+each channel, and attaches them all to the release; a stable release also updates the AUR recipe. Each
+build layers the KeeperFX team's current data package over ours, so their new content arrives on its own
+rather than waiting to be noticed. The Flatpak is rebuilt monthly and after each stable (it self-updates
+its game package on launch, so it catches up in between). Existing installs are offered the new build by
+the launcher's built-in updater, which downloads the patch when one fits and the full package otherwise.
 
 The same sync can still be done by hand:
 ```bash
