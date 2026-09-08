@@ -286,6 +286,7 @@ enum OverheadMapStyle {
     OMapSt_Gold,
     OMapSt_Gems,
     OMapSt_Wall,
+    OMapSt_Abyss,
 };
 
 static TbPixel get_player_path_colour(unsigned short owner)
@@ -327,6 +328,9 @@ static int get_overhead_mapblock_style(const struct Map* mapblk, const struct Sl
     }
     if (slb->kind == SlbT_ROCK_FLOOR) {
         return pixmap.ghost[3];
+    }
+    if (subtile_has_abyss_on_top(slab_subtile_center(slb_x), slab_subtile_center(slb_y))) {
+        return OMapSt_Abyss;
     }
     if ((mapblk->flags & SlbAtFlg_Filled) != 0) {
         return OMapSt_Wall;
@@ -406,6 +410,8 @@ void draw_overhead_map(const struct TbRect *map_area, long block_size, PlayerNum
                 add = 102;
             } else if (style == OMapSt_Wall) {
                 remap = &pixmap.ghost[0x1000];
+            } else if (style == OMapSt_Abyss) {
+                remap = pixmap.map_abyss;
             }
             unsigned char* dstline = dstblock;
             for (int32_t y = 0; y < block_size; y++) {
@@ -1145,27 +1151,27 @@ void draw_zoom_box(void)
 
     long draw_tiles = 13;
     long subtile_unscaled = 8;
-    if (player->minimap_zoom == 128)
+    if (local_info.minimap_zoom == 128)
     {
         draw_tiles = 6;
         subtile_unscaled = 18;
     } else
-    if (player->minimap_zoom == 256)
+    if (local_info.minimap_zoom == 256)
     {
         draw_tiles = 9;
         subtile_unscaled = 12;
     } else
-    if (player->minimap_zoom == 512)
+    if (local_info.minimap_zoom == 512)
     {
         draw_tiles = 12;
         subtile_unscaled = 9;
     } else
-    if (player->minimap_zoom == 1024)
+    if (local_info.minimap_zoom == 1024)
     {
         draw_tiles = 18;
         subtile_unscaled = 6;
     } else
-    if (player->minimap_zoom == 2048)
+    if (local_info.minimap_zoom == 2048)
     {
         draw_tiles = 36;
         subtile_unscaled = 3;

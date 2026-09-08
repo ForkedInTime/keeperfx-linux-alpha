@@ -676,7 +676,7 @@ void get_dungeon_sell_user_roomspace(struct RoomSpace *roomspace, PlayerNumber p
     current_roomspace.plyr_idx = plyr_idx;
     MapSlabCoord drag_start_x = slb_x;
     MapSlabCoord drag_start_y = slb_y;
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet(player->user_id);
     player->one_click_lock_cursor = false;
     player->one_click_mode_exclusive = false;
     if (player->ignore_next_PCtr_LBtnRelease)
@@ -763,7 +763,7 @@ void get_dungeon_build_user_roomspace(struct RoomSpace *roomspace, PlayerNumber 
     best_roomspace.rkind = rkind;
     MapSlabCoord drag_start_x = slb_x;
     MapSlabCoord drag_start_y = slb_y;
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet(player->user_id);
     struct RoomSpace temp_best_room;
     player->one_click_lock_cursor = false;
     if (player->ignore_next_PCtr_LBtnRelease)
@@ -818,11 +818,9 @@ void get_dungeon_build_user_roomspace(struct RoomSpace *roomspace, PlayerNumber 
             drag_start_y = slb_y;
         }
         TbBool can_drag;
-        if (room_role_matches(rkind,RoRoF_PassWater|RoRoF_PassLava))
+        if (room_role_matches(rkind,RoRoF_PassWater|RoRoF_PassLava|RoRoF_PassAbyss))
         {
-            can_drag = ((can_build_room_at_slab(plyr_idx, rkind, drag_start_x, drag_start_y)) ||
-                        (room_role_matches(rkind,RoRoF_PassWater) && (players_land_by_slab_kind(plyr_idx, drag_start_x, drag_start_y,SlbT_WATER))) ||
-                        (room_role_matches(rkind,RoRoF_PassLava)  && (players_land_by_slab_kind(plyr_idx, drag_start_x, drag_start_y,SlbT_LAVA))) );
+            can_drag = can_build_room_at_slab(plyr_idx, rkind, drag_start_x, drag_start_y) || players_land_by_bridgeable_slab(plyr_idx, drag_start_x, drag_start_y);
             player->one_click_mode_exclusive = false;
         }
         else
@@ -837,7 +835,7 @@ void get_dungeon_build_user_roomspace(struct RoomSpace *roomspace, PlayerNumber 
         {
             temp_best_room = create_box_roomspace(best_roomspace, 1, 1, slb_x, slb_y);
         }
-        if (room_role_matches(rkind,RoRoF_PassWater|RoRoF_PassLava))
+        if (room_role_matches(rkind,RoRoF_PassWater|RoRoF_PassLava|RoRoF_PassAbyss))
         {
             detect_bridge_shape(plyr_idx);
         }
@@ -1360,8 +1358,8 @@ void update_roomspaces()
 void process_build_roomspace_inputs(PlayerNumber plyr_idx)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet(plyr_idx);
-    if (room_role_matches(player->chosen_room_kind,RoRoF_PassLava|RoRoF_PassWater))
+    struct Packet* pckt = get_packet(player->user_id);
+    if (room_role_matches(player->chosen_room_kind,RoRoF_PassLava|RoRoF_PassWater|RoRoF_PassAbyss))
     {
         TbBool drag_check = ( ( (is_game_key_pressed(Gkey_BestRoomSpace, false, true)) || (is_game_key_pressed(Gkey_SquareRoomSpace, false, true)) ) && (left_button_held));
         if (drag_check) // Enable "paint mode" if Ctrl or Shift are held
@@ -1443,8 +1441,8 @@ void process_build_roomspace_inputs(PlayerNumber plyr_idx)
 
 void process_sell_roomspace_inputs(PlayerNumber plyr_idx)
 {
-    struct Packet* pckt = get_packet(plyr_idx);
     struct PlayerInfo* player = get_player(plyr_idx);
+    struct Packet* pckt = get_packet(player->user_id);
     if (is_game_key_pressed(Gkey_SellTrapOnSubtile, false, true))
     {
         set_packet_action(pckt, PckA_SetRoomspaceSubtile, 0, 0, 0, 0);
@@ -1530,7 +1528,7 @@ void process_highlight_roomspace_inputs(PlayerNumber plyr_idx)
             player = get_player(plyr_idx);
             if (player->roomspace_mode != single_subtile_mode)
             {
-                struct Packet* pckt = get_packet(my_player_number);
+                struct Packet* pckt = get_local_packet();
                 set_packet_action(pckt, PckA_SetRoomspaceSubtile, 0, 0, 0, 0);
                 reset_roomspace = true;
             }
@@ -1675,23 +1673,14 @@ void update_slab_grid(struct RoomSpace* roomspace, unsigned char mode, TbBool se
 TbBool roomspace_can_build_room_at_slab(PlayerNumber plyr_idx, RoomKind rkind, MapSlabCoord slb_x, MapSlabCoord slb_y)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    if (room_role_matches(player->chosen_room_kind,RoRoF_PassLava|RoRoF_PassWater))
+    if (room_role_matches(rkind,RoRoF_PassLava|RoRoF_PassWater|RoRoF_PassAbyss))
     {
         if (!subtile_revealed(slab_subtile_center(slb_x), slab_subtile_center(slb_y), plyr_idx))
         {
             return false;
         }
-        if (!slab_is_liquid(slb_x, slb_y))
-        {
-            return false;
-        }
         struct SlabMap* slb = get_slabmap_block(slb_x, slb_y);
-        if(slb->kind == SlbT_WATER && !room_role_matches( rkind,RoRoF_PassWater))
-        {
-            return false;
-        }
-        if(slb->kind == SlbT_LAVA && !room_role_matches( rkind,RoRoF_PassLava))
-        {
+        if (!room_can_build_on_bridge_slab(rkind, slb->kind)) {
             return false;
         }
         if (player->roomspace_horizontal_first)
@@ -1860,9 +1849,9 @@ TbBool roomspace_slab_blocks_bridge(PlayerNumber plyr_idx, MapSlabCoord slb_x, M
     {
         return true;
     }
-    if (!slab_is_liquid(slb_x, slb_y))
+    struct SlabMap *slb = get_slabmap_block(slb_x, slb_y);
+    if (!slab_kind_is_bridgeable(slb->kind))
     {
-        struct SlabMap *slb = get_slabmap_block(slb_x, slb_y);
         if ((slabmap_owner(slb)) != plyr_idx)
         {
             return true;

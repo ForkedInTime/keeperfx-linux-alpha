@@ -3210,6 +3210,7 @@ void make_creature_unconscious(struct Thing *creatng)
         update_dead_creatures_list_for_owner(creatng);
     }
     creatng->active_state = CrSt_CreatureUnconscious;
+    clear_flag(creatng->movement_flags, TMvF_Flying);
     cctrl->creature_control_flags |= CCFlg_PreventDamage;
     cctrl->creature_control_flags |= CCFlg_NoCompControl;
     cctrl->conscious_back_turns = game.conf.rules[creatng->owner].creature.game_turns_unconscious;
@@ -3223,6 +3224,7 @@ void make_creature_conscious_without_changing_state(struct Thing *creatng)
     cctrl->creature_control_flags &= ~CCFlg_PreventDamage;
     cctrl->creature_control_flags &= ~CCFlg_NoCompControl;
     cctrl->conscious_back_turns = 0;
+    restore_creature_flight_flag(creatng);
     if ((creatng->state_flags & TF1_IsDragged1) != 0)
     {
         struct Thing* sectng = thing_get(cctrl->dragtng_idx);
@@ -4630,6 +4632,7 @@ long get_thing_navigation_distance(struct Thing* creatng, struct Coord3d* pos, u
         return 0;
 
     nav_thing_can_travel_over_lava = creature_can_travel_over_lava(creatng);
+    nav_thing_is_flying = flag_is_set(creatng->movement_flags, TMvF_Flying);
     if (resetOwnerPlayerNavigating)
         owner_player_navigating = -1;
     else
@@ -4646,6 +4649,7 @@ long get_thing_navigation_distance(struct Thing* creatng, struct Coord3d* pos, u
         pos->y.val,
         -2, nav_sizexy, __func__);
     nav_thing_can_travel_over_lava = 0;
+    nav_thing_is_flying = 0;
 
     int distance = 0;
     if (!path.waypoints_num)

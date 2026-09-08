@@ -23,6 +23,7 @@
 #include "bflib_math.h"
 #include "bflib_fileio.h"
 #include "bflib_dernc.h"
+#include "bflib_enet.h"
 #include "bflib_video.h"
 #include "bflib_keybrd.h"
 #include "bflib_datetm.h"
@@ -41,6 +42,7 @@
 #include "vidmode.h"
 #include "moonphase.h"
 #include "keeperfx.hpp"
+#include "net_matchmaking.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -165,8 +167,11 @@ const struct NamedCommand conf_commands[] = {
   {"ROTATE_AROUND_MOUSE"           , 43},
   {"VSYNC"                         , 44},
   {"RELATIVE_MOUSE_MODE"           , 45},
-  {"TRASH_MAX_COUNT"               , 46},
-  {"TRASH_MAX_DAYS"                , 47},
+  {"CAPTURE_CURSOR"                , 46},
+  {"MATCHMAKING_SERVER"            , 47},
+  {"MULTIPLAYER_PORT"              , 48},
+  {"TRASH_MAX_COUNT"               , 49},
+  {"TRASH_MAX_DAYS"                , 50},
   {NULL,                   0},
   };
 
@@ -402,7 +407,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
       int cmd_num = recognize_conf_command(buf, &pos, len, conf_commands);
       // Now store the config item in correct place
       int k;
-      char word_buf[32];
+      char word_buf[128];
       switch (cmd_num)
       {
       case 1: // INSTALL_PATH
@@ -732,17 +737,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           break;
         case 23: //SKIP_HEART_ZOOM
-          i = recognize_conf_parameter(buf,&pos,len,logicval_type);
-          if (i <= 0)
-          {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
-                COMMAND_TEXT(cmd_num),config_textname);
-            break;
-          }
-          if (i == 1)
-              features_enabled |= Ft_SkipHeartZoom;
-          else
-              features_enabled &= ~Ft_SkipHeartZoom;
+          CONFLOG("The \"%s\" setting is unused. Use the -skipheartzoom command line option instead.", COMMAND_TEXT(cmd_num));
           break;
         case 24: //CURSOR_EDGE_CAMERA_PANNING
           i = recognize_conf_parameter(buf,&pos,len,logicval_type);
@@ -1021,7 +1016,43 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           else
               features_enabled &= ~Ft_RelativeMouseMode;
           break;
-      case 46: // TRASH_MAX_COUNT
+      case 46: // CAPTURE_CURSOR
+          i = recognize_conf_parameter(buf,&pos,len,logicval_type);
+          if (i <= 0)
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          if (i!=1) lbMouseGrab = false;
+          break;
+      case 47: // MATCHMAKING_SERVER
+          get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf));
+          if (get_id(logicval_type, word_buf) == 2)
+          {
+              matchmaking_enabled = false;
+              matchmaking_set_server(NULL);
+              SYNCLOG("Matchmaking disabled (server set to OFF)");
+          }
+          else
+          {
+              matchmaking_enabled = true;
+              matchmaking_set_server(word_buf);
+              SYNCLOG("Matchmaking server: %s", matchmaking_ws_url);
+          }
+          break;
+      case 48: // MULTIPLAYER_PORT
+          if (get_conf_parameter_single(buf, &pos, len, word_buf, sizeof(word_buf)) > 0)
+          {
+            i = atoi(word_buf);
+          }
+          if (i > 0 && i <= UINT16_MAX) {
+            enet_port = i;
+          } else {
+            CONFWRNLOG("Invalid MULTIPLAYER_PORT '%s' in %s file.", COMMAND_TEXT(cmd_num), config_textname);
+          }
+          break;
+      case 49: // TRASH_MAX_COUNT
           if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
@@ -1034,7 +1065,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
-      case 47: // TRASH_MAX_DAYS
+      case 50: // TRASH_MAX_DAYS
           if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
@@ -1166,9 +1197,11 @@ short load_configuration(void)
  */
 void process_cmdline_overrides(void)
 {
+  if (flag_is_set(start_params.operation_flags, GOF_SingleLevel)) {
+    clear_flag(start_params.startup_flags, SFlg_Legal | SFlg_FX | SFlg_Intro);
+  }
   // Use CD for music rather than OGG files
-  if (start_params.overrides[Clo_CDMusic])
-  {
+  if (start_params.overrides[Clo_CDMusic]) {
     features_enabled &= ~Ft_NoCdMusic;
   }
 }

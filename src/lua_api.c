@@ -387,6 +387,20 @@ static int lua_Set_next_level(lua_State *L)
     }
 
     intralvl.next_level = lvnum;
+    if (is_bonus_level(game.loaded_level_number) || is_extra_level(game.loaded_level_number))
+    {
+        // Allow bonus levels to advance the campaign
+        set_continue_level_number(intralvl.next_level);
+    }
+    return 0;
+}
+
+static int lua_Trigger_action_point(lua_State *L)
+{
+    ActionPointId apt_idx = luaL_checkActionPoint(L, 1);
+    PlayerNumber player_range = luaL_checkPlayerRangeId(L, 2);
+
+    action_point_trigger_idx(apt_idx, player_range);
     return 0;
 }
 
@@ -865,18 +879,59 @@ static int lua_Display_variable(lua_State *L)
     int target = luaL_optinteger(L,3,0);
     unsigned char target_type = luaL_optinteger(L,4,0);
 
-    game.script_variable_player = player;
-    game.script_value_type = varib_type;
-    game.script_value_id = varib_id;
-    game.script_variable_target = target;
-    game.script_variable_target_type = target_type;
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&game.script_variables[i], &game.script_variables[i-1], sizeof(struct ScriptVariable));
+    }    
+    game.script_variables[0].variable_player = player;
+    game.script_variables[0].value_type = varib_type;
+    game.script_variables[0].value_id = varib_id;
+    game.script_variables[0].variable_target = target;
+    game.script_variables[0].variable_target_type = target_type;
+
+    game.script_variables[0].include_icon = false;
+    game.script_variables[0].icon_idx = -1;
+    if (game.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        game.active_script_var_count++;
+    }	
+    
+    game.flags_gui |= GGUI_Variable;
+
+    return 0;
+}
+
+
+static int lua_DISPLAY_VARIABLE_WITH_LABEL(lua_State *L)
+{
+    PlayerNumber player   = luaL_checkPlayerSingle(L, 1);
+    int32_t varib_id, varib_type;
+    luaL_checkVariable(L, 2, &varib_id, &varib_type);
+    for (int i = DISPLAY_VARIABLES_LIMIT - 1; i > 0; i--)
+    {
+        memcpy(&game.script_variables[i], &game.script_variables[i-1], sizeof(struct ScriptVariable));
+    }    
+    
+    short id;
+    char type;
+    luaL_checkMessageIcon(L, 3, &type, &id);
+    game.script_variables[0].variable_player = player;
+    game.script_variables[0].value_type = varib_type;
+    game.script_variables[0].value_id = varib_id;
+    game.script_variables[0].include_icon = true;
+    game.script_variables[0].icon_idx = id;
+    if (game.active_script_var_count < DISPLAY_VARIABLES_LIMIT) {
+        game.active_script_var_count++;
+    }	
+    
     game.flags_gui |= GGUI_Variable;
 
     return 0;
 }
 
 static int lua_Hide_variable(lua_State *L)
-{
+{    
+    memset(game.script_variables, 0, sizeof(game.script_variables));
+    game.active_script_var_count = 0;
     game.flags_gui &= ~GGUI_Variable;
     return 0;
 }
@@ -2422,6 +2477,7 @@ static const luaL_Reg global_methods[] = {
    {"AddBonusTime",                     lua_Add_bonus_time                  },
    {"ResetActionPoint",                 lua_Reset_action_point              },
    {"SetNextLevel",                     lua_Set_next_level                  },
+   {"TriggerActionPoint",               lua_Trigger_action_point            },
 
 //Adding New Creatures and Parties to the Level
    {"AddCreatureToLevel",               lua_Add_creature_to_level           },
@@ -2458,6 +2514,7 @@ static const luaL_Reg global_methods[] = {
    {"TutorialFlashButton"                   ,lua_Tutorial_flash_button           },
    {"DisplayCountdown"                      ,lua_Display_countdown               },
    {"DisplayVariable"                       ,lua_Display_variable                },
+   {"DisplayVariableWithLabel"              ,lua_DISPLAY_VARIABLE_WITH_LABEL     },
    {"HideVariable"                          ,lua_Hide_variable                   },
 
 //Manipulating Map
