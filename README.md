@@ -50,11 +50,13 @@ Runs on any current 64-bit distro — Ubuntu 24.04 / 26.x, Debian 13, Fedora, Ar
 *(not Ubuntu 22.04 or older — see [requirements](#system-requirements)).*
 
 <details>
-<summary><b>Won't start?</b> (a <code>libfuse.so.2</code> error)</summary>
+<summary><b>Won't start?</b> ("Cannot mount AppImage, please check your FUSE setup")</summary>
 
-> Modern distros ship FUSE 3, but AppImages want FUSE 2 to mount themselves. Either:
-> - run it without FUSE: `./KeeperFX-Linux-Alpha-x86_64.AppImage --appimage-extract-and-run`, or
-> - install the small shim once: `sudo apt install libfuse2t64` (Ubuntu/Debian) / the `fuse2` package elsewhere.
+> This AppImage uses the current static runtime, so it does **not** need the old `libfuse2` package that
+> many AppImage guides tell you to install — it mounts itself on a stock Ubuntu 24.04, verified. The one
+> thing it needs is FUSE in the kernel (`/dev/fuse`), which every desktop install has. If you are somewhere
+> without it — a container, a locked-down kernel — run it without mounting instead:
+> `./KeeperFX-Linux-Alpha-x86_64.AppImage --appimage-extract-and-run`
 >
 > That's the AppImage *runtime*, not our app — everything our game needs is already bundled.
 </details>
