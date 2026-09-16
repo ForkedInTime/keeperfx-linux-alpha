@@ -4,6 +4,50 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5696 — 2026-09-16 — alpha
+
+**Upstream sync — 33 commits.** The headline is upstream's new **OpenGL renderer**: world, UI,
+sprites, shadows and lens effects drawn by the GPU, behind the same renderer seam the software
+path uses. Upstream only wires it into their Windows build; this release compiles it into the
+Linux binary as an **opt-in** — set `RENDERER=OPENGL` in `keeperfx.cfg` to try it, `SOFTWARE`
+stays the default. Also from upstream: multiplayer hole-punching now learns the peer's real port
+and the lobby waits five seconds instead of two; the startup-sync render crash is fixed; creatures
+no longer walk onto abyss or lava (three fixes deep); a creature teleporting to a battle no longer
+lands in the map corner; the battle list no longer shows the same fight twice and cycles with fewer
+than four battles; lights no longer flicker at map edges; the parchment map keeps its audio and no
+longer interpolates a jump; more Lua fields; and the per-user game state moved out of the
+per-player record — taken as upstream shipped them.
+
+- **The fork's own GPU present layer is retired.** Since June the game's 8-bit frame was uploaded
+  to the GPU and palette-mapped in a shader. Upstream's renderer has since grown a command stream,
+  a render thread and its own display surface, so that thin adapter could only have survived as a
+  copy of the software renderer with a different final blit. The software renderer now presents
+  through SDL exactly as upstream's does — and measured on the same level, main-thread CPU went
+  **down** (74% → 54%), so nothing was lost. With it go two lines of the earlier changelogs: the
+  GPU palette re-upload guard and the resolution-blackout fix, both of which only existed for that
+  layer. `libepoxy` is no longer a build or runtime dependency (source builds and the Arch package).
+- **Kept: the parchment map cache.** Upstream now presents the map background through the renderer,
+  which rescales it on every frame — the exact cost this fork removed. The cache is re-applied
+  around upstream's call and used whenever the software renderer is active.
+- **Kept: click-away text entry, the window icon, mouse focus.** Upstream added its own click-away
+  (which commits the field and needed a per-button opt-out for save names); this fork's version,
+  which leaves the field without committing, stays. Upstream's Linux window icon is compiled in by a
+  CMake step this build does not have, so the icon is loaded from `fxdata/` at upstream's new hook
+  instead. Cursor-in-window still uses mouse focus (the global cursor query returns 0,0 on Wayland).
+- **Movies in any codec still play** — a non-Smacker source is converted to a 256-colour frame and
+  presented through the renderer; the truecolor path went with the GPU layer.
+
+**Also since 5652, on this fork:**
+
+- **Launcher settings.** The **Rotate around cursor** control (the engine has had the setting since
+  July); zoom-to-cursor writes the values the engine actually reads (`ON`/`OFF`/`WHEEL`); every
+  boolean game setting is parsed case-insensitively; moving a slider enables Save.
+
+**Saved games from build 5652 and earlier cannot be loaded by this release.** Upstream moved the
+per-user state (cursor, possession, chosen room and spell, battle selection) out of the per-player
+record and into its own table inside the saved game state. See the warning below, or use the
+game's own "keep the previous engine" feature to finish anything in progress first.
+
 ## 1.4.0.5652 — 2026-09-07 — stable
 
 **Replaces 1.4.0.5425 as the stable release.** Everything the alpha line accumulated between

@@ -147,7 +147,7 @@ cannot be loaded" warning, written by the release build off that file's history.
 
 This fork builds with `linux.mk`, not upstream's CMake. The reasons — their
 pkg-config module names for SDL3 are wrong so it silently vendors SDL from
-source, its Linux dependency set omits `libswscale` and `libepoxy`, and its
+source, its Linux dependency set omits `libswscale`, and its
 `WIN32` source filter is Windows-first — are set out in the README under
 "Why this fork builds with `linux.mk`".
 
