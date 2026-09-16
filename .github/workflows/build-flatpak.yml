@@ -82,7 +82,7 @@ jobs:
             libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
-            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev libepoxy-dev \
+            libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev \
             libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
             $(if [ -x packaging/ci/build-sdl3.sh ]; then packaging/ci/build-sdl3.sh --apt-packages; \
               else echo libsdl2-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-image-dev; fi)

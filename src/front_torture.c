@@ -19,6 +19,7 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
+#include "kfx/renderer/RendererManager.h"
 #include "front_torture.h"
 #include "net_lobby.h"
 #include "globals.h"
@@ -100,8 +101,8 @@ long torture_door_over_point(long x,long y)
     int w = img_width * units_per_px / 16;
     int h = img_height * units_per_px / 16;
     // Starting point coords
-    int spx = (LbScreenWidth() - w) >> 1;
-    int spy = (LbScreenHeight() - h) >> 1;
+    int spx = (RendererPhysicalWidth() - w) >> 1;
+    int spy = (RendererPhysicalHeight() - h) >> 1;
     for (long i = 0; i < torture_doors_available; i++)
     {
         struct DoorDesc* door = &doors[i];
@@ -187,10 +188,14 @@ TbBool fronttorture_draw(void)
   int w = img_width * units_per_px / 16;
   int h = img_height * units_per_px / 16;
   // Starting point coords
-  int spx = (LbScreenWidth() - w) >> 1;
-  int spy = (LbScreenHeight() - h) >> 1;
-  copy_raw8_image_buffer(lbDisplay.WScreen,LbGraphicsScreenWidth(),LbGraphicsScreenHeight(),
-      w,h,spx,spy,torture_background,img_width,img_height);
+  int spx = (RendererPhysicalWidth() - w) >> 1;
+  int spy = (RendererPhysicalHeight() - h) >> 1;
+  struct RendererPresentImageDesc desc = {0};
+  desc.dst_x = spx;  desc.dst_y = spy;
+  desc.dst_w = w;    desc.dst_h = h;
+  desc.src = torture_background;  desc.src_pitch = img_width;
+  desc.src_w = img_width;         desc.src_h = img_height;
+  RendererPresentImage(&desc);
 
   for (int i = 0; i < torture_doors_available; i++)
   {

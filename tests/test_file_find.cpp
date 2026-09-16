@@ -28,6 +28,8 @@ extern "C" void LbErrorParachuteInstall() {}
 extern "C" int kfxmain(int, char **) { return 0; }
 class WindowSystemSDL;
 WindowSystemSDL* GetSDLWindowSystem() { return nullptr; }
+// PlatformLinux::GetUserPrefDir() falls back to the game directory; config.c is not linked here.
+extern "C" { char keeper_runtime_directory[152] = ""; }
 
 // PlatformLinux::TrashFile timestamps the freedesktop .trashinfo it writes.
 // The file-find tests never delete anything, so this only has to resolve.

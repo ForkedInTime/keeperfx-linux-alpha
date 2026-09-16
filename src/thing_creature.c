@@ -75,6 +75,7 @@
 #include "map_blocks.h"
 #include "map_utils.h"
 #include "player_instances.h"
+#include "player_utils.h"
 #include "config_players.h"
 #include "power_hand.h"
 #include "power_process.h"
@@ -367,13 +368,13 @@ TbBool load_swipe_graphic_for_creature(const struct Thing *thing)
 /**
  * Randomise the draw direction of the swipe sprite in the first-person possession view.
  *
- * Sets local_info.swipe_sprite_drawLR to either TRUE or FALSE.
+ * Sets local_state.swipe_sprite_drawLR to either TRUE or FALSE.
  *
  * Draw direction is either: left-to-right (TRUE) or right-to-left (FALSE)
  */
 void randomise_swipe_graphic_direction()
 {
-    local_info.swipe_sprite_drawLR = UNSYNC_RANDOM(2); // equal chance to be left-to-right or right-to-left
+    local_state.swipe_sprite_drawLR = UNSYNC_RANDOM(2); // equal chance to be left-to-right or right-to-left
 }
 
 void draw_swipe_graphic(void)
@@ -385,6 +386,13 @@ void draw_swipe_graphic(void)
         struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
         if (instance_draws_possession_swipe(cctrl->instance_id))
         {
+            // Redirect this call's sprite submissions into the dedicated
+            // swipe-overlay buffer instead of the general UI one -- see
+            // IRenderer::BeginOverlayCapture()'s own comment for why (lets GL
+            // composite the swipe sprite inside the lens-distortion bracket,
+            // matching develop, instead of flat on top of the finished
+            // frame). No-op on software, which draws immediately either way.
+            RendererBeginOverlayCapture(OVERLAY_CAPTURE_SWIPE);
             RendererSetDrawFlags(Lb_SPRITE_TRANSPAR4);
             long n = (int)cctrl->inst_turn * (5 << 8) / cctrl->inst_total_turns;
             long allwidth = 0;
@@ -395,6 +403,8 @@ void draw_swipe_graphic(void)
             if (sprlist == NULL)
             {
                 ERRORLOG("Failed to draw swipe sprite for thing %d", (int)thing->index);
+                RendererSetDrawFlags(0);
+                RendererEndOverlayCapture(OVERLAY_CAPTURE_SWIPE); // must restore -- Begin already ran above
                 return;
             }
             const struct TbSprite* startspr = &sprlist[1];
@@ -404,17 +414,17 @@ void draw_swipe_graphic(void)
                 allwidth += endspr->SWidth;
                 endspr++;
             }
-            int units_per_px = (LbScreenWidth() * 59 / 64) * 16 / allwidth;
+            int units_per_px = (RendererPhysicalWidth() * 59 / 64) * 16 / allwidth;
             int scrpos_y = (MyScreenHeight * 16 / units_per_px - (startspr->SHeight + endspr->SHeight)) / 2;
             const struct TbSprite *spr;
             int scrpos_x;
-            if (local_info.swipe_sprite_drawLR)
+            if (local_state.swipe_sprite_drawLR)
             {
                 int delta_y = sprlist[1].SHeight;
                 for (i=0; i < SWIPE_SPRITES_X*SWIPE_SPRITES_Y; i+=SWIPE_SPRITES_X)
                 {
                     spr = &startspr[i];
-                    scrpos_x = ((MyScreenWidth + (2 * local_info.engine_window_x)) * 16 / units_per_px - allwidth)/ 2;
+                    scrpos_x = ((MyScreenWidth + (2 * local_state.engine_window_x)) * 16 / units_per_px - allwidth)/ 2;
                     for (n=0; n < SWIPE_SPRITES_X; n++)
                     {
                         LbSpriteDrawResized(scrpos_x * units_per_px / 16, scrpos_y * units_per_px / 16, units_per_px, spr);
@@ -441,6 +451,7 @@ void draw_swipe_graphic(void)
                 }
             }
             RendererSetDrawFlags(0);
+            RendererEndOverlayCapture(OVERLAY_CAPTURE_SWIPE);
             return;
         }
     }
@@ -1652,7 +1663,9 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
     if (cspell->duration == spconf->duration / 2)
     {
         PlayerNumber plyr_idx = get_appropriate_player_for_creature(thing);
-        struct PlayerInfo* player = get_player(plyr_idx);
+        struct UserState* ustate = get_player_user_state(get_player(plyr_idx));
+        TbBool has_user = !user_state_invalid(ustate);
+        unsigned char destination = has_user ? ustate->teleport_destination : 19;
         struct Coord3d pos;
         pos.x.val = subtile_coord_center(cctrl->teleport_x);
         pos.y.val = subtile_coord_center(cctrl->teleport_y);
@@ -1673,7 +1686,7 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
             }
             const struct Coord3d* newpos = NULL;
             struct Coord3d room_pos;
-            switch(player->teleport_destination)
+            switch(destination)
             {
                 case 6: // Dungeon Heart
                 {
@@ -1682,19 +1695,23 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
                 }
                 case 16: // Fight
                 {
-                    if (active_battle_exists(thing->owner))
+                    // visible_battles[] is battle panel state, refilled by
+                    // maintain_my_battle_list() only for the local client's own player;
+                    // for every other player it stays zeroed. Ask the battle list itself.
+                    if (find_first_battle_of_mine(thing->owner) != 0)
                     {
                         long count = 0;
-                        if (player->battleid > BATTLES_COUNT)
+                        TbBool battle_found = false;
+                        if (ustate->battleid > BATTLES_COUNT)
                         {
-                            player->battleid = 1;
+                            ustate->battleid = 1;
                         }
-                        for (i = player->battleid; i <= BATTLES_COUNT; i++)
+                        for (i = ustate->battleid; i <= BATTLES_COUNT; i++)
                         {
                             if (i > BATTLES_COUNT)
                             {
                                 i = 1;
-                                player->battleid = 1;
+                                ustate->battleid = 1;
                             }
                             count++;
                             struct CreatureBattle* battle = creature_battle_get(i);
@@ -1706,21 +1723,29 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
                                 {
                                     pos.x.val = tng->mappos.x.val;
                                     pos.y.val = tng->mappos.y.val;
-                                    player->battleid = i + 1;
+                                    ustate->battleid = i + 1;
+                                    battle_found = true;
                                     break;
                                 }
                             }
                             if (count >= BATTLES_COUNT)
                             {
-                                player->battleid = 1;
+                                ustate->battleid = 1;
                                 break;
                             }
                             if (i >= BATTLES_COUNT)
                             {
                                 i = 0;
-                                player->battleid = 1;
+                                ustate->battleid = 1;
                                 continue;
                             }
+                        }
+                        if (!battle_found)
+                        {
+                            // No battle could be reached; fall back to the default
+                            // destination instead of keeping the unset position,
+                            // which would teleport the creature into the map border.
+                            allowed = false;
                         }
                     }
                     else
@@ -1757,13 +1782,13 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
                 }
                 default:
                 {
-                    rkind = zoom_key_room_order[player->teleport_destination];
+                    rkind = zoom_key_room_order[destination];
                 }
             }
             if (rkind > 0)
             {
                 long count = 0;
-                if (player->nearest_teleport)
+                if (ustate->nearest_teleport)
                 {
                     room = find_room_nearest_to_position(thing->owner, rkind, &thing->mappos, &distance);
                 }
@@ -1858,7 +1883,9 @@ void process_thing_spell_teleport_effects(struct Thing *thing, struct CastedSpel
             set_flag(thing->state_flags, TF1_PushAdd);
         }
         set_flag(thing->state_flags, TF1_Teleported);
-        player->teleport_destination = 19;
+        if (has_user) {
+            ustate->teleport_destination = 19;
+        }
     }
 }
 
@@ -2567,7 +2594,7 @@ TngUpdateRet process_creature_state(struct Thing *thing)
             process_obey_leader(thing);
         }
     }
-    if ((thing->active_state < 1) || (thing->active_state >= CREATURE_STATES_COUNT))
+    if ((thing->active_state < 1) || (thing->active_state >= game.conf.crtr_conf.states_count))
     {
         ERRORLOG("The %s index %d has illegal state[1], S=%d, TCS=%d, reset", thing_model_name(thing), (int)thing->index, (int)thing->active_state, (int)thing->continue_state);
         set_start_state(thing);
@@ -3311,10 +3338,10 @@ void prepare_to_controlled_creature_death(struct Thing *thing)
         turn_off_query_menus();
         turn_on_main_panel_menu();
         set_flag_value(game.operation_flags, GOF_ShowPanel, (game.operation_flags & GOF_ShowGui) != 0);
-        PaletteSetPlayerPalette(player, engine_palette);
-        local_info.palette_fade_step_possession = 11;
+        PaletteSetUserPalette(player->user_id, engine_palette);
+        local_state.palette_fade_step_possession = 11;
     }
-    light_turn_light_on(player->cursor_light_idx);
+    turn_user_cursor_light(player->user_id, true);
 }
 
 void delete_armour_effects_attached_to_creature(struct Thing *thing)
@@ -4325,7 +4352,7 @@ void draw_creature_view(struct Thing *thing)
 {
   // If no eye lens required - just draw on the screen, directly
   struct PlayerInfo* player = get_my_player();
-  struct Camera* render_cam = get_local_camera(&player->cameras[CamIV_FirstPerson]);
+  struct Camera* render_cam = get_local_active_camera(player);
   if (!lens_is_ready())
   {
       engine(player, render_cam);
@@ -4355,10 +4382,14 @@ void draw_creature_view(struct Thing *thing)
   // Draw swipe into buffer BEFORE lens effects (so overlay renders on top of swipe)
   draw_swipe_graphic();
   // Get the actual viewport dimensions (accounts for sidebar)
-  long view_width = local_info.engine_window_width / pixel_size;
-  long view_height = local_info.engine_window_height / pixel_size;
-  long view_x = local_info.engine_window_x / pixel_size;
-  long view_y = local_info.engine_window_y / pixel_size;
+  long view_width = local_state.engine_window_width / pixel_size;
+  long view_height = local_state.engine_window_height / pixel_size;
+  long view_x = local_state.engine_window_x / pixel_size;
+  long view_y = local_state.engine_window_y / pixel_size;
+  // GPU lens capture/composite. No-op for software (its CPU lens
+  // path below is unaffected); for GL this is the actual lens trigger --
+  // the WScreen swap above is otherwise inert for GL, which never reads it.
+  RendererSubmitPossessionLens(view_x, view_y, view_width, view_height);
   // Restore original graphics settings
   lbDisplay.WScreen = wscr_cp;
   LbScreenLoadGraphicsWindow(&grwnd);
@@ -4367,9 +4398,15 @@ void draw_creature_view(struct Thing *thing)
   // Apply lens effect to the viewport area only (not including sidebar)
   // Pass full srcbuf so displacement map lookups work correctly
   // Calculate 2D viewport offset for destination buffer
-  long dst_offset = view_y * lbDisplay.GraphicsScreenWidth + view_x;
-  draw_lens_effect(lbDisplay.WScreen + dst_offset, lbDisplay.GraphicsScreenWidth, 
-      scrmem, render_width, view_width, view_height, view_x, game.applied_lens_type);
+  // Software-only CPU composite -- GL already got its own lens trigger above
+  // (RendererSubmitPossessionLens()); there's no CPU framebuffer here under
+  // GL (RendererBeginFrame() doesn't lock one for it) for this to write into.
+  if (lbDisplay.WScreen != NULL)
+  {
+      long dst_offset = view_y * lbDisplay.GraphicsScreenWidth + view_x;
+      draw_lens_effect(lbDisplay.WScreen + dst_offset, lbDisplay.GraphicsScreenWidth,
+          scrmem, render_width, view_width, view_height, view_x, game.applied_lens_type);
+  }
 }
 
 struct Thing *get_creature_near_for_controlling(PlayerNumber plyr_idx, MapCoord x, MapCoord y)
@@ -5673,8 +5710,7 @@ void go_to_next_creature_of_model_and_gui_job(long crmodel, long job_idx, unsign
     struct Thing* creatng = find_players_next_creature_of_breed_and_gui_job(crmodel, job_idx, my_player_number, pick_flags);
     if (!thing_is_invalid(creatng))
     {
-        struct PlayerInfo* player = get_my_player();
-        set_players_packet_action(player, PckA_ZoomToPosition, creatng->mappos.x.val, creatng->mappos.y.val, 0, 0);
+        move_local_camera_to_position(creatng->mappos.x.val, creatng->mappos.y.val);
     }
 }
 
@@ -6407,6 +6443,27 @@ static void process_keeper_spell_aura(struct Thing *thing)
     create_used_effect_or_element(&pos, cctrl->spell_aura, thing->owner, thing->index);
 }
 
+static void block_voluntary_move_onto_toxic_terrain(struct Thing *thing, struct CreatureControl *cctrl)
+{
+    const struct Coord3d *pos = &thing->mappos;
+    if (flag_is_set(thing->alloc_flags, TAlF_IsControlled) || terrain_toxic_for_creature_at_position(thing, pos->x.stl.num, pos->y.stl.num)) {
+        return;
+    }
+    struct Coord3d nextpos;
+    nextpos.x.val = pos->x.val + cctrl->moveaccel.x.val;
+    nextpos.y.val = pos->y.val + cctrl->moveaccel.y.val;
+    if (terrain_toxic_for_creature_at_position(thing, nextpos.x.stl.num, pos->y.stl.num)) {
+        cctrl->moveaccel.x.val = 0;
+    }
+    if (terrain_toxic_for_creature_at_position(thing, pos->x.stl.num, nextpos.y.stl.num)) {
+        cctrl->moveaccel.y.val = 0;
+    }
+    if ((cctrl->moveaccel.x.val != 0) && (cctrl->moveaccel.y.val != 0) && terrain_toxic_for_creature_at_position(thing, nextpos.x.stl.num, nextpos.y.stl.num)) {
+        cctrl->moveaccel.x.val = 0;
+        cctrl->moveaccel.y.val = 0;
+    }
+}
+
 TngUpdateRet update_creature(struct Thing *thing)
 {
     SYNCDBG(19,"Starting for %s index %d",thing_model_name(thing),(int)thing->index);
@@ -6478,18 +6535,19 @@ TngUpdateRet update_creature(struct Thing *thing)
             }
         }
         struct PlayerInfo* player = get_player(thing->owner);
+        struct UserState* ustate = get_user_state(player->user_id);
         if (creature_under_spell_effect(thing, CSAfF_Freeze))
         {
-            if (!flag_is_set(player->additional_flags, PlaAF_FreezePaletteIsActive))
+            if (!flag_is_set(ustate->additional_flags, UsrAF_FreezePaletteIsActive))
             {
-                PaletteSetPlayerPalette(player, blue_palette);
+                PaletteSetUserPalette(player->user_id, blue_palette);
             }
         }
         else
         {
-            if (flag_is_set(player->additional_flags, PlaAF_FreezePaletteIsActive))
+            if (flag_is_set(ustate->additional_flags, UsrAF_FreezePaletteIsActive))
             {
-                PaletteSetPlayerPalette(player, engine_palette);
+                PaletteSetUserPalette(player->user_id, engine_palette);
             }
         }
     } else
@@ -6515,6 +6573,7 @@ TngUpdateRet update_creature(struct Thing *thing)
     {
         SYNCDBG(19,"The %s index %d acceleration is (%d,%d,%d)",thing_model_name(thing),
             (int)thing->index,(int)cctrl->moveaccel.x.val,(int)cctrl->moveaccel.y.val,(int)cctrl->moveaccel.z.val);
+        block_voluntary_move_onto_toxic_terrain(thing, cctrl);
         thing->velocity.x.val += cctrl->moveaccel.x.val;
         thing->velocity.y.val += cctrl->moveaccel.y.val;
         thing->velocity.z.val += cctrl->moveaccel.z.val;
@@ -7157,11 +7216,12 @@ void direct_control_pick_up_or_drop(PlayerNumber plyr_idx, struct Thing *creatng
     struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
     struct Thing* dragtng = thing_get(cctrl->dragtng_idx);
     struct PlayerInfo* player = get_player(plyr_idx);
+    struct UserState* ustate = get_player_user_state(player);
     if (!thing_is_invalid(dragtng))
     {
         if (thing_is_trap_crate(dragtng))
         {
-            struct Thing *traptng = thing_get(player->selected_fp_thing_pickup);
+            struct Thing *traptng = thing_get(ustate->selected_fp_thing_pickup);
             if (!thing_is_invalid(traptng))
             {
                 if (traptng->class_id == TCls_Trap)
@@ -7176,7 +7236,7 @@ void direct_control_pick_up_or_drop(PlayerNumber plyr_idx, struct Thing *creatng
     }
     else
     {
-        struct Thing* picktng = thing_get(player->selected_fp_thing_pickup);
+        struct Thing* picktng = thing_get(ustate->selected_fp_thing_pickup);
         struct Room* room;
         if (!thing_is_invalid(picktng))
         {

@@ -158,6 +158,7 @@ void frontnetmap_unload(void)
     fe_network_active = 0;
     stop_music(false);
     set_music_volume(settings.music_volume);
+    LbTextInvalidateFontGeneration();
 }
 
 static int32_t get_hand_limp_frame(TbClockMSec now)
@@ -333,7 +334,7 @@ void frontnetmap_draw(void)
 {
     SYNCDBG(8,"Starting");
     LbTextSetFont(map_font);
-    LbTextSetWindow(0, 0, lbDisplay.PhysicalScreenWidth, lbDisplay.PhysicalScreenHeight);
+    LbTextSetWindow(0, 0, RendererPhysicalWidth(), lbDisplay.PhysicalScreenHeight);
     if ((map_info.fadeflags & MLInfoFlg_Zooming) != 0) {
         frontzoom_to_point(map_info.hotspot_imgpos_x, map_info.hotspot_imgpos_y, map_info.fade_pos);
         compressed_window_draw();
@@ -385,13 +386,13 @@ void frontnetmap_input(void)
         return;
     }
 
-    net_level_hilighted = SINGLEPLAYER_NOTSTARTED;
+    net_level_highlighted = SINGLEPLAYER_NOTSTARTED;
     frontmap_input_active_ensign(GetMouseX(), GetMouseY());
     if (mouse_over_lvnum > 0) {
-        net_level_hilighted = mouse_over_lvnum;
+        net_level_highlighted = mouse_over_lvnum;
     }
-    if ((net_level_hilighted > 0) && can_select && left_button_clicked) {
-        fe_net_level_selected = net_level_hilighted;
+    if ((net_level_highlighted > 0) && can_select && left_button_clicked) {
+        fe_net_level_selected = net_level_highlighted;
         left_button_clicked = 0;
         set_level_name_text(fe_net_level_selected, NULL);
         SYNCLOG("Selected level %d with description \"%s\"",(int)fe_net_level_selected,level_name);
@@ -429,6 +430,8 @@ TbBool frontnetmap_load(void)
     }
     
     map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette); 
+    init_netfont_palette_remap();
+    pop_palette_remap();
     map_font = load_spritesheet("ldata/netfont.dat", "ldata/netfont.tab");
     prepare_file_path_buf(hand_data_path, sizeof(hand_data_path), FGrp_LandView, "maphand.dat");
     prepare_file_path_buf(hand_index_path, sizeof(hand_index_path), FGrp_LandView, "maphand.tab");
@@ -440,14 +443,15 @@ TbBool frontnetmap_load(void)
         free_spritesheet(&map_hand);
         unload_map_and_window();
         frontend_load_data_reset();
+        LbTextInvalidateFontGeneration();
         return false;
     }
     frontend_load_data_reset();
     frontmap_zoom_skip_init(SINGLEPLAYER_NOTSTARTED);
     fe_net_level_selected = SINGLEPLAYER_NOTSTARTED;
-    net_level_hilighted = SINGLEPLAYER_NOTSTARTED;
+    net_level_highlighted = SINGLEPLAYER_NOTSTARTED;
     set_pointer_graphic_none();
-    LbMouseSetPosition(lbDisplay.PhysicalScreenWidth/2, lbDisplay.PhysicalScreenHeight/2);
+    LbMouseSetPosition(RendererPhysicalWidth()/2, lbDisplay.PhysicalScreenHeight/2);
     map_sound_fade = FULL_LOUDNESS;
     RendererSetDrawFlags(0);
     set_music_volume(settings.music_volume);

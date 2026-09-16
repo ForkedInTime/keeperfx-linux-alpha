@@ -46,7 +46,7 @@ makedepends=('git' 'python' 'curl' 'p7zip'
              # engine
              'sdl3' 'sdl3_mixer' 'sdl3_image'
              'ffmpeg' 'openal' 'luajit' 'libspng' 'minizip' 'zlib'
-             'libepoxy' 'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
+             'miniupnpc' 'libnatpmp' 'openssl' 'zstd'
              # Qt launcher
              'cmake' 'ninja' 'qt6-base' 'qt6-tools')
 # !strip: this is an alpha -- usable backtraces in bug reports beat the saved MBs.
@@ -188,7 +188,7 @@ package_keeperfx-tux() {
     # dependency ('libavformat.so=63-64'), so the next bump is refused by pacman
     # before it happens: an explicit rebuild prompt instead of a broken install.
     'libavformat.so' 'libavcodec.so' 'libswresample.so' 'libswscale.so'
-    'libavutil.so' 'libopenal.so' 'libspng.so' 'libz.so' 'libepoxy.so'
+    'libavutil.so' 'libopenal.so' 'libspng.so' 'libz.so'
     'libminiupnpc.so' 'libssl.so' 'libcrypto.so' 'libzstd.so'
     # These four ship no soname in provides= at all, so they can only be named
     # directly and stay exposed to the same failure. SDL3 holds its ABI at

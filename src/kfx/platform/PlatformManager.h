@@ -10,6 +10,7 @@ const char * PlatformManager_GetOSVersion(void);
 const void * PlatformManager_GetImageBase(void);
 const char * PlatformManager_GetWineVersion(void);
 const char * PlatformManager_GetWineHost(void);
+const char * PlatformManager_GetUserPrefDir(void);
 
 int          PlatformManager_InitVideo(void);
 int          PlatformManager_HasWindow(void);
@@ -29,11 +30,15 @@ int          PlatformManager_SetWindowDisplayMode(int w, int h);
 void         PlatformManager_SetWindowSize(int w, int h);
 int          PlatformManager_SetWindowFullscreen(unsigned int flags);
 void         PlatformManager_SetWindowBordered(int bordered);
+/** Wait for a pending fullscreen/size transition to finish; SDL3 applies them asynchronously. */
+void         PlatformManager_SyncWindow(void);
 void         PlatformManager_SetWindowPosition(int x, int y);
+void         PlatformManager_SetWindowTitle(const char* title);
 int          PlatformManager_CreateWindow(const char* title, int x, int y, int w, int h, unsigned int flags);
 void         PlatformManager_WarpCursor(int x, int y);
+void         PlatformManager_SetGameSurfaceSize(int w, int h);
+int          PlatformManager_GetCursorPosition(int* x, int* y);
 int          PlatformManager_IsCursorInWindow(void);
-int          PlatformManager_RecreateWindowForSoftwareRenderer(void);
 int          PlatformManager_GetDisplayRefreshRate(void);
 
 // Move abs_path into the OS-native trash/recycle bin. Returns 1 on success, 0

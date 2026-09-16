@@ -16,6 +16,8 @@
 #include "platform.h"
 #include "kfx/platform/PlatformManager.h"
 #include "kfx/renderer/RendererManager.h"
+#include "kfx/renderer/RendererSettings.h"
+#include "kfx/renderer/RendererThread.h"
 #include "keeperfx.hpp"
 
 #include "bflib_coroutine.h"
@@ -339,67 +341,10 @@ short setup_game(void)
         SYNCMSG("Wine Host: %s", wine_host);
   }
 
-  // Enable features that require more than 32 megs of memory
-  features_enabled |= Ft_HiResCreatr;
-  // Enable features that require more than 16 megs of memory
-  features_enabled |= Ft_EyeLens;
-  features_enabled |= Ft_HiResVideo;
-  features_enabled |= Ft_BigPointer;
-  features_enabled |= Ft_AdvAmbSound;
-
-  // Default feature settings (in case the options are absent from keeperfx.cfg)
-  features_enabled &= ~Ft_FreezeOnLoseFocus; // don't freeze the game, if the game window loses focus
-  features_enabled &= ~Ft_UnlockCursorOnPause; // don't unlock the mouse cursor from the window, if the user pauses the game
-  features_enabled |= Ft_LockCursorInPossession; // lock the mouse cursor to the window, when the user enters possession mode (when the cursor is already unlocked)
-  features_enabled |= Ft_RelativeMouseMode; // use SDL relative ("raw") mouse mode; set RELATIVE_MOUSE_MODE=OFF for the grab-and-warp scheme
-  features_enabled &= ~Ft_PauseMusicOnGamePause; // don't pause the music, if the user pauses the game
-  features_enabled &= ~Ft_MuteAudioOnLoseFocus; // don't mute the audio, if the game window loses focus
-  if (start_params.skip_heart_zoom) {
-    features_enabled |= Ft_SkipHeartZoom;
-  } else {
-    features_enabled &= ~Ft_SkipHeartZoom;
-  }
-  features_enabled &= ~Ft_DisableCursorCameraPanning; // don't disable cursor camera panning
-  features_enabled |= Ft_DeltaTime; // enable delta time
-  features_enabled |= Ft_NoCdMusic; // use music files (OGG) rather than CD music
-
-  // Configuration file
-  if ( !load_configuration() )
-  {
-      ERRORLOG("Configuration load error.");
-      return 0;
-  }
-
-  #ifdef FUNCTESTING
-    start_params.startup_flags &= ~SFlg_Legal;
-    start_params.startup_flags &= ~SFlg_FX;
-    features_enabled |= Ft_SkipHeartZoom;
-  #endif
-
-  // Process CmdLine overrides
-  process_cmdline_overrides();
-
-  LbIKeyboardOpen();
-
-  if (LbDataLoadAll(legal_load_files) != 0)
-  {
-      ERRORLOG("Error on allocation/loading of legal_load_files.");
-      return 0;
-  }
-
-  // Setup polyscans
-  setup_bflib_render();
-
   // View the legal screen
-  if (!setup_screen_mode_zero(get_frontend_vidmode()))
-  {
-      ERRORLOG("Unable to set display mode for legal screen");
-      return 0;
-  }
-
   if (flag_is_set(start_params.startup_flags, SFlg_Legal))
   {
-      if (is_ar_wider_than_original(LbGraphicsScreenWidth(), LbGraphicsScreenHeight()))
+      if (is_ar_wider_than_original(RendererScreenWidth(), RendererScreenHeight()))
       {
         result = init_actv_bitmap_screen(RBmp_SplashLegalWide);
       } else {
@@ -539,6 +484,7 @@ short setup_game(void)
 static bool players_cursor_is_at_top_of_view()
 {
     const struct PlayerInfo *const player = get_my_player();
+    const struct UserState *const ustate = get_local_user_state();
     switch (player->work_state)
     {
     case PSt_BuildRoom:
@@ -554,7 +500,7 @@ static bool players_cursor_is_at_top_of_view()
         return (player->controlled_thing_idx > 0);
 
     case PSt_CtrlDungeon:
-        switch (player->primary_cursor_state)
+        switch (ustate->primary_cursor_state)
         {
             case CSt_DefaultArrow:
                 return false;
@@ -564,7 +510,7 @@ static bool players_cursor_is_at_top_of_view()
                 return true;
 
             case CSt_PowerHand:
-                return (local_thing_under_hand == 0)
+                return (local_state.local_thing_under_hand == 0)
                     || (! power_hand_is_empty(player));
         }
     }
@@ -576,8 +522,8 @@ TbBool engine_point_to_map(struct Camera *camera, long screen_x, long screen_y, 
     *map_x = 0;
     *map_y = 0;
     if ( (pointer_x >= 0) && (pointer_y >= 0)
-      && (pointer_x < (local_info.engine_window_width/pixel_size))
-      && (pointer_y < (local_info.engine_window_height/pixel_size)) )
+      && (pointer_x < (local_state.engine_window_width/pixel_size))
+      && (pointer_y < (local_state.engine_window_height/pixel_size)) )
     {
         if ( players_cursor_is_at_top_of_view() )
         {
@@ -875,7 +821,7 @@ short zoom_to_next_annoyed_creature(void)
     {
       return false;
     }
-    set_players_packet_action(player, PckA_ZoomToPosition, thing->mappos.x.val, thing->mappos.y.val, 0, 0);
+    move_local_camera_to_position(thing->mappos.x.val, thing->mappos.y.val);
     return true;
 }
 
@@ -907,8 +853,8 @@ void reinit_level_after_load(void)
     SYNCDBG(6,"Starting");
     // Reinit structures from within the game
     player = get_my_player();
-    local_info.lens_palette = 0;
-    local_info.main_palette = engine_palette;
+    local_state.lens_palette = 0;
+    local_state.main_palette = engine_palette;
     init_navigation();
     reinit_packets_after_load();
     game.easter_eggs_enabled = start_params.easter_egg;
@@ -1036,6 +982,7 @@ void clear_players_for_save(void)
       memcpy(&cammem,&player->cameras[CamIV_FirstPerson],sizeof(struct Camera));
       memset(player, 0, sizeof(struct PlayerInfo));
       player->id_number = saved_player_id;
+      player->user_id = -1;
       player->is_active = saved_is_active;
       set_flag_value(player->allocflags, PlaF_Allocated, ((saved_allocation_flags & PlaF_Allocated) != 0));
       set_flag_value(player->allocflags, PlaF_CompCtrl, ((saved_allocation_flags & PlaF_CompCtrl) != 0));
@@ -1146,28 +1093,31 @@ void reset_creature_max_levels(void)
 
 void change_engine_window_relative_size(long w_delta, long h_delta)
 {
-    setup_engine_window(local_info.engine_window_x, local_info.engine_window_y,
-        local_info.engine_window_width+w_delta, local_info.engine_window_height+h_delta);
+    setup_engine_window(local_state.engine_window_x, local_state.engine_window_y,
+        local_state.engine_window_width+w_delta, local_state.engine_window_height+h_delta);
 }
 
-void PaletteSetPlayerPalette(struct PlayerInfo *player, unsigned char *pal)
+void PaletteSetUserPalette(NetUserId user, unsigned char *pal)
 {
+    struct UserState* ustate = get_user_state(user);
+    if (user_state_invalid(ustate))
+        return;
     if (pal == blue_palette) // if the requested palette is the Freeze palette
     {
-      if ((player->additional_flags & PlaAF_FreezePaletteIsActive) != 0)
+      if ((ustate->additional_flags & UsrAF_FreezePaletteIsActive) != 0)
         return; // Freeze palette is already on
-      player->additional_flags |= PlaAF_FreezePaletteIsActive; // flag Freeze palette is active
+      ustate->additional_flags |= UsrAF_FreezePaletteIsActive; // flag Freeze palette is active
     } else
     {
-      player->additional_flags &= ~PlaAF_FreezePaletteIsActive; // flag Freeze palette is not active
+      ustate->additional_flags &= ~UsrAF_FreezePaletteIsActive; // flag Freeze palette is not active
     }
-    if (!is_my_player(player))
+    if (user != get_local_user())
         return;
-    if ( (local_info.lens_palette == 0) || ((pal != local_info.main_palette) && (pal == local_info.lens_palette)) )
+    if ( (local_state.lens_palette == 0) || ((pal != local_state.main_palette) && (pal == local_state.lens_palette)) )
     {
-        local_info.main_palette = pal;
-        local_info.palette_fade_step_pain = 0;
-        local_info.palette_fade_step_possession = 0;
+        local_state.main_palette = pal;
+        local_state.palette_fade_step_pain = 0;
+        local_state.palette_fade_step_possession = 0;
         LbScreenWaitVbi();
         RendererPaletteSet(pal);
     }
@@ -1195,9 +1145,7 @@ TbBool set_gamma(char corrlvl, TbBool do_set)
     }
     if ((result) && (do_set))
     {
-      struct PlayerInfo *myplyr;
-      myplyr=get_my_player();
-      PaletteSetPlayerPalette(myplyr, engine_palette);
+      PaletteSetUserPalette(get_local_user(), engine_palette);
     }
     if (!result)
       ERRORLOG("Can't load palette file.");
@@ -1208,12 +1156,10 @@ void centre_engine_window(void)
 {
     long window_center_x;
     long window_center_y;
-    if ((game.operation_flags & GOF_ShowGui) != 0)
-      window_center_x = (MyScreenWidth-local_info.engine_window_width-status_panel_width) / 2 + status_panel_width;
-    else
-      window_center_x = (MyScreenWidth-local_info.engine_window_width) / 2;
-    window_center_y = (MyScreenHeight-local_info.engine_window_height) / 2;
-    setup_engine_window(window_center_x, window_center_y, local_info.engine_window_width, local_info.engine_window_height);
+    int32_t reserved = engine_window_reserved_left();
+    window_center_x = (MyScreenWidth-local_state.engine_window_width-reserved) / 2 + reserved;
+    window_center_y = (MyScreenHeight-local_state.engine_window_height) / 2;
+    setup_engine_window(window_center_x, window_center_y, local_state.engine_window_width, local_state.engine_window_height);
 }
 
 void turn_off_query(PlayerNumber plyr_idx)
@@ -1417,9 +1363,9 @@ short complete_level(struct PlayerInfo *player)
     return true;
 }
 
-static void set_mouse_light(struct PlayerInfo *player, TbBool valid, struct Coord3d pos)
+static void set_mouse_light(NetUserId user, TbBool valid, struct Coord3d pos)
 {
-    const int idx = player->cursor_light_idx;
+    const int idx = get_user_state(user)->cursor_light_idx;
     if (idx == 0)
         return;
 
@@ -1429,7 +1375,7 @@ static void set_mouse_light(struct PlayerInfo *player, TbBool valid, struct Coor
         light_turn_light_on(idx);
         light_set_light_position(idx, &pos);
 
-        if (is_my_player(player))
+        if (user == get_local_user())
             game.mouse_light_pos = pos;
     }
     else
@@ -1453,31 +1399,33 @@ void update_local_mouse_light(void)
     if (game_is_busy_doing_gui_string_input())
         return;
 
-    struct Camera *cam = get_local_camera(get_player_active_camera(player));
+    struct Camera *cam = get_local_active_camera(player);
     struct Coord3d pos;
     const TbBool valid = screen_to_map(cam, GetMouseX(), GetMouseY(), &pos);
 
-    set_mouse_light(player, valid, pos);
+    NetUserId user = get_local_user();
+    set_mouse_light(user, valid, pos);
 
-    if (player->cursor_light_idx != 0)
-        light_reset_interpolation(player->cursor_light_idx);
+    const int idx = get_user_state(user)->cursor_light_idx;
+    if (idx != 0)
+        light_reset_interpolation(idx);
 }
 
-void update_mouse_light(struct PlayerInfo *player)
+void update_mouse_light(NetUserId user)
 {
     SYNCDBG(6,"Starting");
     const struct Packet *pckt = nullptr;
 
-    if (is_my_player(player))
-        pckt = get_history_packet(player->user_id, get_gameturn());
+    if (user == get_local_user())
+        pckt = get_history_packet(user, get_gameturn());
     if (pckt == nullptr)
-        pckt = get_packet(player->user_id);
+        pckt = get_packet(user);
 
     const TbBool valid = (pckt->control_flags & PCtr_MapCoordsValid) != 0;
     struct Coord3d pos;
     pos.x.val = pckt->pos_x;
     pos.y.val = pckt->pos_y;
-    set_mouse_light(player, valid, pos);
+    set_mouse_light(user, valid, pos);
 }
 
 void update_block_pointed(int i,long x, long x_frac, long y, long y_frac)
@@ -1611,8 +1559,8 @@ void engine(struct PlayerInfo *player, struct Camera *cam)
     mx = cam->mappos.x.val;
     my = cam->mappos.y.val;
     mz = cam->mappos.z.val;
-    pointer_x = (GetMouseX() - local_info.engine_window_x) / pixel_size;
-    pointer_y = (GetMouseY() - local_info.engine_window_y) / pixel_size;
+    pointer_x = (GetMouseX() - local_state.engine_window_x) / pixel_size;
+    pointer_y = (GetMouseY() - local_state.engine_window_y) / pixel_size;
     lens = cam->horizontal_fov * scale_value_by_horizontal_resolution(4) / pixel_size;
     if (lens_mode == 0)
         update_blocks_pointed();
@@ -1622,8 +1570,8 @@ void engine(struct PlayerInfo *player, struct Camera *cam)
     view_height_over_2 = ewnd.height/2;
     view_width_over_2 = ewnd.width/2;
     LbScreenSetGraphicsWindow(ewnd.x, ewnd.y, ewnd.width, ewnd.height);
-    setup_vecs(lbDisplay.GraphicsWindowPtr, 0, lbDisplay.GraphicsScreenWidth,
-        ewnd.width, ewnd.height);
+    WorldViewRenderer_BeginWorldPass(ewnd.width, ewnd.height, ewnd.x, ewnd.y);
+    RendererSetGameViewport(ewnd.x, ewnd.y, ewnd.width, ewnd.height);
     camera_zoom = scale_camera_zoom_to_screen(cam->zoom);
     draw_view(cam, 0);
     RendererSetDrawFlags(flg_mem);
@@ -1846,13 +1794,6 @@ void update_gameplay_delta_time()
     }
 }
 
-void gameplay_loop_draw();
-
-extern "C" void network_yield_draw_gameplay()
-{
-    gameplay_loop_draw();
-}
-
 extern "C" void update_velocity(void);
 extern "C" void check_mouse_scroll(void);
 extern "C" void fronttorture_update(void);
@@ -1950,6 +1891,11 @@ static short process_command_line(unsigned short argc, char *argv[])
       if (strcasecmp(parstr, "skipheartzoom") == 0)
       {
         start_params.skip_heart_zoom = true;
+      } else
+      if (strcasecmp(parstr, "opengl") == 0)
+      {
+        start_params.overrides[Clo_Renderer] = true;
+        start_params.renderer_type = RENDERER_OPENGL;
       } else
       if (strcasecmp(parstr, "nocd") == 0) // kept for legacy reasons
       {
@@ -2255,6 +2201,49 @@ static const char* determine_log_filename(unsigned short argument_count, char *a
     return log_file_name;
 }
 
+static short resolve_startup_config(void)
+{
+    // Enable features that require more than 32 megs of memory
+    features_enabled |= Ft_HiResCreatr;
+    // Enable features that require more than 16 megs of memory
+    features_enabled |= Ft_EyeLens;
+    features_enabled |= Ft_HiResVideo;
+    features_enabled |= Ft_BigPointer;
+    features_enabled |= Ft_AdvAmbSound;
+
+    // Default feature settings (in case the options are absent from keeperfx.cfg)
+    features_enabled &= ~Ft_FreezeOnLoseFocus; // don't freeze the game, if the game window loses focus
+    features_enabled &= ~Ft_UnlockCursorOnPause; // don't unlock the mouse cursor from the window, if the user pauses the game
+    features_enabled |= Ft_LockCursorInPossession; // lock the mouse cursor to the window, when the user enters possession mode (when the cursor is already unlocked)
+    features_enabled |= Ft_RelativeMouseMode; // use SDL relative ("raw") mouse mode; set RELATIVE_MOUSE_MODE=OFF for the grab-and-warp scheme
+    features_enabled &= ~Ft_PauseMusicOnGamePause; // don't pause the music, if the user pauses the game
+    features_enabled &= ~Ft_MuteAudioOnLoseFocus; // don't mute the audio, if the game window loses focus
+    if (start_params.skip_heart_zoom) {
+      features_enabled |= Ft_SkipHeartZoom;
+    } else {
+      features_enabled &= ~Ft_SkipHeartZoom;
+    }
+    features_enabled &= ~Ft_DisableCursorCameraPanning; // don't disable cursor camera panning
+    features_enabled |= Ft_DeltaTime; // enable delta time
+    features_enabled |= Ft_NoCdMusic; // use music files (OGG) rather than CD music
+    if (!load_configuration())
+    {
+        ERRORLOG("Configuration load error.");
+        return 0;
+    }
+
+#ifdef FUNCTESTING
+    start_params.startup_flags &= ~SFlg_Legal;
+    start_params.startup_flags &= ~SFlg_FX;
+    features_enabled |= Ft_SkipHeartZoom;
+#endif
+
+    process_cmdline_overrides();
+
+    requested_renderer_type = (int)RendererResolveType((RendererType)requested_renderer_type);
+    return 1;
+}
+
 static short reset_game(void)
 {
     SYNCDBG(6,"Starting");
@@ -2274,6 +2263,10 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
     short retval;
     retval=0;
 
+    // Establish this thread's identity as "the game thread" before anything
+    // else runs. ASSERT_GAME_THREAD() will throw if func called on RT happens on this thread, implying access violation
+    RendererThread_RegisterGameThread();
+
     // Determine correct log file based on command line flags
     const char* selected_log_file_name = determine_log_filename(argc, argv);
     LbErrorLogSetup("/", selected_log_file_name, 5);
@@ -2288,16 +2281,33 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
     retval = true;
     retval &= (LbTimerInit() != Lb_FAIL);
     retval &= (RendererScreenInitialize() != Lb_FAIL);
-    // AUTO: the GPU backend where it is available, software everywhere else.
-    // Pin this to RENDERER_SOFTWARE to test the fallback path deliberately.
-    // Do NOT pin RENDERER_OPENGL here: this call happens before the window
-    // exists, RendererGL::Init() deliberately declines pre-window, and an
-    // explicit (non-AUTO) request has no fallback -- engine init fails
-    // outright instead of retrying software. AUTO already reaches the GL
-    // backend once the window is up; RENDERER_SOFTWARE is the only pin safe
-    // to use at this call site.
-    retval &= (RendererInit(RENDERER_AUTO) != 0);
-    LbSetTitle(PROGRAM_NAME);
+
+    if (!resolve_startup_config())
+    {
+        LbErrorLogClose();
+        return 0;
+    }
+
+    LbIKeyboardOpen();
+    if (LbDataLoadAll(legal_load_files) != 0)
+    {
+        ERRORLOG("Error on allocation/loading of legal_load_files.");
+        LbErrorLogClose();
+        return 0;
+    }
+    // Setup polyscans
+    setup_bflib_render();
+    // View the legal screen
+    if (!setup_screen_mode_zero(get_frontend_vidmode()))
+    {
+        ERRORLOG("Unable to set display mode for legal screen");
+        LbErrorLogClose();
+        return 0;
+    }
+
+    retval &= (RendererInit((RendererType)requested_renderer_type) != 0);
+    RendererSettings_Load();
+    PlatformManager_SetWindowTitle(PROGRAM_NAME);
     LbSetIcon(1);
     RendererSetDoubleBuffering(true);
     srand(LbTimerClock());

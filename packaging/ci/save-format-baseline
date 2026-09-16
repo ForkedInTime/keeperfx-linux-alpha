@@ -63,7 +63,7 @@
 # It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
 # mismatch is always a source change, never a toolchain difference.
 
-sizeof_struct_game=53362616
+sizeof_struct_game=53362370
 
 # 2026-08-25: upstream's custom-icon feature (#5147, #5139) added
 #     short icon_idx;   // 2 bytes (+ padding)
@@ -87,6 +87,15 @@ sizeof_struct_game=53362616
 #     SET_NEXT_LEVEL can name levels above 127 from bonus levels.
 # Accepted: both are upstream design corrections; carrying the old layout
 # would mean forking struct Game itself.
+
+# 2026-09-16: upstream sync (dkfans 08816fbef). 53362616 -> 53362370 between
+# builds 5652 and this one. Upstream's UserState refactor (#5220, #5229,
+# #5248) moved the per-human-user fields (cursor and possession state, chosen
+# room/trap/spell, battle id, cheat selection, ...) out of `struct PlayerInfo`,
+# embedded as `players[PLAYERS_COUNT]`, into `user_states[MAX_NET_USERS]`,
+# also inside `struct Game`; fewer users than players, so the total shrinks.
+# Accepted: an upstream design correction, and carrying the old layout would
+# mean forking struct Game itself.
 
 # Sizes of releases that predate this file, measured afterwards by compiling
 # packaging/ci/save_format_probe.c against the tagged tree. The release-note

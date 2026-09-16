@@ -32,7 +32,7 @@ jobs:
             build-essential git python3 pkg-config \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
             libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
-            libepoxy-dev libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
+            libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
             $(packaging/ci/build-sdl3.sh --apt-packages)
 
       # Keyed on the script, which carries the pinned versions -- bumping SDL3

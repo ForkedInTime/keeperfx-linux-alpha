@@ -128,7 +128,7 @@ void gui_load_game(struct GuiButton *gbtn)
         // Clicking a row fades the load menu out either way, so hand the pause
         // state back exactly as gui_save_game does - the load did not happen,
         // so the game must be left in the state the menu found it in.
-        set_players_packet_action(player, PckA_UpdatePause, local_info.paused_state_restore, 0, 0, 0);
+        set_players_packet_action(player, PckA_UpdatePause, local_state.paused_state_restore, 0, 0, 0);
         return;
     }
 }
@@ -179,7 +179,7 @@ void gui_save_game(struct GuiButton *gbtn)
           create_error_box(GUIStr_ErrorSaving);
       }
   }
-  set_players_packet_action(player, PckA_UpdatePause, local_info.paused_state_restore, 0, 0, 0);
+  set_players_packet_action(player, PckA_UpdatePause, local_state.paused_state_restore, 0, 0, 0);
 }
 
 void update_loadsave_input_strings(struct CatalogueEntry *game_catalg)
@@ -278,7 +278,7 @@ void draw_delete_save_button(struct GuiButton *gbtn)
         cntr_x += 2*units_per_pixel/16;
         cntr_y += 2*units_per_pixel/16;
     }
-    draw_gui_panel_sprite_centered(cntr_x, cntr_y, ps_units_per_px, spr_idx);
+    draw_gui_panel_sprite_centered(cntr_x, cntr_y, ps_units_per_px, spr_idx, 0);
 }
 
 void gui_ask_delete_save(struct GuiButton *gbtn)
@@ -423,7 +423,7 @@ void init_save_menu(struct GuiMenu *gmnu)
   SYNCDBG(6,"Starting");
   resolve_delete_tooltip();
   struct PlayerInfo* player = get_my_player();
-  local_info.paused_state_restore = flag_is_set(game.operation_flags, GOF_Paused);
+  local_state.paused_state_restore = flag_is_set(game.operation_flags, GOF_Paused);
   set_players_packet_action(player, PckA_UpdatePause, 1, 1, 0, 0);
   load_game_save_catalogue();
   gui_vscroll_offset = 0;
