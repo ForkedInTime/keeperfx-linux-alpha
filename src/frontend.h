@@ -260,7 +260,7 @@ extern long net_service_scroll_offset;
 extern long net_number_of_services;
 extern long net_number_of_players;
 extern long net_number_of_enum_players;
-extern long net_level_hilighted;
+extern long net_level_highlighted;
 extern struct NetMessage net_message[NET_MESSAGES_COUNT];
 extern long net_number_of_messages;
 extern long net_message_scroll_offset;
@@ -424,6 +424,7 @@ void set_gui_visible(TbBool visible);
 void toggle_gui(void);
 void add_message(long plyr_idx, char *msg);
 unsigned long toggle_status_menu(short visib);
+void set_map_ui_hidden(TbBool status_menu, TbBool tooltips);
 TbBool toggle_first_person_menu(TbBool visible);
 void toggle_gui_overlay_map(void);
 

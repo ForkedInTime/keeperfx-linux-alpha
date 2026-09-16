@@ -168,6 +168,10 @@ static TbBool init_level(void)
     game_flags2 &= (GF2_PERSISTENT_FLAGS | GF2_Timer);
     clear_game();
     reset_heap_manager();
+    // GL's keeper-sprite atlas caches by draw_idx, stable only within one
+    // sprite-heap generation -- clear it in lockstep with the heap reset
+    // above. No-op on software / before GL is active.
+    RendererClearKeeperSpriteAtlas();
     lens_mode = 0;
     setup_heap_manager();
 
@@ -341,6 +345,8 @@ TbBool startup_saved_packet_game(void)
         return false;
     setup_zombie_players();//TODO GUI What about packet file from network game? No zombies there..
     init_players();
+    get_my_player()->user_id = SOLO_HUMAN_ID;
+    init_user_state(get_my_player()->user_id);
     if (game.active_players_count == 1)
         game.game_kind = GKind_LocalGame;
     if (game.turns_stored < game.turns_fastforward)

@@ -402,7 +402,7 @@ long net_comport_index_active;
 long net_speed_index_active;
 long net_number_of_players;
 long net_number_of_enum_players;
-long net_level_hilighted;
+long net_level_highlighted;
 struct NetMessage net_message[NET_MESSAGES_COUNT];
 long net_number_of_messages;
 long net_message_scroll_offset;
@@ -536,11 +536,11 @@ void create_message_box(const char *title, const char *line1, const char *line2,
 
 short game_is_busy_doing_gui(void)
 {
-    struct PlayerInfo *player = get_my_player();
+    struct UserState *ustate = get_local_user_state();
     if (battle_creature_over > 0) {
         return true;
     }
-    if (player->one_click_lock_cursor) {
+    if (ustate->one_click_lock_cursor) {
         return false;
     }
     if (!busy_doing_gui) {
@@ -1027,71 +1027,6 @@ void gui_area_slider(struct GuiButton *gbtn)
     }
     LbSpriteDrawResized(gbtn->scr_pos_x + shift_x + 24*units_per_px/16, gbtn->scr_pos_y + 6*units_per_px/16, bs_units_per_px, spr);
 }
-
-#if (BFDEBUG_LEVEL > 0)
-// Code for font testing screen (debug version only)
-TbBool fronttestfont_draw(void)
-{
-  const struct TbSprite *spr;
-  unsigned long i;
-  unsigned long k;
-  long w;
-  long h;
-  long x;
-  long y;
-  SYNCDBG(9,"Starting");
-  for (y=0; y < lbDisplay.GraphicsScreenHeight; y++)
-    for (x=0; x < lbDisplay.GraphicsScreenWidth; x++)
-    {
-        lbDisplay.WScreen[y*lbDisplay.GraphicsScreenWidth+x] = 0;
-    }
-  LbTextSetWindow(0/pixel_size, 0/pixel_size, MyScreenHeight/pixel_size, MyScreenWidth/pixel_size);
-  // Drawing
-  w = 32;
-  h = 48;
-  for (i=31; i < num_chars_in_font+31; i++)
-  {
-    k = (i-31);
-    SYNCDBG(9,"Drawing char %lu",i);
-    x = (k%32)*w + 2;
-    y = (k/32)*h + 2;
-    if (lbFontPtr != NULL)
-      spr = LbFontCharSprite(lbFontPtr,i);
-    else
-      spr = NULL;
-    if (spr != NULL)
-    {
-      LbDrawBox(x, y, spr->SWidth+2, spr->SHeight+2, 255);
-      LbSpriteDraw(x+1, y+1, spr);
-    }
-//TODO SPRITES enhance font support
-  }
-  // Displaying the new frame
-  return true;
-}
-
-TbBool fronttestfont_input(void)
-{
-  const unsigned int keys[] = {KC_Z,KC_1,KC_2,KC_3,KC_4,KC_5,KC_6,KC_7,KC_8,KC_9,KC_0};
-  int i;
-  for (i=0; i < sizeof(keys)/sizeof(keys[0]); i++)
-  {
-    if (lbKeyOn[keys[i]])
-    {
-      lbKeyOn[keys[i]] = 0;
-      num_chars_in_font = num_sprites(testfont[i]);
-      SYNCDBG(9,"Characters in font %d: %ld",i,num_chars_in_font);
-      if (i < 4)
-        RendererPaletteSet(frontend_palette);//testfont_palette[0]
-      else
-        RendererPaletteSet(testfont_palette[1]);
-      LbTextSetFont(testfont[i]);
-      return true;
-    }
-  }
-  return false;
-}
-#endif
 
 
 void frontend_draw_icon(struct GuiButton *gbtn)
@@ -1649,6 +1584,7 @@ short frontend_save_continue_game(short allow_lvnum_grow)
     unsigned short victory_state;
     short flg_mem;
     LevelNumber lvnum;
+    struct UserState *ustate = get_user_state(get_local_user());
     lvnum = get_loaded_level_number();
     SYNCDBG(6,"Starting");
     player = get_my_player();
@@ -1660,13 +1596,13 @@ short frontend_save_continue_game(short allow_lvnum_grow)
     // Save some of the data from clearing
     victory_state = player->victory_state;
     memcpy(scratch, &dungeon->lvstats, sizeof(struct LevelStats));
-    flg_mem = ((player->additional_flags & PlaAF_UnlockedLordTorture) != 0);
+    flg_mem = ((ustate->additional_flags & UsrAF_UnlockedLordTorture) != 0);
     // clear all data
     clear_game_for_save();
     // Restore saved data
     player->victory_state = victory_state;
     memcpy(&dungeon->lvstats, scratch, sizeof(struct LevelStats));
-    set_flag_value(player->additional_flags, PlaAF_UnlockedLordTorture, flg_mem);
+    set_flag_value(ustate->additional_flags, UsrAF_UnlockedLordTorture, flg_mem);
     // Only save continue if level was won, not a free play level, not a multiplayer level and not in packet mode
     if (network_is_active()
      || ((game.operation_flags & GOF_SingleLevel) != 0)
@@ -2046,7 +1982,7 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
       pos = GetMouseX() - (scaled_width >> 1);
       break;
   case POS_GAMECTR: // Player-based positioning
-      pos = (local_info.engine_window_x) + (local_info.engine_window_width >> 1) - (scaled_width >> 1);
+      pos = (local_state.engine_window_x) + (local_state.engine_window_width >> 1) - (scaled_width >> 1);
       break;
   case POS_MOUSPRV: // Place menu centered over previous mouse position
       pos = old_menu_mouse_x - (scaled_width >> 1);
@@ -2059,8 +1995,8 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
       break;
   default: // Desired position have direct coordinates
       pos = ((desired_pos*(long)units_per_pixel)>>4)*((long)pixel_size);
-      if (pos+scaled_width > lbDisplay.PhysicalScreenWidth*((long)pixel_size))
-        pos = lbDisplay.PhysicalScreenWidth*((long)pixel_size)-scaled_width;
+      if (pos+scaled_width > RendererPhysicalWidth()*((long)pixel_size))
+        pos = RendererPhysicalWidth()*((long)pixel_size)-scaled_width;
 /* Helps not to touch left panel - disabling, as needs additional conditions
       if (pos < status_panel_width)
         pos = status_panel_width;
@@ -2072,8 +2008,8 @@ long compute_menu_position_x(long desired_pos,int menu_width, int units_per_px)
   {
     if (pos+scaled_width > MyScreenWidth)
       pos = MyScreenWidth-scaled_width;
-    if (pos < local_info.engine_window_x)
-      pos = local_info.engine_window_x;
+    if (pos < local_state.engine_window_x)
+      pos = local_state.engine_window_x;
   } else
   {
     if (pos+scaled_width > MyScreenWidth)
@@ -2095,7 +2031,7 @@ long compute_menu_position_y(long desired_pos,int menu_height, int units_per_px)
         pos = GetMouseY() - (scaled_height >> 1);
         break;
     case POS_GAMECTR: // Player-based positioning
-        pos = (local_info.engine_window_height >> 1) - ((scaled_height+20*units_per_px/16) >> 1);
+        pos = (local_state.engine_window_height >> 1) - ((scaled_height+20*units_per_px/16) >> 1);
         break;
     case POS_MOUSPRV: // Place menu centered over previous mouse position
         pos = old_menu_mouse_y - (scaled_height >> 1);
@@ -2160,10 +2096,10 @@ MenuNumber create_menu(struct GuiMenu *gmnu)
     int units_per_px;
     units_per_px = min((int)units_per_pixel,units_per_pixel_min*16/10);
     // Decrease scale factor if for some reason resulting size would exceed screen (wierd aspec ratio support)
-    if (gmnu->width * units_per_px > LbScreenWidth() * 16)
-        units_per_px = LbScreenWidth() * 16 / gmnu->width;
-    if (gmnu->height * units_per_px > LbScreenHeight() * 16)
-        units_per_px = LbScreenHeight() * 16 / gmnu->height;
+    if (gmnu->width * units_per_px > RendererPhysicalWidth() * 16)
+        units_per_px = RendererPhysicalWidth() * 16 / gmnu->width;
+    if (gmnu->height * units_per_px > RendererPhysicalHeight() * 16)
+        units_per_px = RendererPhysicalHeight() * 16 / gmnu->height;
     // Setting position X
     amnu->pos_x = compute_menu_position_x(gmnu->pos_x,gmnu->width,units_per_px);
     // Setting position Y
@@ -2199,6 +2135,42 @@ MenuNumber create_menu(struct GuiMenu *gmnu)
     SYNCDBG(18,"Created menu ID %d at slot %d, pos (%d,%d) size (%d,%d)",(int)gmnu->ident,
         (int)mnu_num,(int)amnu->pos_x,(int)amnu->pos_y,(int)amnu->width,(int)amnu->height);
     return mnu_num;
+}
+
+/** Saves `current` as the value to put back when a hold ends. Holding again
+ *  keeps the first saved value, unless the value was put back in between (an
+ *  exit that skipped the restore). */
+static void begin_map_ui_hold(TbBool* held, TbBool* saved, TbBool current)
+{
+    if (current || !*held)
+        *saved = current;
+    *held = true;
+}
+
+/** Hides the status menu and turns tooltips off for the map and its fades, or
+ *  puts them back. Each argument is the state wanted from this call on. */
+void set_map_ui_hidden(TbBool status_menu, TbBool tooltips)
+{
+    if (status_menu)
+    {
+        begin_map_ui_hold(&local_state.status_menu_hidden_for_map, &local_state.status_menu_restore, toggle_status_menu(0));
+    }
+    else if (local_state.status_menu_hidden_for_map)
+    {
+        toggle_status_menu(local_state.status_menu_restore);
+        local_state.status_menu_hidden_for_map = false;
+    }
+
+    if (tooltips)
+    {
+        begin_map_ui_hold(&local_state.tooltips_hidden_for_map, &local_state.tooltips_restore, settings.tooltips_on);
+        settings.tooltips_on = false;
+    }
+    else if (local_state.tooltips_hidden_for_map)
+    {
+        settings.tooltips_on = local_state.tooltips_restore;
+        local_state.tooltips_hidden_for_map = false;
+    }
 }
 
 /**
@@ -2437,14 +2409,7 @@ void set_gui_visible(TbBool visible)
       toggle_status_menu(is_visbl);
       break;
   }
-  if (((game.view_mode_flags & GNFldD_StatusPanelDisplay) != 0) && ((game.operation_flags & GOF_ShowGui) != 0))
-  {
-      setup_engine_window(status_panel_width, 0, MyScreenWidth, MyScreenHeight);
-  }
-  else
-  {
-      setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
-  }
+  setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
 }
 
 void toggle_gui(void)
@@ -2744,7 +2709,7 @@ FrontendMenuState frontend_setup_state(FrontendMenuState nstate)
           set_pointer_graphic_none();
           credits_offset = lbDisplay.PhysicalScreenHeight;
           credits_end = 0;
-          LbTextSetWindow(0, 0, lbDisplay.PhysicalScreenWidth, lbDisplay.PhysicalScreenHeight);
+          LbTextSetWindow(0, 0, RendererPhysicalWidth(), lbDisplay.PhysicalScreenHeight);
           RendererSetDrawFlags(Lb_TEXT_HALIGN_CENTER);
           play_music_track(7);
           break;
@@ -3049,7 +3014,7 @@ void frontend_input(void)
         if (input_consumed) {
             break;
         }
-        fronttestfont_input();
+        //fronttestfont_input();
         break;
 #endif
     default:
@@ -3333,7 +3298,7 @@ short frontend_draw(void)
         return 0;
     }
 
-    if (RendererLockFramebuffer() != Lb_SUCCESS)
+    if (!RendererBeginFrame())
         return 2;
 
     result = 1;
@@ -3381,7 +3346,7 @@ short frontend_draw(void)
         break;
 #if (BFDEBUG_LEVEL > 0)
     case FeSt_FONT_TEST:
-        fronttestfont_draw();
+        //fronttestfont_draw();
         break;
 #endif
     default:
@@ -3389,7 +3354,7 @@ short frontend_draw(void)
     }
     draw_debug_messages();
     perform_any_screen_capturing();
-    RendererUnlockFramebuffer();
+    RendererEndFrame();
     return result;
 }
 
@@ -3707,6 +3672,7 @@ FrontendMenuState get_menu_state_when_back_from_substate(FrontendMenuState subst
 FrontendMenuState get_startup_menu_state(void)
 {
   struct PlayerInfo *player;
+  struct UserState *ustate = get_user_state(get_local_user());
   LevelNumber lvnum;
   if (game_flags2 & GF2_Server)
   {
@@ -3767,9 +3733,9 @@ FrontendMenuState get_startup_menu_state(void)
     if (network_is_active())
     { // If played real network game, then resulting screen isn't changed based on victory
         SYNCLOG("Network game summary state selected");
-        if ((player->additional_flags & PlaAF_UnlockedLordTorture) != 0)
+        if ((ustate->additional_flags & UsrAF_UnlockedLordTorture) != 0)
         { // Player has won - go FeSt_TORTURE before any others
-          player->additional_flags &= ~PlaAF_UnlockedLordTorture;
+          ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
           return FeSt_TORTURE;
         } else
         if ((player->display_flags & PlaF6_PlyrHasQuit) == 0)
@@ -3804,9 +3770,9 @@ FrontendMenuState get_startup_menu_state(void)
             {
                 return FeSt_OUTRO;
             } else
-            if ((player->additional_flags & PlaAF_UnlockedLordTorture) != 0)
+            if ((ustate->additional_flags & UsrAF_UnlockedLordTorture) != 0)
             {
-                player->additional_flags &= ~PlaAF_UnlockedLordTorture;
+                ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
                 return FeSt_DRAG;
             } else
             {

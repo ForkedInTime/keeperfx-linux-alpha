@@ -252,12 +252,13 @@ void process_disease(struct Thing *creatng)
 void lightning_modify_palette(struct Thing *thing)
 {
     struct PlayerInfo* myplyr = get_my_player();
-    struct Camera* camera = get_player_active_camera(myplyr);
+    struct UserState* ustate = get_user_state(get_local_user());
+    struct Camera* camera = get_local_active_camera(myplyr);
 
     if (thing->health == 0)
     {
-      PaletteSetPlayerPalette(myplyr, engine_palette);
-      myplyr->additional_flags &= ~PlaAF_LightningPaletteIsActive;
+      PaletteSetUserPalette(get_local_user(), engine_palette);
+      ustate->additional_flags &= ~UsrAF_LightningPaletteIsActive;
       return;
     }
     if (camera == NULL)
@@ -267,24 +268,24 @@ void lightning_modify_palette(struct Thing *thing)
     }
     if (((thing->health % 8) != 7) && (thing->health != 1) && (UNSYNC_RANDOM(4) != 0))
     {
-        if ((myplyr->additional_flags & PlaAF_LightningPaletteIsActive) != 0)
+        if ((ustate->additional_flags & UsrAF_LightningPaletteIsActive) != 0)
         {
             if (get_chessboard_distance(&camera->mappos, &thing->mappos) < 11520)
             {
-                PaletteSetPlayerPalette(myplyr, engine_palette);
-                myplyr->additional_flags &= ~PlaAF_LightningPaletteIsActive;
+                PaletteSetUserPalette(get_local_user(), engine_palette);
+                ustate->additional_flags &= ~UsrAF_LightningPaletteIsActive;
             }
         }
         return;
     }
-    if ((myplyr->view_mode != PVM_ParchFadeIn) && (myplyr->view_mode != PVM_ParchFadeOut) && (myplyr->view_mode != PVM_ParchmentView))
+    if ((camera->view_mode != PVM_ParchFadeIn) && (camera->view_mode != PVM_ParchFadeOut) && (camera->view_mode != PVM_ParchmentView))
     {
-        if ((myplyr->additional_flags & PlaAF_LightningPaletteIsActive) == 0)
+        if ((ustate->additional_flags & UsrAF_LightningPaletteIsActive) == 0)
         {
                         if (get_chessboard_distance(&camera->mappos, &thing->mappos) < 11520)
             {
-              PaletteSetPlayerPalette(myplyr, lightning_palette);
-              myplyr->additional_flags |= PlaAF_LightningPaletteIsActive;
+              PaletteSetUserPalette(get_local_user(), lightning_palette);
+              ustate->additional_flags |= UsrAF_LightningPaletteIsActive;
             }
         }
     }
@@ -388,7 +389,7 @@ void god_lightning_choose_next_creature(struct Thing *shotng)
 void draw_god_lightning(struct Thing *shotng)
 {
     struct PlayerInfo* player = get_player(shotng->owner);
-    const struct Camera* cam = get_local_camera(get_player_active_camera(player));
+    const struct Camera* cam = get_local_active_camera(player);
     if (cam == NULL) {
         return;
     }

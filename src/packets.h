@@ -343,7 +343,7 @@ void process_user_creature_passenger_packet_action(NetUserId user);
 void process_user_creature_control_packet_action(NetUserId user);
 void process_map_packet_clicks(NetUserId user);
 void process_pause_packet(long a1, long a2);
-void process_camera_controls(struct Camera* cam, const struct Packet* pckt, struct PlayerInfo* player, TbBool is_local_camera);
+void process_camera_controls(struct Camera* cam, const struct Packet* pckt, struct PlayerInfo* player);
 void process_camera_action(struct Camera cams[], const struct Packet* pckt);
 void process_first_person_look(struct Thing *thing, const struct Packet *pckt, long current_horizontal, long current_vertical, long *out_horizontal, long *out_vertical, long *out_roll);
 TbBool can_process_creature_input(struct Thing *thing);
@@ -360,9 +360,9 @@ TbBool open_packet_file_for_load(char *fname, struct CatalogueEntry *centry);
 short save_packets(void);
 void close_packet_file(void);
 TbBool reinit_packets_after_load(void);
-struct Room *keeper_build_room(long stl_x,long stl_y,long plyr_idx,long rkind);
+struct Room *keeper_build_room(NetUserId user,long stl_x,long stl_y,long plyr_idx,long rkind);
 TbBool player_sell_room_at_subtile(long plyr_idx, long stl_x, long stl_y);
-TbBool packets_process_cheats(PlayerNumber plyr_idx, MapCoord x, MapCoord y,
+TbBool packets_process_cheats(NetUserId user, PlayerNumber plyr_idx, MapCoord x, MapCoord y,
     struct Packet* pckt, MapSubtlCoord stl_x, MapSubtlCoord stl_y, MapSlabCoord slb_x, MapSlabCoord slb_y);
 void disable_packet_mode(void);
 /******************************************************************************/

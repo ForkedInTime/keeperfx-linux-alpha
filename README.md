@@ -6,7 +6,7 @@
 
 [![Upstream](https://img.shields.io/badge/upstream-dkfans%2Fkeeperfx-blue?style=flat-square)](https://github.com/dkfans/keeperfx)
 ![Platform](https://img.shields.io/badge/platform-Linux%20x86__64-1793D1?style=flat-square)
-![Render](https://img.shields.io/badge/display-GPU%20OpenGL%203.3-brightgreen?style=flat-square)
+![Render](https://img.shields.io/badge/renderer-software%20default%20%7C%20OpenGL%20opt--in-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--2.0-blue?style=flat-square)
 [![Stable](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?label=stable&style=flat-square&color=2ea44f)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest)
 [![Alpha](https://img.shields.io/github/v/release/ForkedInTime/keeperfx-linux-alpha?include_prereleases&filter=*-alpha&label=alpha&style=flat-square&color=orange)](https://github.com/ForkedInTime/keeperfx-linux-alpha/releases)
@@ -174,26 +174,30 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
-> | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, GPU palette re-upload, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 9 wins |
-> | 🎨 | **Graphics & audio** — GPU OpenGL 3.3 present layer, truecolor movie playback, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
+> | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 8 wins |
+> | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 256 commits of ours on top
-> of theirs, on top of 22 upstream merges. The sections below are the line items.</sub>
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 258 commits of ours on top
+> of theirs, on top of 23 upstream merges. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
 <br>
 
 **Display & media**
-- **GPU-accelerated display (OpenGL 3.3).** The game's 8-bit paletted frame is uploaded to the GPU and
-  palette-mapped in a shader instead of being blitted on the CPU, then hardware-scaled to your screen
-  (great on a 3440×1440 ultrawide). Upstream is still 100% software, even on Linux. This layer is also the
-  foundation for the truecolor 3D renderer below.
-- **Truecolor front-end movies.** The intro, logo stings and outro can play in full color through the GPU
-  (any codec, not just 8-bit Smacker), plus a no-AI "vintage cleanup" of all five movies that keeps the
-  original 80s-CG character while removing blocking/banding on a big screen.
+- **Upstream's OpenGL renderer, built for Linux (opt-in).** In September 2026 upstream added an
+  experimental OpenGL backend — world, UI, sprites, shadows and lens effects drawn by the GPU — but only
+  wired it into their Windows build. This fork compiles it into the Linux binary: set `RENDERER=OPENGL`
+  in `keeperfx.cfg` to try it. `SOFTWARE` stays the default and is what every install runs until you opt
+  in. It replaces the fork's own GPU present layer from June (8-bit frame uploaded, palette applied in a
+  shader), which had no place in upstream's new renderer architecture; the software path now presents
+  through SDL exactly as upstream's does.
+- **Front-end movies in any codec.** The intro, logo stings and outro are not limited to 8-bit Smacker:
+  any source ffmpeg decodes is converted to a 256-colour frame and played through the same path. Plus a
+  no-AI "vintage cleanup" of all five movies that keeps the original 80s-CG character while removing
+  blocking/banding on a big screen.
 - **Your own music — any filenames, any format.** Upstream demands exactly `keeper02.ogg` … `keeper07.ogg`
   and plays nothing otherwise. Here the game uses whatever audio is in `music/`: name the files what you
   like (`Track 02.flac`, `02.wav`, or the original names) in **OGG, FLAC, WAV or MP3**. Files carrying a
@@ -271,9 +275,6 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   frame, on the one thread the game loop runs on — only to discard it and start over. The image is static.
   It's now scaled once and kept, rebuilt only when the screen size, scale, map geometry or the image itself
   actually changes. The cost scaled with screen area, so the wider your display the more this gives back.
-- **No redundant GPU palette re-upload.** The OpenGL present path re-uploaded the 256-colour palette every
-  frame — a CPU expansion, a texture upload, and a driver sync — even though it changes only on fades,
-  flashes and movies. It's now guarded so it uploads only when the palette actually changes.
 - **No per-turn CPU busy-spin.** The turn pacer busy-spun the tail of *every* game turn (a leftover Windows
   timer workaround), continuously burning a few percent of a CPU core and hurting laptop battery and
   thermals. The Linux path now sleeps precisely with a high-resolution monotonic timer — zero spin.
@@ -303,10 +304,6 @@ first.)
   aborted the game at a level transition. Rooms now sever their workers on deletion, the list head is
   only rewritten when the room agrees, and orphaned creatures detach themselves. The ~18 guarded list
   walks stay as the last line of defence, and the fault exists in upstream KeeperFX to this day.
-- **Changing resolution no longer blacks out the game.** The GPU present layer maps the 8-bit
-  picture through a colour table uploaded only when it changes — but rebuilding the backend on a
-  resolution switch produced a fresh, empty table that the "unchanged" check then never refilled.
-  Every pixel looked up black, permanently. The table is refilled on every backend rebuild.
 - **Four memory faults found by our sanitizer pass** — the engine now builds under AddressSanitizer and
   every campaign is run through it before a release. Its first runs caught an array overflow on every
   game start, out-of-bounds reads on every level load and script parse, and a C++ destructor fault on
@@ -389,11 +386,10 @@ and I own the bug report. Found something sloppy or broken?
 
 ## 🚧 Work in progress
 
-- **Truecolor GPU / Vulkan world renderer + hi-res asset pipeline.** Design docs, a frozen prototype
-  world-renderer, and hi-res terrain/sprite plans live under [`docs/vulkan-foundation/`](docs/vulkan-foundation).
-  The GPU display layer above is step one; the goal is a real truecolor, eventually 3D-capable renderer —
-  developed slowly, on top of whatever the team ships, and always behind a separate switch so the classic
-  look stays intact. **None of this is enabled in the current build.**
+- **GPU world renderer.** Upstream's OpenGL backend (the opt-in above) is now the vehicle for this; the
+  earlier design docs and frozen prototype under [`docs/vulkan-foundation/`](docs/vulkan-foundation) stay
+  as history. The work here is making that backend a first-class Linux path: measuring it against the
+  software renderer, then fixing what is Linux-specific. **It is not the default in any current build.**
 
 ## System requirements
 
@@ -401,7 +397,8 @@ and I own the bug report. Found something sloppy or broken?
 - ⚠️ **Will NOT run on Ubuntu 22.04 or older.** Official builds are compiled on Ubuntu 24.04, whose C
   library (glibc 2.39) is newer than what 22.04 and earlier provide — the binaries simply won't start on
   them. Older systems must [build from source](#build-from-source) instead.
-- An OpenGL 3.3-capable GPU.
+- An OpenGL 3.3-capable GPU **only if you opt into `RENDERER=OPENGL`**. The default software renderer
+  presents through SDL and needs nothing in particular.
 - The system's own OpenGL, ALSA, fontconfig and fribidi libraries. Every desktop install has them; the
   AppImage leaves exactly these to the host on purpose, so a bare container or a server image will not do.
 
@@ -425,7 +422,7 @@ any of these.</sub>
 4. Install the runtime libraries (Arch shown; names vary by distro):
    ```bash
    sudo pacman -S --needed sdl3 sdl3_mixer sdl3_image \
-     ffmpeg openal luajit libspng minizip zlib libepoxy miniupnpc libnatpmp openssl zstd
+     ffmpeg openal luajit libspng minizip zlib miniupnpc libnatpmp openssl zstd
    ```
 5. Run: `cd ~/.local/share/keeperfx-alpha && ./keeperfx`
 </details>
@@ -447,11 +444,11 @@ Tested on Arch Linux (x86-64). Package **names** differ across distros, but the 
 ```bash
 sudo pacman -S --needed base-devel git python \
   sdl3 sdl3_mixer sdl3_image \
-  ffmpeg openal luajit libspng minizip zlib libepoxy \
+  ffmpeg openal luajit libspng minizip zlib \
   miniupnpc libnatpmp openssl zstd
 ```
 > Other distros: a C/C++ toolchain, `make`, `git`, `python3`, and the dev packages for SDL3 (+mixer/image),
-> ffmpeg (avformat/avcodec/avutil/swscale/swresample), OpenAL, LuaJIT, libspng, minizip, zlib, libepoxy,
+> ffmpeg (avformat/avcodec/avutil/swscale/swresample), OpenAL, LuaJIT, libspng, minizip, zlib,
 > miniupnpc, libnatpmp, openssl, zstd. centijson/astronomy/enet6/libcurl are fetched by the makefile.
 
 **2. Clone and build the engine:**
@@ -501,15 +498,15 @@ three problems it used to describe are gone:
   the names SDL actually ships, and falls back to the capitalised spellings. `cmake -S . -B build`
   completes in seconds with no `FetchContent` fallback. It also filters platform sources correctly
   in both directions, rather than only excluding a Linux file from Windows builds.
-- **It still does not link.** Two libraries the engine calls are absent from its Linux dependency
-  set: `libepoxy`, which every GL entry point in the OpenGL present backend resolves through, and
-  `libswscale`, which `bflib_fmvids.cpp` calls for video scaling. A full build gets all the way to
-  the link step and stops with **498 undefined `epoxy_gl*` symbols and 4 for `swscale`**, producing
-  no binary. `linux.mk` links both.
+- **It still does not link — by one library.** `libswscale`, which `bflib_fmvids.cpp` calls for video
+  scaling, is absent from its Linux dependency set, and the last full attempt stopped at the link step
+  with **4 undefined `swscale` symbols** and no binary. `linux.mk` links it. The other gap this section
+  used to describe, `libepoxy`, went away with the September 2026 renderer sync: upstream vendors its own
+  GL loader (`deps/glad`), so nothing in the tree resolves through epoxy any more. The swscale count is
+  from before that sync and has not been re-measured since.
 
-So the conclusion is unchanged and the reason is now a single one: the dependency list is short by
-two libraries. That is a much smaller gap than it was, and worth revisiting rather than treating as
-permanent.
+So the conclusion is unchanged and the reason is a single missing library. That is a small gap, and
+worth revisiting rather than treating as permanent.
 
 None of that is a criticism of upstream: KeeperFX is a Windows project, their CMake serves their
 platform, and the Linux path in it is untested because nobody there runs it.

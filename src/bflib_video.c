@@ -24,17 +24,9 @@
 #include "bflib_mouse.h"
 #include "bflib_render.h"
 #include "bflib_sprfnt.h"
-#include "bflib_vidsurface.h"
-#include "bflib_fileio.h"
-#ifndef _WIN32
-#include <SDL3_image/SDL_image.h>
-#endif
-#ifndef _WIN32
-#include "bflib_render_gl.h"
-#include "bflib_render_glworld.h"
-#endif
 #include "kfx/platform/PlatformManager.h"
 #include "kfx/renderer/RendererManager.h"
+#include "kfx/renderer/software/SwDisplaySurface.h"
 
 #include "keeperfx.hpp"
 
@@ -63,18 +55,14 @@ TbBool lbDoubleBufferingRequested;
 /** Colour palette buffer, to be used inside lbDisplay. */
 static unsigned char lbPalette[PALETTE_SIZE];
 
+// If you see this in the window, the platform title set didnt get called.
 char lbDrawAreaTitle[128] = "Bullfrog Shell";
 volatile TbBool lbInteruptMouse;
 volatile unsigned long lbIconIndex = 0;
-#ifndef _WIN32
-// Cached so repeated mode changes do not re-read the file from disk.
-static SDL_Surface *lbWindowIcon = NULL;
-#endif
-SDL_Window *lbWindow = NULL;
 
 TbDisplayStruct lbDisplay;
 
-
+// Todo : Replace these with RendererManager calls, and remove them from here.
 unsigned short MyScreenWidth;
 unsigned short MyScreenHeight;
 unsigned short pixel_size;
@@ -90,8 +78,13 @@ unsigned short units_per_pixel;
   */
 unsigned short display_id = 0;
 
-/** Vertical sync for the software present; set from keeperfx.cfg (VSYNC), on by default. */
+/** Vertical sync for the software present; set from keeperfx.cfg (VSYNC), on by default.
+ * todo : move to render settings
+ */
 TbBool vsync_enabled = 1;
+
+/** Requested renderer backen; set from keeperfx.cfg (RENDERER) */
+int requested_renderer_type = RENDERER_SOFTWARE;
 
 static unsigned char fade_started;
 static unsigned char from_pal[PALETTE_SIZE];
@@ -121,43 +114,15 @@ TbScreenMode LbScreenActiveMode(void)
  */
 unsigned short LbGraphicsScreenBPP(void)
 {
-    if (lbDrawSurface != NULL) {
-        return SDL_BITSPERPIXEL(lbDrawSurface->format);
+    struct SDL_Surface *draw_surface = SwDisplaySurfaceGet();
+    if (draw_surface != NULL) {
+        return SDL_BITSPERPIXEL(draw_surface->format);
     }
     // On error, return 0
     return 0;
     // Old way - returns video BPP, not graphics BPP
     // TbScreenModeInfo *mdinfo = LbScreenGetModeInfo(lbDisplay.ScreenMode);
     // return mdinfo->BitsPerPixel;
-}
-
-TbScreenCoord LbGraphicsScreenWidth(void)
-{
-    return lbDisplay.GraphicsScreenWidth;
-}
-
-TbScreenCoord LbGraphicsScreenHeight(void)
-{
-    return lbDisplay.GraphicsScreenHeight;
-}
-
-/** Resolution in width of the current video mode.
- *  Note that it's not always "physical" size,
- *  and it definitely can't be used as pitch/scanline
- *  (size of data for one line) in the graphics buffer.
- *
- *  But it is the width that will be visible on screen.
- *
- * @return
- */
-TbScreenCoord LbScreenWidth(void)
-{
-    return lbDisplay.PhysicalScreenWidth;
-}
-
-TbScreenCoord LbScreenHeight(void)
-{
-    return lbDisplay.PhysicalScreenHeight;
 }
 
 TbResult LbPaletteFadeStep(unsigned char *from_palette,unsigned char *to_palette,long fade_steps)
@@ -176,9 +141,7 @@ TbResult LbPaletteFadeStep(unsigned char *from_palette,unsigned char *to_palette
         palette[i+2] = fade_count * (target_color_component - source_color_component) / fade_steps + source_color_component;
     }
     LbScreenWaitVbi();
-    TbResult ret = RendererPaletteSet(palette);
-    RendererPresentFrame();
-    return ret;
+    return RendererPaletteSet(palette);
 }
 
 TbResult LbPaletteStopOpenFade(void)
@@ -204,6 +167,7 @@ long LbPaletteFade(unsigned char *pal, long fade_steps, enum TbPaletteFadeFlag f
         {
             if (LbPaletteFadeStep(from_pal,pal,fade_steps) == Lb_FAIL)
                 errors_num++;
+            RendererPresentFrame();
             fade_count++;
         }
         while (fade_count <= fade_steps);
@@ -455,7 +419,6 @@ TbResult LbScreenInitialize(void)
 {
     // Clear global variables
     lbScreenInitialised = false;
-    lbDrawSurface = NULL;
     lbDoubleBufferingRequested = false;
     LbMouseChangeMoveRatio(256, 256);
     // Register default video modes
@@ -506,10 +469,7 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     }
     LbMouseChangeSprite(NULL);
 
-    if (lbDrawSurface != NULL) {
-        SDL_DestroySurface(lbDrawSurface);
-    }
-    lbDrawSurface = NULL;
+    SwDisplaySurfaceDestroy();
     lbScreenInitialised = false;
 
     TbScreenModeInfo* mdinfo = LbScreenGetModeInfo(mode); // The desired mode has already been checked
@@ -544,7 +504,7 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
             // returning. Without waiting, the size/position calls below race a
             // transition that has not happened yet, and leaving fullscreen can
             // strand the window at the wrong size until the next mode change.
-            SDL_SyncWindow(lbWindow);
+            PlatformManager_SyncWindow();
         }
         PlatformManager_SetWindowBordered((mdinfo->windowFlags & KFX_WF_BORDERLESS) ? 0 : 1);
         // Windowed mode (including the special FILL ALL borderless window).
@@ -557,7 +517,10 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     // If the game window doesn't yet exist, create it.
     if (!PlatformManager_HasWindow())
     {
-        if (PlatformManager_CreateWindow(lbDrawAreaTitle, mdinfo->window_pos_x, mdinfo->window_pos_y, mdinfo->Width, mdinfo->Height, mdinfo->windowFlags) == 0)
+        // Bake the active renderer backend's required SDL3 capability flags
+        // (e.g. KFX_WF_OPENGL) into the window at birth
+        unsigned int window_flags = mdinfo->windowFlags | RendererGetRequiredWindowFlags((RendererType)requested_renderer_type);
+        if (PlatformManager_CreateWindow(lbDrawAreaTitle, mdinfo->window_pos_x, mdinfo->window_pos_y, mdinfo->Width, mdinfo->Height, window_flags) == 0)
         {
             ERRORLOG("PlatformManager_CreateWindow failed for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
             return Lb_FAIL;
@@ -570,18 +533,9 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
         }
     }
 
-    // The engine renders 8-bit indexed into a standalone draw surface; the software
-    // backend presents it through an SDL_Renderer + texture (which is incompatible with
-    // a window surface, so we no longer call SDL_GetWindowSurface here). SDL3 does not
-    // allocate a palette for indexed surfaces, so create one.
-    lbDrawSurface = SDL_CreateSurface(mdinfo->Width, mdinfo->Height, SDL_PIXELFORMAT_INDEX8);
-    if (lbDrawSurface == NULL) {
+    struct SDL_Surface *draw_surface = SwDisplaySurfaceCreate(mdinfo->Width, mdinfo->Height);
+    if (draw_surface == NULL) {
         ERRORLOG("Can't create draw surface for mode %d (%s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
-        LbScreenReset(false);
-        return Lb_FAIL;
-    }
-    if (!SDL_CreateSurfacePalette(lbDrawSurface)) {
-        ERRORLOG("Can't create palette for draw surface (mode %d, %s): %s", (int)mode, mdinfo->Desc, SDL_GetError());
         LbScreenReset(false);
         return Lb_FAIL;
     }
@@ -591,50 +545,16 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     lbDisplayEx.ShadowColour = 0;
     lbDisplay.PhysicalScreenWidth = mdinfo->Width;
     lbDisplay.PhysicalScreenHeight = mdinfo->Height;
+    PlatformManager_SetGameSurfaceSize(mdinfo->Width, mdinfo->Height);
     lbDisplay.ScreenMode = mode;
     lbDisplay.PhysicalScreen = NULL;
     // The graphics screen size should be really taken after screen is locked, but it seem just getting in now will work too
-    lbDisplay.GraphicsScreenWidth = lbDrawSurface->pitch;
+    lbDisplay.GraphicsScreenWidth = draw_surface->pitch;
     lbDisplay.GraphicsScreenHeight = mdinfo->Height;
     lbDisplay.WScreen = NULL;
     lbDisplay.GraphicsWindowPtr = NULL;
     lbScreenInitialised = true;
-    SYNCLOG("Mode %dx%dx8 setup succeeded (indexed draw surface)",(int)lbDrawSurface->w,(int)lbDrawSurface->h);
-    // Rebuild the backend now that the window and the draw surface exist. This is
-    // the only point at which AUTO can tell whether the GPU backend is available,
-    // since that one owns a GL context on the window -- the first RendererInit()
-    // in main() runs before any window does. It also re-arms the new backend's
-    // palette, which is what a mode change used to lose.
-    RendererReinit();
-
-#ifndef _WIN32
-    // Attach the icon to the window itself. This is what X11 taskbars read; on
-    // Wayland it is ignored in favour of the app_id set before SDL_Init above,
-    // so both are needed to cover the two display servers. Non-fatal: a missing
-    // icon should never stop the game starting.
-    //
-    // Deliberately placed after RendererReinit() rather than right after the
-    // window is created above: the software backend can recreate the window out
-    // from under lbWindow (WindowSystemSDL::RecreateForSoftwareRenderer, to
-    // strip SDL_WINDOW_OPENGL before an SDL_Renderer attaches -- see
-    // RendererSoftware::Init()), which happens inside RendererReinit(). Setting
-    // the icon before that point would land it on a window this call is about
-    // to destroy, leaving the survivor with no icon until the next mode change
-    // happened to re-run this block. Setting it here targets whichever window
-    // is actually left standing.
-    if (lbWindowIcon == NULL) {
-        char icon_path[2048];
-        lbWindowIcon = IMG_Load(LbFileCaseInsensitivePath("fxdata/keeperfx_icon.png",
-                                                          icon_path, sizeof(icon_path)));
-        if (lbWindowIcon == NULL) {
-            WARNLOG("Could not load window icon 'fxdata/keeperfx_icon.png': %s", SDL_GetError());
-        }
-    }
-    if (lbWindowIcon != NULL) {
-        SDL_SetWindowIcon(lbWindow, lbWindowIcon);
-    }
-#endif
-
+    SYNCLOG("Mode %dx%dx8 setup succeeded (indexed draw surface)",(int)draw_surface->w,(int)draw_surface->h);
     if (palette != NULL)
     {
         RendererPaletteSet(palette);
@@ -644,7 +564,7 @@ TbResult LbScreenSetup(TbScreenMode mode, TbScreenCoord width, TbScreenCoord hei
     SYNCDBG(8,"Done filling display properties struct");
     if ( LbMouseIsInstalled() )
     {
-        LbMouseSetWindow(0, 0, lbDisplay.PhysicalScreenWidth, lbDisplay.PhysicalScreenHeight);
+        LbMouseSetWindow(0, 0, RendererPhysicalWidth(), lbDisplay.PhysicalScreenHeight);
         if (msspr != NULL)
         {
           LbMouseChangeSpriteAndHotspot(msspr, hot_x, hot_y);
@@ -724,7 +644,7 @@ const unsigned char *LbPaletteGetReadonly(void)
 TbResult LbPaletteGet(unsigned char *palette)
 {
     SYNCDBG(12,"Starting");
-    if ((!lbScreenInitialised) || (lbDrawSurface == NULL))
+    if ((!lbScreenInitialised) || (SwDisplaySurfaceGet() == NULL))
       return Lb_FAIL;
     if (lbDisplay.Palette == NULL)
         return Lb_FAIL;
@@ -736,14 +656,14 @@ TbResult LbPaletteGet(unsigned char *palette)
     unsigned char * destColors;
     unsigned long i;
     unsigned long colours_num;
-    colours_num = SDL_GetSurfacePalette(lbDrawSurface)->ncolors;
+    colours_num = SDL_GetSurfacePalette(SwDisplaySurfaceGet())->ncolors;
     if (colours_num > PALETTE_COLORS) {
         colours_num = PALETTE_COLORS;
     } else
     if (colours_num < PALETTE_COLORS) {
         memset(palette,0,PALETTE_SIZE);
     }
-    srcColors = SDL_GetSurfacePalette(lbDrawSurface)->colors;
+    srcColors = SDL_GetSurfacePalette(SwDisplaySurfaceGet())->colors;
     destColors = palette;
     for (i = 0; i < colours_num; i++) {
         destColors[0] = (srcColors[i].r >> 2);
@@ -773,20 +693,12 @@ TbScreenModeInfo *LbScreenGetModeInfo(TbScreenMode mode)
     return &lbScreenModeInfo[0];
 }
 
-TbBool LbScreenIsLocked(void)
-{
-    return (lbDisplay.WScreen != NULL);
-}
-
 TbResult LbScreenReset(TbBool exiting_application)
 {
     if (!lbScreenInitialised)
       return Lb_FAIL;
     LbMouseChangeSprite(NULL);
-    if (lbDrawSurface != NULL) {
-        SDL_DestroySurface(lbDrawSurface);
-    }
-    lbDrawSurface = NULL;
+    SwDisplaySurfaceDestroy();
     // Mark as not initialized
     lbScreenInitialised = false;
     if (exiting_application)
@@ -992,11 +904,6 @@ TbScreenMode LbRegisterVideoMode(const char *desc, TbScreenCoord width, TbScreen
             mdinfo->windowFlags |= KFX_WF_FULLSCREEN_EXCLUSIVE; // fullscreen at a specific video mode
         }
     }
-#ifndef _WIN32
-    // Every window this fork creates has to be able to host the GL 3.3 context the
-    // GPU present backend attaches; SDL3 only accepts that at creation time.
-    mdinfo->windowFlags |= KFX_WF_OPENGL;
-#endif
     snprintf(mdinfo->Desc, sizeof(mdinfo->Desc), "%s", desc);
     return mode;
 }
@@ -1233,7 +1140,7 @@ long scale_ui_value(long base_value)
  */
 long scale_ui_value_lofi(long base_value)
 {
-    TbBool lofi_mode = ((LbGraphicsScreenHeight() < 400) ? true : false);
+    TbBool lofi_mode = ((RendererScreenHeight() < 400) ? true : false);
     long value;
     if (lofi_mode)
     {

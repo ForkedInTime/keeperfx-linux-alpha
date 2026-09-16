@@ -38,6 +38,7 @@ unsigned char *block_ptrs[TEXTURE_VARIATIONS_COUNT * TEXTURE_BLOCKS_COUNT];
 
 long block_dimension = 32;
 long block_count_per_row = 8;
+TbBool level_textures_ready = 0;
 
 static long anim_counter;
 /******************************************************************************/
@@ -254,6 +255,7 @@ TbBool load_texture_map_file(unsigned long tmapidx, LevelNumber lvnum, short fgr
         dst += size_b;
 
     }
+    level_textures_ready = 1;
     return true;
 }
 /******************************************************************************/

@@ -25,6 +25,7 @@
 #include "bflib_dernc.h"
 #include "bflib_enet.h"
 #include "bflib_video.h"
+#include "kfx/renderer/RendererManager.h" // RENDERER_SOFTWARE/RENDERER_OPENGL
 #include "bflib_keybrd.h"
 #include "bflib_datetm.h"
 #include "bflib_mouse.h"
@@ -63,6 +64,7 @@ char keeper_runtime_directory[152];
 short api_enabled = false;
 uint16_t api_port = 5599;
 unsigned long features_enabled = 0;
+unsigned char viewport_mode = VpMode_Original;
 TbBool exit_on_lua_error = false;
 TbBool FLEE_BUTTON_DEFAULT = false;
 TbBool IMPRISON_BUTTON_DEFAULT = false;
@@ -170,9 +172,24 @@ const struct NamedCommand conf_commands[] = {
   {"CAPTURE_CURSOR"                , 46},
   {"MATCHMAKING_SERVER"            , 47},
   {"MULTIPLAYER_PORT"              , 48},
-  {"TRASH_MAX_COUNT"               , 49},
-  {"TRASH_MAX_DAYS"                , 50},
+  {"RENDERER"                      , 49},
+  {"VIEWPORT_MODE"                 , 50},
+  {"TRASH_MAX_COUNT"               , 51},
+  {"TRASH_MAX_DAYS"                , 52},
   {NULL,                   0},
+  };
+
+  const struct NamedCommand viewport_mode_desc[] = {
+  {"ORIGINAL",       VpMode_Original},
+  {"FULL",           VpMode_Full},
+  {"FULL_LETTERBOX", VpMode_FullLetterbox},
+  {NULL,             0},
+  };
+
+  const struct NamedCommand renderer_type_desc[] = {
+  {"SOFTWARE",     RENDERER_SOFTWARE},
+  {"OPENGL",       RENDERER_OPENGL},
+  {NULL,           0},
   };
 
   const struct NamedCommand vidscale_type[] = {
@@ -1052,7 +1069,27 @@ static void load_file_configuration(const char *fname, const char *sname, const 
             CONFWRNLOG("Invalid MULTIPLAYER_PORT '%s' in %s file.", COMMAND_TEXT(cmd_num), config_textname);
           }
           break;
-      case 49: // TRASH_MAX_COUNT
+      case 49: // RENDERER
+          i = recognize_conf_parameter(buf,&pos,len,renderer_type_desc);
+          if (i <= 0)
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          requested_renderer_type = i;
+          break;
+      case 50: // VIEWPORT_MODE
+          i = recognize_conf_parameter(buf,&pos,len,viewport_mode_desc);
+          if (i <= 0)
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          viewport_mode = i;
+          break;
+      case 51: // TRASH_MAX_COUNT
           if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
@@ -1065,7 +1102,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
-      case 50: // TRASH_MAX_DAYS
+      case 52: // TRASH_MAX_DAYS
           if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);

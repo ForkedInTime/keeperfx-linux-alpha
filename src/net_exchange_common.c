@@ -23,6 +23,8 @@
 #include "front_landview.h"
 #include "frontend.h"
 #include "game_legacy.h"
+#include "keeperfx.hpp"
+#include "kjm_input.h"
 #include "net_game.h"
 #include "net_exchange_gameplay.h"
 #include "net_lobby.h"
@@ -43,7 +45,6 @@
 // 3 duplicate and 2 redundant = Micro stutter
 
 extern void network_yield_draw_frontend(void);
-extern void network_yield_draw_gameplay(void);
 extern long double host_packet_received;
 
 void send_to_active_peers(int send_count, enum NetworkPeerSendMode send_mode, const char *buffer, size_t msg_size, NetUserId first_skip_id, NetUserId second_skip_id)
@@ -193,7 +194,7 @@ void send_network_chat_message(NetUserId sender, const char *message)
 struct PlayerInfo *prepare_network_chat_message(int player_id, const char *message)
 {
     struct PlayerInfo *player = get_player(player_id);
-    player->allocflags &= ~PlaF_NewMPMessage;
+    get_player_user_state(player)->init_flags &= ~UsrIF_NewMPMessage;
     if (message[0] != '\0') {
         memcpy(player->mp_message_text, message, PLAYER_MP_MESSAGE_LEN);
         memcpy(player->mp_message_text_last, message, PLAYER_MP_MESSAGE_LEN);
@@ -371,7 +372,12 @@ TbError exchange_frame_block(enum NetMessageType msg_type, void *send_buf, void 
         if (frontend_exchange) {
             network_yield_draw_frontend();
         } else {
-            network_yield_draw_gameplay();
+            if (!poll_inputs()) {
+                exit_keeper = 1;
+            }
+            if (quit_game || exit_keeper) {
+                break;
+            }
         }
         SDL_Delay(1);
     }

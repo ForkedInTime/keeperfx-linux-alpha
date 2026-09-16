@@ -50,8 +50,6 @@ src/net_main.c \
 src/net_lobby.c \
 src/bflib_planar.c \
 src/kfx/renderer/software/bflib_render.c \
-src/bflib_render_gl.c \
-src/bflib_render_glworld.c \
 src/kfx/renderer/software/bflib_render_gpoly.c \
 src/kfx/renderer/software/bflib_render_trig.c \
 src/bflib_sndlib.cpp \
@@ -65,7 +63,9 @@ src/kfx/renderer/software/bflib_vidraw_spr_norm.c \
 src/kfx/renderer/software/bflib_vidraw_spr_onec.c \
 src/kfx/renderer/software/bflib_vidraw_spr_remp.c \
 src/kfx/renderer/software/SwDrawTarget.c \
-src/bflib_vidsurface.c \
+src/kfx/renderer/software/SwDisplaySurface.c \
+src/kfx/renderer/software/SwZoomBoxTiles.c \
+src/kfx/renderer/RendererSettings.c \
 src/button_snapping.c \
 src/config.c \
 src/config_campaigns.c \
@@ -183,7 +183,6 @@ src/kfx_memory.c \
 src/kfx/platform/PlatformManager.cpp \
 src/kfx/platform/PlatformLinux.cpp \
 src/kfx/platform/WindowSystemSDL.cpp \
-src/kfx/renderer/RendererGL.cpp \
 src/kfx/renderer/ITextRenderer.cpp \
 src/kfx/renderer/IUIRenderer.cpp \
 src/kfx/renderer/RendererManager.cpp \
@@ -196,6 +195,31 @@ src/kfx/lense/LuaLensEffect.cpp \
 src/kfx/lense/MistEffect.cpp \
 src/kfx/lense/OverlayEffect.cpp \
 src/kfx/lense/PaletteEffect.cpp \
+src/kfx/platform/GLContextSDL.cpp \
+src/kfx/renderer/PaletteTransform.cpp \
+src/kfx/renderer/RenderGraph.cpp \
+src/kfx/renderer/RenderTaskProducerRegistry.cpp \
+src/kfx/renderer/RenderThreadManager.cpp \
+src/kfx/renderer/RendererBridge_UI.cpp \
+src/kfx/renderer/RendererFrameCounter.cpp \
+src/kfx/renderer/RendererOpenGL.cpp \
+src/kfx/renderer/RendererThread.cpp \
+src/kfx/renderer/TileAtlasPacker.cpp \
+src/kfx/renderer/backends/SoftwareCursorLayer.cpp \
+src/kfx/renderer/backends/SoftwareWorldViewRenderer.cpp \
+src/kfx/renderer/opengl/GLCursorLayer.cpp \
+src/kfx/renderer/opengl/GLFunctions.cpp \
+src/kfx/renderer/opengl/GLImagePresentPass.cpp \
+src/kfx/renderer/opengl/GLMapFadePass.cpp \
+src/kfx/renderer/opengl/GLPaletteIndexLookup.cpp \
+src/kfx/renderer/opengl/GLResourceMapper.cpp \
+src/kfx/renderer/opengl/GLSpriteAtlas.cpp \
+src/kfx/renderer/opengl/GLTextRenderer.cpp \
+src/kfx/renderer/opengl/GLTileAtlas.cpp \
+src/kfx/renderer/opengl/GLUIRenderer.cpp \
+src/kfx/renderer/opengl/GLWorldViewRenderer.cpp \
+src/kfx/renderer/opengl/GLZoomBoxTilesPass.cpp \
+src/kfx/ui/GameUI.cpp \
 src/light_data.c \
 src/lua_api.c \
 src/lua_api_lens.c \
@@ -300,6 +324,10 @@ KFX_CXX_SOURCES = $(filter %.cpp,$(KFX_SOURCES))
 KFX_C_OBJECTS = $(patsubst src/%.c,obj/%.o,$(KFX_C_SOURCES))
 KFX_CXX_OBJECTS = $(patsubst src/%.cpp,obj/%.o,$(KFX_CXX_SOURCES))
 KFX_OBJECTS = $(KFX_C_OBJECTS) $(KFX_CXX_OBJECTS)
+# glad, the GL loader upstream's OpenGL backend resolves every gl* call through.
+# Vendored under deps/, built like any other C object; no -lGL, the loader gets
+# its entry points from SDL_GL_GetProcAddress at runtime.
+GLAD_OBJECTS = obj/glad/glad.o
 
 KFX_INCLUDES = \
 	-Isrc \
@@ -309,7 +337,7 @@ KFX_INCLUDES = \
 	-Ideps/enet6/include \
 	-Ideps/libcurl/include \
 	$(shell pkg-config --cflags-only-I luajit) \
-	$(shell pkg-config --cflags epoxy) \
+	-isystem deps/glad/include \
 	$(shell pkg-config --cflags-only-I libavformat)
 
 # -Werror=unused-result: a discarded return value is promoted to a build error.
@@ -339,7 +367,6 @@ KFX_LDFLAGS += \
 	-Ldeps/astronomy -lastronomy \
 	-Ldeps/centijson -ljson \
 	-Ldeps/enet6 -lenet6 \
-	$(shell pkg-config --libs-only-l epoxy) \
 	$(shell pkg-config --libs-only-l sdl3) \
 	$(shell pkg-config --libs-only-l sdl3-mixer) \
 	$(shell pkg-config --libs-only-l sdl3-image) \
@@ -403,12 +430,16 @@ clean:
 bin/save-format-probe: packaging/ci/save_format_probe.c src/ver_defs.h | bin $(DEPS_EXTRACTED)
 	$(CC) $(KFX_CFLAGS) -o $@ $<
 
-bin/keeperfx: $(KFX_OBJECTS) $(TOML_OBJECTS) deps/libcurl/lib/libcurl.a | bin
-	$(CXX) -o $@ $(KFX_OBJECTS) $(TOML_OBJECTS) $(KFX_LDFLAGS)
+bin/keeperfx: $(KFX_OBJECTS) $(TOML_OBJECTS) $(GLAD_OBJECTS) deps/libcurl/lib/libcurl.a | bin
+	$(CXX) -o $@ $(KFX_OBJECTS) $(TOML_OBJECTS) $(GLAD_OBJECTS) $(KFX_LDFLAGS)
 
 $(KFX_C_OBJECTS): obj/%.o: src/%.c src/ver_defs.h | obj $(DEPS_EXTRACTED)
 	$(MKDIR) $(dir $@)
 	$(CC) $(KFX_CFLAGS) -c $< -o $@
+
+$(GLAD_OBJECTS): obj/glad/%.o: deps/glad/src/%.c | obj
+	$(MKDIR) $(dir $@)
+	$(CC) $(KFX_CFLAGS) -Wno-pedantic -c $< -o $@
 
 $(KFX_CXX_OBJECTS): obj/%.o: src/%.cpp src/ver_defs.h | obj $(DEPS_EXTRACTED)
 	$(MKDIR) $(dir $@)
@@ -443,7 +474,7 @@ deps/centitoml/toml_conv.c: deps/centijson/include/json.h
 # host: distcc does not always bring the .d file back with the .o (confirmed
 # missing for ~19% of objects in one run here). Still always `make clean`
 # before an incremental build after switching commits when distributing.
--include $(KFX_OBJECTS:.o=.d) $(TOML_OBJECTS:.o=.d)
+-include $(KFX_OBJECTS:.o=.d) $(TOML_OBJECTS:.o=.d) $(GLAD_OBJECTS:.o=.d)
 
 deps/astronomy-lin64.tar.gz:
 	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20250418/astronomy-lin64.tar.gz"
