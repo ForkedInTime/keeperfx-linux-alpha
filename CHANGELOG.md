@@ -4,6 +4,39 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5700 — 2026-09-20 — alpha
+
+- **A defeated keeper's creatures no longer poison the room worker lists.** When a keeper's last
+  heart dies the engine turns every creature it owned towards the nearest portal — without leaving
+  the state it was in. A creature that was training (or researching, praying, imprisoned) kept its
+  place in that room's worker list; once it was killed on the way out, or reached the portal, its
+  slot was freed with the room still chaining through it. Every list walk from then on stopped at
+  the dead node ("Jump to invalid creature"), the workers behind it were orphaned pointing at a
+  room index that a bridge or workshop later reused, and the game spent the rest of the session
+  logging creatures working in rooms of the wrong kind. Read out of a stable-5652 log: enemy heart
+  destroyed at turn 315366, the first dead node found in that keeper's training room 1600 turns
+  later, then 500 warnings about trainees and crafters "in" bridges. Reproduced with a scripted
+  level (a creature training when its keeper falls, then killed on the way out) and fixed at the
+  source: the redirect now runs the abandoned state's cleanup first, as the over-population path
+  already did. Upstream has the same gap.
+- **Two safety nets behind it.** A creature deleted while still in a worker list is unlinked at
+  deletion and the log names the state that let it through; and a room being deleted severs every
+  control still naming it, chain or no chain, so a reused room index can never inherit workers.
+  The 5652 list guards remain the last line. Neither fires on a healthy game.
+- **A creature preparing to cast a ranged buff (Ranged Heal and kin) is cleaned up as what it was
+  doing.** The preparation state parks the real state aside and restores it afterwards, but state
+  cleanup only looked at the preparation itself — a worker killed or interrupted mid-cast stayed
+  chained into its room. Same class of leak, different door; none of the stock creatures use these
+  spells, custom campaigns do.
+- **Room rebuilds no longer push workers into the wrong room kind.** Selling a slab out of a room
+  re-homes its workers into whatever room is under their feet; a trainee standing on the bridge
+  next door was listed as that bridge's worker, still training, until the job handler noticed and
+  reset it. Only a room of the same kind is accepted now. This was the source of the "Room BRIDGE
+  index 39 is not valid ROOM_ROLE_TRAIN_EXP" storm (339 lines in one session).
+- **Imps no longer drop into state 0 after resting.** An imp that walked to safety to recover, then
+  found itself healed, was restored to "no state" and reset the next turn ("illegal state[1], S=0"
+  in the log). It picks a proper start state instead.
+
 ## 1.4.0.5698 — 2026-09-20 — alpha
 
 - **Positioned script messages no longer wear random icons.** `DISPLAY_INFORMATION_WITH_POS(text, x, y)`
