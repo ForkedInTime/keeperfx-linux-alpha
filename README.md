@@ -24,7 +24,7 @@
 > its releases are tagged `-alpha`. The launcher has a release-channel setting in its Settings dialog, and
 > it only ever offers you releases from the channel you picked. Not sure? Stay on stable.
 >
-> **Stable is 1.4.0.5652 (7 September 2026)** — the first stable on SDL3, carrying everything the alpha line
+> **Stable is 1.4.0.5653 (20 September 2026)** — 5652 plus one fix for stray message icons; the first stable on SDL3, carrying everything the alpha line
 > proved over August: saves that survive an engine update, the creature-list root fix, the GPU present path,
 > RAR add-ons, and three upstream syncs. The badges above track both channels live.
 
