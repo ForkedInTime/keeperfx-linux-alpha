@@ -4,6 +4,33 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5656 — 2026-09-20 — stable
+
+**Replaces 1.4.0.5653.** One fix on top of it, with its safety nets, and nothing else:
+
+- **A defeated keeper's creatures no longer poison the room worker lists.** When a keeper's last
+  heart dies the engine turns every creature it owned towards the nearest portal — without leaving
+  the state it was in. A creature that was training (or researching, praying, imprisoned) kept its
+  place in that room's worker list; once it was killed on the way out, or reached the portal, its
+  slot was freed with the room still chaining through it. Every list walk from then on stopped at
+  the dead node ("Jump to invalid creature"), the workers behind it were orphaned pointing at a
+  room index that a bridge or workshop later reused, and the game spent the rest of the session
+  logging creatures working in rooms of the wrong kind. Read out of a 5652 log (enemy heart
+  destroyed at turn 315366, the first dead node in that keeper's training room 1600 turns later,
+  then 500 warnings about trainees and crafters "in" bridges), reproduced with a scripted level,
+  and fixed at the source: the redirect now runs the abandoned state's cleanup first. Upstream
+  has the same gap.
+- **Two safety nets behind it.** A creature deleted while still in a worker list is unlinked at
+  deletion and the log names the state that let it through; a room being deleted severs every
+  control still naming it, chain or no chain. Neither fires on a healthy game.
+- **Also in the same change:** a creature preparing to cast a ranged buff is cleaned up as what it
+  was doing (the same leak through a different door; only custom campaigns use these spells);
+  room rebuilds re-home workers only into a room of the same kind (the "Room BRIDGE index 39 is
+  not valid ROOM_ROLE_TRAIN_EXP" storm); and an imp that rested to full health no longer drops
+  into state 0 for a turn.
+
+Saved games from 1.4.0.5652 and 5653 load unchanged: no data layout was touched.
+
 ## 1.4.0.5653 — 2026-09-20 — stable
 
 **Replaces 1.4.0.5652.** One fix on top of it and nothing else:
