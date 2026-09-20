@@ -1217,7 +1217,13 @@ static void display_information_check(const struct ScriptLine* scline)
     value->shorts[3] = x;
     value->shorts[4] = y;
     value->shorts[5] = -1;
-    if (scline->tp[2][0] != '\0' && !get_custom_icon_from_value(scline->tp[2], &value->shorts[5]))
+    // The optional icon is the third argument of DISPLAY_INFORMATION only
+    // ("Ala"). DISPLAY_INFORMATION_WITH_POS is (text, x, y): its third argument
+    // is the y coordinate, and reading that as an icon name turned every
+    // positioned message into a random panel sprite -- get_icon_id() on a
+    // number is atoi(), so a message at y=154 wore the alarm-trap icon.
+    if ((scline->command == Cmd_DISPLAY_INFORMATION)
+     && (scline->tp[2][0] != '\0') && !get_custom_icon_from_value(scline->tp[2], &value->shorts[5]))
     {
         SCRPTERRLOG("Invalid custom icon (%s)", scline->tp[2]);
         DEALLOCATE_SCRIPT_VALUE

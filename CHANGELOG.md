@@ -4,6 +4,20 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5653 — 2026-09-20 — stable
+
+**Replaces 1.4.0.5652.** One fix on top of it and nothing else:
+
+- **Positioned script messages no longer wear random icons.** `DISPLAY_INFORMATION_WITH_POS(text, x, y)`
+  fed its y coordinate to the custom-icon parser — an upstream slip in the custom-icon feature, and
+  `get_icon_id` on a number is just `atoi` — so a message placed at y=154 showed the alarm-trap
+  lightning bolt, at y=112 the Hold Audience gate, at y=55 the guard post: the wrong picture, drawn
+  at its own size, spilling out of the message column and blinking while unread. Found in a tutorial
+  map; every map that places information messages was affected. The icon is read only for the form
+  that takes one.
+
+Saved games from 1.4.0.5652 load unchanged; the game-state layout is untouched.
+
 ## 1.4.0.5652 — 2026-09-07 — stable
 
 **Replaces 1.4.0.5425 as the stable release.** Everything the alpha line accumulated between
