@@ -4314,6 +4314,18 @@ TbBool setup_creature_leave_or_die_if_possible(struct Thing *thing)
                 }
                 dump_thing_held_by_any_player(thing);
             }
+            // Leave whatever the creature was doing properly before redirecting
+            // it. setup_creature_leaves_or_dies() only points the creature at the
+            // nearest entrance (a move state with LeavesBecauseOwnerLost to
+            // follow), it never runs the cleanup of the state being abandoned.
+            // A creature that was training, researching, praying or locked up
+            // therefore kept its place in that room's worker list; when it was
+            // later killed on the way out, or walked into the portal, its slot
+            // was freed with the room still chaining through it -- the dead node
+            // that every room-list walker then trips over ("Jump to invalid
+            // creature"), and the cut chain that orphans the workers behind it.
+            // The excess-creatures path a few lines below already does this.
+            cleanup_creature_state_and_interactions(thing);
             // Setup leave state or kill the creature
             setup_creature_leaves_or_dies(thing);
             return true;

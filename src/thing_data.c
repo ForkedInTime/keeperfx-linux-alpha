@@ -36,6 +36,8 @@
 #include "engine_arrays.h"
 #include "kjm_input.h"
 #include "gui_topmsg.h"
+#include "room_jobs.h"
+#include "creature_states.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -187,6 +189,21 @@ void delete_thing_structure_f(struct Thing *thing, TbBool deleting_everything, c
             remove_creature_lair(thing);
             if (creature_is_group_member(thing)) {
                 remove_creature_from_group(thing);
+            }
+            // Every other list this creature can sit in is left below -- the
+            // dungeon list, its group, its lair -- except the worker list of the
+            // room it was in. A creature whose state cleanup did not unlink it
+            // (the state changed underneath it without cleanup, then it died)
+            // stayed chained into that room with this slot freed; the chain was
+            // cut at the dead node, the workers behind it were orphaned, and the
+            // first thing to reuse the slot -- usually an imp -- was treated as the
+            // room's worker. Unlink here, and say which state let it through,
+            // so the log names the leaking transition rather than the victim.
+            if ((cctrl->creature_control_flags & CCFlg_IsInRoomList) != 0) {
+                ERRORLOG("%s: %s index %d deleted while still in the worker list of room %d (state %s); unlinking",
+                    func_name, thing_model_name(thing), (int)thing->index, (int)cctrl->work_room_id,
+                    creature_state_code_name(thing->active_state));
+                remove_creature_from_work_room(thing);
             }
             delete_control_structure(cctrl);
         }

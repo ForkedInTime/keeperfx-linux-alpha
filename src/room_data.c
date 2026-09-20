@@ -537,6 +537,36 @@ void delete_room_structure(struct Room *room)
               }
           }
       }
+      // The chain walk above can only reach what the chain reaches: a dead node
+      // cuts it, and every worker behind that node keeps work_room_id pointing
+      // at this slot -- which the memset() below hands to the next room built.
+      // Those orphans then work, train and scavenge in whatever that slot
+      // becomes ("Room BRIDGE index 39 is not valid ROOM_ROLE_TRAIN_EXP", by the
+      // hundred). The controls are a flat array, so finish the job by scanning
+      // it: anything still naming this room is severed, chain or no chain.
+      {
+          unsigned long orphans = 0;
+          for (long ci = 1; ci < CREATURES_COUNT; ci++)
+          {
+              struct CreatureControl* cctrl = creature_control_get(ci);
+              if (!creature_control_exists(cctrl))
+                  continue;
+              if (cctrl->last_work_room_id == room->index)
+                  cctrl->last_work_room_id = 0;
+              if (cctrl->work_room_id != room->index)
+                  continue;
+              cctrl->work_room_id = 0;
+              cctrl->next_in_room = 0;
+              cctrl->prev_in_room = 0;
+              cctrl->creature_control_flags &= ~CCFlg_IsInRoomList;
+              orphans++;
+          }
+          if (orphans > 0)
+          {
+              ERRORLOG("Room %s index %d: %lu worker(s) were still linked to it beyond its chain; severed",
+                  room_code_name(room->kind), (int)room->index, orphans);
+          }
+      }
       // This is almost remove_room_from_players_list(room, room->owner);
       // but it doesn't change room_slabs_count and is less careful - better not use too much
       if (room->owner != game.neutral_player_num)
@@ -3255,6 +3285,14 @@ void reset_creatures_rooms(struct Room *room)
         if (cctrl->work_room_id == -1)
         {
             struct Room* nroom = get_room_thing_is_on(thing);
+            // Only follow the worker into a room of the same kind. The slab under
+            // it can just as well belong to a neighbouring bridge or corridor
+            // room; re-listing a trainee there kept it in its job state inside a
+            // room that cannot host the job, and the job handler then had to
+            // discover that and reset it -- by the hundred, in the field ("Room
+            // BRIDGE index 39 is not valid ROOM_ROLE_TRAIN_EXP").
+            if (!room_is_invalid(nroom) && (nroom->kind != room->kind))
+                nroom = INVALID_ROOM;
             if (room_is_invalid(nroom))
             {
                 cctrl->creature_control_flags &= ~CCFlg_IsInRoomList;
