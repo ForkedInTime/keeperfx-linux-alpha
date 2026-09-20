@@ -576,7 +576,10 @@ CrtrStateId get_creature_state_besides_interruptions(const struct Thing *thing)
     CrtrStateId i = thing->active_state;
     if ((i == CrSt_MoveToPosition) || (i == CrSt_MoveBackwardsToPosition))
         i = thing->continue_state;
-    if (i == CrSt_CreatureSlapCowers)
+    // CreatureCastingPreparation is entered without cleanup, with the real
+    // state parked in the backup fields, and restored from them afterwards --
+    // the same arrangement as a slap, so it must be looked through the same way.
+    if ((i == CrSt_CreatureSlapCowers) || (i == CrSt_CreatureCastingPreparation))
     {
         struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
         i = cctrl->active_state_bkp;
@@ -599,6 +602,23 @@ struct CreatureStateConfig *get_creature_state_with_task_completion(struct Thing
     struct CreatureStateConfig* stati = get_thing_active_state_info(thing);
     if (stati->state_type == CrStTyp_Move)
         stati = get_thing_continue_state_info(thing);
+    // A creature preparing to cast a ranged buff is still doing whatever it was
+    // doing before -- that state (and its room-list membership) is parked in
+    // the backup fields and restored afterwards. Cleanup that only looked at the
+    // preparation state itself found nothing to clean, so a worker killed or
+    // interrupted mid-cast stayed chained into its room's worker list after
+    // deletion. Look through to the parked state, as a move state looks through
+    // to its continue state.
+    if (thing->active_state == CrSt_CreatureCastingPreparation)
+    {
+        struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
+        if (!creature_control_invalid(cctrl))
+        {
+            stati = get_thing_state_info_num(cctrl->active_state_bkp);
+            if (stati->state_type == CrStTyp_Move)
+                stati = get_thing_state_info_num(cctrl->continue_state_bkp);
+        }
+    }
     return stati;
 }
 

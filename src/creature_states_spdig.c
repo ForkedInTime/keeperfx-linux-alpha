@@ -1473,7 +1473,14 @@ short imp_toking(struct Thing *creatng)
     struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
     if (!creature_would_benefit_from_healing(creatng))
     {
-        internal_set_thing_state(creatng, creatng->continue_state);
+        // Arriving here through creature_going_to_safety_for_toking leaves no
+        // continue state (the move that got the imp here consumed it), so the
+        // old unconditional restore parked the imp in state 0 -- "illegal
+        // state ... reset" in the log, and one wasted turn -- every time.
+        if (creatng->continue_state == CrSt_Unused)
+            set_start_state(creatng);
+        else
+            internal_set_thing_state(creatng, creatng->continue_state);
         return 0;
     }
     if (cctrl->instance_id == CrInst_NULL)
