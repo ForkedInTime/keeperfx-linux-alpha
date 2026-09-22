@@ -63,6 +63,7 @@ struct InstallInfo install_info;
 char keeper_runtime_directory[152];
 short api_enabled = false;
 uint16_t api_port = 5599;
+uint32_t packetsave_max_kb = 0;
 unsigned long features_enabled = 0;
 unsigned char viewport_mode = VpMode_Original;
 TbBool exit_on_lua_error = false;
@@ -174,8 +175,10 @@ const struct NamedCommand conf_commands[] = {
   {"MULTIPLAYER_PORT"              , 48},
   {"RENDERER"                      , 49},
   {"VIEWPORT_MODE"                 , 50},
-  {"TRASH_MAX_COUNT"               , 51},
-  {"TRASH_MAX_DAYS"                , 52},
+  {"PARCHMENT_MAP_FADE"            , 51},
+  {"PACKETSAVE_MAX_SIZE"           , 52},
+  {"TRASH_MAX_COUNT"               , 53},
+  {"TRASH_MAX_DAYS"                , 54},
   {NULL,                   0},
   };
 
@@ -311,6 +314,13 @@ TbBool use_relative_mouse_mode(void)
   return ((features_enabled & Ft_RelativeMouseMode) != 0);
 }
 
+/**
+ * Returns if the mouse should use SDL relative ("raw") mode instead of the grab-and-warp scheme.
+ */
+TbBool use_parchment_fade(void)
+{
+    return ((features_enabled & Ft_ParchmentFade) != 0);
+}
 /**
  * Returns if we should pause the music, if the user pauses the game.
  */
@@ -1089,7 +1099,32 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           viewport_mode = i;
           break;
-      case 51: // TRASH_MAX_COUNT
+      case 51: // PARCHMENT_MAP_FADE
+          i = recognize_conf_parameter(buf, &pos, len, logicval_type);
+          if (i <= 0)
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                  COMMAND_TEXT(cmd_num), config_textname);
+              break;
+          }
+          if (i == 1)
+              features_enabled |= Ft_ParchmentFade;
+          else
+              features_enabled &= ~Ft_ParchmentFade;
+          break;
+      case 52: // PACKETSAVE_MAX_SIZE
+          i = -1;
+          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
+          {
+            i = atoi(word_buf);
+          }
+          if (i >= 0) {
+              packetsave_max_kb = i;
+          } else {
+              CONFWRNLOG("Invalid \"%s\" value in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 53: // TRASH_MAX_COUNT
           if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
@@ -1102,7 +1137,7 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
-      case 52: // TRASH_MAX_DAYS
+      case 54: // TRASH_MAX_DAYS
           if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);

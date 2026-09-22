@@ -66,6 +66,7 @@ src/kfx/renderer/software/SwDrawTarget.c \
 src/kfx/renderer/software/SwDisplaySurface.c \
 src/kfx/renderer/software/SwZoomBoxTiles.c \
 src/kfx/renderer/RendererSettings.c \
+src/kfx/ai/TargetSearchProbe.c \
 src/button_snapping.c \
 src/config.c \
 src/config_campaigns.c \

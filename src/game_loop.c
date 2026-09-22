@@ -593,6 +593,42 @@ static void gameplay_loop_logic()
     exchange_packets();
     update_multiplayer_clock_adjust();
     update_gameplay_delta_time();
+    if (timer_enabled())
+    {
+        if (TimerGame)
+        {
+            TbBool won_level = (get_my_player()->victory_state == VicS_WonLevel);
+            if (!won_level)
+            {
+                TimerTurns = get_gameturn();
+            }
+            if (TimerGameReal)
+            {
+                if (!won_level)
+                {
+                    if (TimerTurns != 0)
+                    {
+                        uint32_t turns = turns_per_second;
+                        if (game.frame_skip > 0)
+                        {
+                            turns *= game.frame_skip;
+                        }
+                        if (TimerTurns % turns == 0)
+                        {
+                            update_game_time(&GameT, &GameSeconds);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (!TimerFreeze)
+            {
+                update_time();
+            }
+        }
+    }
     if (game.process_turn_time > turns_per_second + 1)
         game.process_turn_time = turns_per_second + 1;
     while (game.process_turn_time < 1.0)
@@ -863,7 +899,7 @@ static TbBool wait_at_frontend(void)
     #endif
 
     // Prepare to enter PacketLoad game
-    if ((game.packet_load_enable) && (!game.packet_load_initialized))
+    if (game.packet_load_enable)
     {
       if (!faststartup_saved_packet_game())
           exit_keeper = true;
@@ -1123,6 +1159,10 @@ void game_loop(void)
       starttime = LbTimerClock();
       dungeon->lvstats.start_time = starttime;
       dungeon->lvstats.end_time = starttime;
+      GameSeconds = 0;
+      GameT.Seconds = 0;
+      GameT.Minutes = 0;
+      GameT.Hours = 0;
       if (!TimerNoReset)
       {
           if (is_feature_on(Ft_SkipHeartZoom))

@@ -52,7 +52,6 @@
 #include "creature_instances.h"
 #include "creature_states.h"
 #include "gui_boxmenu.h"
-#include "kfx/renderer/RendererManager.h" // RendererPhysicalWidth
 #include "gui_frontmenu.h"
 #include "gui_frontbtns.h"
 #include "gui_tooltips.h"
@@ -835,9 +834,10 @@ static short get_global_inputs(void)
         if ( timer_enabled() )
         {
             update_time();
-            struct GameTime GameT = get_game_time(get_gameturn(), turns_per_second);
+            struct GameTime GT;
+            get_game_time(&GT, get_gameturn(), turns_per_second);
             SYNCMSG("Finished level %d. Total turns taken: %u (%02u:%02u:%02u at %d fps). Real time elapsed: %02u:%02u:%02u:%03u.",
-                game.loaded_level_number, get_gameturn(), GameT.Hours, GameT.Minutes, GameT.Seconds, turns_per_second, Timer.Hours, Timer.Minutes, Timer.Seconds, Timer.MSeconds);
+                game.loaded_level_number, get_gameturn(), GT.Hours, GT.Minutes, GT.Seconds, turns_per_second, Timer.Hours, Timer.Minutes, Timer.Seconds, Timer.MSeconds);
         }
         set_players_packet_action(player, PckA_FinishGame, player->victory_state, 0, 0, 0);
         return true;
@@ -928,13 +928,12 @@ static TbBool get_level_lost_inputs(void)
         {
           turn_off_all_window_menus();
           set_flag_value(game.operation_flags, GOF_ShowPanel, (game.operation_flags & GOF_ShowGui) != 0);
-          if (network_is_active()
-            || (RendererPhysicalWidth() > 320))
-          {
-                set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0,0,0);
-          } else
+          if (parchment_map_fade_enabled())
           {
                 set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0,0,0);
+          } else
+          {
+                set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0,0,0);
           }
           turn_off_roaming_menus();
         }

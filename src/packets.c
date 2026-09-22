@@ -90,7 +90,6 @@
 #include "map_utils.h"
 #include "light_data.h"
 #include "gui_draw.h"
-#include "gui_topmsg.h"
 #include "gui_frontmenu.h"
 #include "gui_soundmsgs.h"
 #include "gui_parchment.h"
@@ -106,7 +105,6 @@
 #include "lua_triggers.h"
 
 #include "keeperfx.hpp"
-#include "kfx/renderer/RendererManager.h" // RendererPhysicalWidth
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -259,37 +257,34 @@ TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
     return false;
 }
 
+static int32_t resync_attempt_count = 0;
+
+TbBool is_desync_warning_active(void)
+{
+    return resync_attempt_count >= RESYNC_LIMIT_BEFORE_COOLDOWN && (game.system_flags & (GSF_NetGameNoSync | GSF_NetSeedNoSync)) != 0;
+}
+
 static TbBool resync_game_allowed(void)
 {
-    static int32_t resync_attempt_count = 0;
     static TbClockMSec resync_cooldown_end = 0;
     static GameTurn resync_last_turn = 0;
-    static TbBool resync_cooldown_warned = false;
     TbClockMSec now = LbTimerClock();
     GameTurn turn = get_gameturn();
 
     if (turn < resync_last_turn) {
         resync_attempt_count = 0;
         resync_cooldown_end = 0;
-        resync_cooldown_warned = false;
     }
     resync_last_turn = turn;
 
-    if (resync_attempt_count >= RESYNC_LIMIT_BEFORE_COOLDOWN) {
-        if ((int32_t)(now - resync_cooldown_end) < 0) {
-            if (!resync_cooldown_warned) {
-                show_onscreen_msg(10 * turns_per_second, "Game may be in a desynced state.");
-                resync_cooldown_warned = true;
-            }
-            return false;
-        }
+    if (resync_attempt_count >= RESYNC_LIMIT_BEFORE_COOLDOWN && (int32_t)(now - resync_cooldown_end) < 0) {
+        return false;
     }
 
     if (resync_attempt_count < RESYNC_LIMIT_BEFORE_COOLDOWN) {
         resync_attempt_count++;
     }
     resync_cooldown_end = now + RESYNC_COOLDOWN_MS;
-    resync_cooldown_warned = false;
     return true;
 }
 
@@ -576,7 +571,9 @@ void process_user_dungeon_control_packet_control(NetUserId user)
         ERRORLOG("No active camera");
         return;
     }
-    process_camera_controls(cam, pckt, player);
+    // A parchment map jump's controls were made on the parchment, not for the dungeon camera it jumps.
+    if (pckt->action != PckA_ZoomFromMap)
+        process_camera_controls(cam, pckt, player);
     if (is_my_player(player)) {
         TbBool settings_changed = false;
         if ((pckt->control_flags & (PCtr_ViewTiltUp | PCtr_ViewTiltDown | PCtr_ViewTiltReset)) != 0) {
@@ -817,15 +814,14 @@ TbBool process_user_global_packet_action(NetUserId user)
       set_player_mode(player, pckt->actn_par1);
       return 0;
   case PckA_ZoomFromMap:
-      if (network_is_active()
-          || (RendererPhysicalWidth() > 320))
+      if (parchment_map_fade_enabled())
+      {
+        set_player_mode(player, PVT_MapFadeOut);
+      } else
       {
         if (get_local_user() == user)
           toggle_status_menu((game.operation_flags & GOF_ShowPanel) != 0);
         set_player_mode(player, PVT_DungeonTop);
-      } else
-      {
-        set_player_mode(player, PVT_MapFadeOut);
       }
       return 0;
   case PckA_UpdatePause:
@@ -1042,30 +1038,12 @@ TbBool process_user_global_packet_action(NetUserId user)
             player->render_roomspace.drag_mode = false;
         }
         player->roomspace_highlight_mode = pckt->actn_par1;
-        switch (pckt->actn_par1)
-        {
-            case box_placement_mode:
-            {
-                reset_dungeon_build_room_ui_variables(plyr_idx);
-                player->roomspace_width = player->roomspace_height = pckt->actn_par2;
-                break;
-            }
-            case roomspace_detection_mode:
-            {
-                set_player_roomspace_size(player, pckt->actn_par2);
-                break;
-            }
-            case drag_placement_mode: // drag
-            {
-                if (pckt->actn_par2 == 1)
-                {
-                    player->roomspace_width = 1;
-                    player->roomspace_height = 1;
-                }
-                break;
-            }
+        if (pckt->actn_par1 == box_placement_mode) {
+            reset_dungeon_build_room_ui_variables(plyr_idx);
         }
-        player->roomspace_no_default = true;
+        if (pckt->actn_par1 == box_placement_mode || pckt->actn_par1 == roomspace_detection_mode || (pckt->actn_par1 == drag_placement_mode && pckt->actn_par2 == 1)) {
+            player->roomspace_width = player->roomspace_height = pckt->actn_par2;
+        }
         return false;
     }
     case PckA_PlyrQueryCreature:
@@ -1621,9 +1599,10 @@ void exchange_packets(void)
     update_turn_checksums();
     update_local_dig_tag_prediction();
     store_packet_history(local_user, get_local_packet());
+    host_spoof_dropped_user_packets();
     if (game.game_kind != GKind_LocalGame)
     {
-        if (!game.packet_load_enable || game.packet_load_initialized)
+        if (!game.packet_load_enable)
         {
             struct Packet* my_packet = get_local_packet();
             const char* player_name = (local_user == SERVER_ID) ? "Host" : "Client";

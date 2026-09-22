@@ -199,6 +199,7 @@ struct DesyncChecksums {
     TbBigChecksum doors;
     TbBigChecksum rooms;
     TbBigChecksum players;
+    TbBigChecksum dig_tasks;
     TbBigChecksum action_seed;
     TbBigChecksum ai_seed;
     TbBigChecksum player_seed;
@@ -212,6 +213,8 @@ struct LogDetailedSnapshot {
     int player_count;
     struct LogRoomDesyncInfo rooms[ROOMS_COUNT];
     int room_count;
+    struct MapTask dig_tasks[DUNGEONS_COUNT][MAPTASKS_COUNT];
+    unsigned short dig_task_counts[DUNGEONS_COUNT];
 };
 
 struct Game {
@@ -267,7 +270,6 @@ struct Game {
     uint32_t log_things_end_turn;
     uint32_t turns_packetoff;
     PlayerNumber local_plyr_idx;
-    unsigned char packet_load_initialized; // something with packetload
     // Originally, save_catalogue was here.
     char campaign_fname[CAMPAIGN_FNAME_LEN];
     struct Event event[EVENTS_COUNT];
