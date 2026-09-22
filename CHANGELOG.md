@@ -4,7 +4,7 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
-## 1.4.0.5731 — 2026-09-21 — alpha
+## 1.4.0.5732 — 2026-09-21 — alpha
 
 - **Saved games from 1.4.0.5700 and from every stable build will not load in this build.** Upstream
   flattened the union inside `struct Room` (each room now carries its storage capacity, entrance
