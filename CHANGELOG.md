@@ -4,6 +4,40 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5731 — 2026-09-21 — alpha
+
+- **Saved games from 1.4.0.5700 and from every stable build will not load in this build.** Upstream
+  flattened the union inside `struct Room` (each room now carries its storage capacity, entrance
+  links, per-model lair counts and hatchery turn side by side instead of sharing one slot), moved
+  two roomspace fields out of `struct PlayerInfo`, and dropped an unused byte from `struct Game`.
+  The saved blob is that struct verbatim, so its length changed (53362370 → 53383086 bytes) and the
+  loader refuses older saves with the usual warning instead of guessing. Start new games; the saves
+  are not touched.
+- **Upstream sync: dkfans master through 7ca23d191 (26 commits, 16–21 September).** Multiplayer:
+  players who drop are handled without desyncing the rest, replays and packet saves carry a format
+  version and `PACKETSAVE_MAX_SIZE` caps the recording, the "out of sync" log spam is gone, dig
+  tasks are checksummed, STUN keepalives and a rewritten hole punch keep connections alive, the
+  roomspace flicker on Ctrl+wheel is fixed, and Lua state serialises correctly. Gameplay: things
+  placed by script land at the right height, script-moved creatures start in a sane state, the sell
+  button resets on map start, Lua `StartMoney` replaces gold instead of adding to it, empty tooltips
+  are fixed and the Abyss slab has one, Lua can define room capacity functions. Renderer: OpenGL
+  fixes part 5 with the text clipping and objective-length fixes, and semi-transparent panels fill
+  their corners. The log now lists the audio devices. Creature target search was refactored for
+  speed; its profiling hooks are compiled out here.
+- **Kept our own defaults where upstream changed theirs.** Upstream's shipped config now defaults to
+  the OpenGL renderer; this build keeps `RENDERER=SOFTWARE` until their fix series (part 5 of 8)
+  ends — OpenGL remains one config line away, and the launcher now has a dropdown for it.
+  `UNLOCK_CURSOR_WHEN_GAME_PAUSED` defaults to on, as upstream's does now.
+- **The parchment map fade is a setting, off by default (`PARCHMENT_MAP_FADE`).** Upstream added the
+  switch and removed the rule that skipped the fade above 320 pixels wide on the software renderer;
+  that rule is kept here, so turning the fade on at desktop resolution under the software renderer
+  still cuts instantly instead of running the slow per-pixel path. Two config keys of ours moved to
+  make room for upstream's new ones; existing config files need no edit.
+- **Launcher:** a **Renderer** dropdown (Software or OpenGL) and a **Fade when opening the map**
+  checkbox on the Graphics tab, reading and writing the game config; a config without a renderer
+  line shows Software, as the engine treats it. The launcher binary carries its version in an ELF
+  section for crash reports and packaging.
+
 ## 1.4.0.5700 — 2026-09-20 — alpha
 
 - **A defeated keeper's creatures no longer poison the room worker lists.** When a keeper's last
