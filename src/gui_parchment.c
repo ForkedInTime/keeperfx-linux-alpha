@@ -29,14 +29,13 @@
 #include "globals.h"
 #include "bflib_basics.h"
 #include "bflib_vidraw.h"
-#include "vidmode.h" // pixmap.ghost, ghost_table_blend() -- shared with the minimap's identical blend
+#include "vidmode.h"
 #include "bflib_sprite.h"
 #include "bflib_sprfnt.h"
 #include "bflib_dernc.h"
 #include "bflib_planar.h"
 #include "custom_sprites.h"
 #include "frontend.h"
-#include "front_simple.h"
 #include "config.h"
 #include "gui_boxmenu.h"
 #include "gui_tooltips.h"
@@ -48,19 +47,16 @@
 #include "player_data.h"
 #include "config_strings.h"
 #include "config_campaigns.h"
-#include "config_creature.h"
 #include "config_terrain.h"
 #include "config_spritecolors.h"
+#include "config_keeperfx.h"
 #include "thing_data.h"
 #include "thing_objects.h"
-#include "thing_traps.h"
 #include "creature_graphics.h"
-#include "creature_states.h"
 #include "creature_states_hero.h"
 #include "power_hand.h"
 #include "game_legacy.h"
 #include "room_list.h"
-#include "room_workshop.h"
 #include "frontmenu_ingame_tabs.h"
 #include "vidfade.h"
 #include "sprites.h"
@@ -1152,6 +1148,19 @@ void redraw_minimal_overhead_view(void)
     draw_tooltip();
 }
 
+/** Whether entering or leaving the parchment map plays the fade instead of cutting. */
+TbBool parchment_map_fade_enabled(void)
+{
+    if (network_is_active())
+        return false;
+    // The software renderer fades through a per-pixel lookup that only pays off
+    // at the original 320-wide mode; above that it used to cut instantly, and
+    // the setting alone must not re-enable the slow path there.
+    if (!MapFadePass_SupportsNativeResolution() && (RendererPhysicalWidth() > 320))
+        return false;
+    return use_parchment_fade();
+}
+
 void zoom_to_parchment_map(void)
 {
     turn_off_all_window_menus();
@@ -1160,17 +1169,13 @@ void zoom_to_parchment_map(void)
     else
       set_flag(game.operation_flags, GOF_ShowPanel);
     struct PlayerInfo* player = get_my_player();
-    // GL removes the >320px instant-cut fallback entirely -- that
-    // cap is a software-only per-pixel-LUT performance limit, not a
-    // fundamental one; see MapFadeSupportsNativeResolution()'s own comment.
-    if (network_is_active()
-        || (!MapFadePass_SupportsNativeResolution() && (RendererPhysicalWidth() > 320)))
+    if (parchment_map_fade_enabled())
     {
-      set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0, 0, 0);
+      set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0, 0, 0);
       turn_off_roaming_menus();
     } else
     {
-      set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0, 0, 0);
+      set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0, 0, 0);
       turn_off_roaming_menus();
     }
 }
@@ -1178,13 +1183,12 @@ void zoom_to_parchment_map(void)
 void zoom_from_parchment_map(void)
 {
     struct PlayerInfo* player = get_my_player();
-    if (network_is_active()
-        || (!MapFadePass_SupportsNativeResolution() && (RendererPhysicalWidth() > 320)))
-    {
-        set_players_packet_action(player, PckA_LoadViewType, PVT_DungeonTop, 0,0,0);
-    } else
+    if (parchment_map_fade_enabled())
     {
         set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeOut, 0,0,0);
+    } else
+    {
+        set_players_packet_action(player, PckA_LoadViewType, PVT_DungeonTop, 0,0,0);
     }
 }
 /******************************************************************************/

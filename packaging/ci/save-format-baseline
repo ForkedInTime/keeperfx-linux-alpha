@@ -63,7 +63,7 @@
 # It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
 # mismatch is always a source change, never a toolchain difference.
 
-sizeof_struct_game=53362370
+sizeof_struct_game=53383086
 
 # 2026-08-25: upstream's custom-icon feature (#5147, #5139) added
 #     short icon_idx;   // 2 bytes (+ padding)
@@ -103,3 +103,17 @@ sizeof_struct_game=53362370
 # baseline of its own -- without them the first stable after the guard was
 # added would have shipped with no warning at all.
 sizeof_struct_game@v1.4.0.5425=53269285
+
+# 2026-09-21: upstream sync (dkfans 7ca23d191). 53362370 -> 53383086 between
+# builds 5700 and this one. Three layout changes inside `struct Game`:
+#   - #5343 flattened the union in `struct Room` (storage capacity, entrance
+#     list links, per-model lair counts and the hatchery turn were
+#     alternatives sharing one slot; they are now all present) -- embedded as
+#     `rooms[ROOMS_COUNT]`, so this is nearly all of the growth.
+#   - #5307 moved `user_defined_roomspace_width` / `roomspace_no_default` out
+#     of `struct PlayerInfo`, embedded as `players[PLAYERS_COUNT]`, into the
+#     unsaved `local_state`.
+#   - #5317 dropped the unused `packet_load_initialized` byte from `struct Game`.
+# Accepted: the union let a room's fields alias each other by kind, which
+# upstream stopped relying on; carrying the old layout would mean forking
+# struct Game itself.

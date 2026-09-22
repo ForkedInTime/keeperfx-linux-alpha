@@ -2085,6 +2085,11 @@ static short process_command_line(unsigned short argc, char *argv[])
           {
               TimerGame = true;
               narg++;
+              if (strcasecmp(pr3str, "real") == 0)
+              {
+                  TimerGameReal = true;
+                  narg++;
+              }
           }
           else if (strcasecmp(pr2str, "continuous") == 0)
           {
@@ -2226,6 +2231,7 @@ static short resolve_startup_config(void)
     features_enabled &= ~Ft_DisableCursorCameraPanning; // don't disable cursor camera panning
     features_enabled |= Ft_DeltaTime; // enable delta time
     features_enabled |= Ft_NoCdMusic; // use music files (OGG) rather than CD music
+    features_enabled &= ~Ft_ParchmentFade; // do not fade into and out of the parchment map
     if (!load_configuration())
     {
         ERRORLOG("Configuration load error.");
