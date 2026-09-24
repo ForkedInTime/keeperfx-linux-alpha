@@ -36,6 +36,8 @@
 #include "thing_physics.h"
 #include "dungeon_data.h"
 #include "ariadne.h"
+#include "ariadne_regions.h"
+#include "ariadne_tringls.h"
 #include "game_legacy.h"
 #include "player_data.h"
 #include "local_camera.h"
@@ -240,6 +242,57 @@ TbBool setup_person_move_backwards_to_position_f(struct Thing *thing, MapSubtlCo
 TbBool setup_person_move_to_coord_f(struct Thing *thing, const struct Coord3d *pos, NaviRouteFlags flags, const char *func_name)
 {
     return setup_person_move_to_position_f(thing, pos->x.stl.num, pos->y.stl.num, flags, func_name);
+}
+
+/**
+ * Logs why a creature could not be routed to a position, as one warning line.
+ *
+ * A failed route is otherwise silent: every reason ariadne has for giving up
+ * is a debug-level message, so a game log shows only the caller's "cannot
+ * deliver" and nothing to act on. This computes the pieces that decide the
+ * answer -- whether the creature would stand in a wall at the target, whether
+ * a route exists with and without the owner's locked-door rule, the mesh
+ * triangles and regions of both ends and whether they are connected, and how
+ * many doors the owner has locked -- so the next occurrence explains itself.
+ * Only ever called on a failure, so the two extra route searches are free.
+ */
+void log_route_failure(const char *what, struct Thing *thing, const struct Coord3d *dstpos)
+{
+    struct Coord3d locpos = *dstpos;
+    locpos.z.val = get_thing_height_at(thing, &locpos);
+    TbBool in_wall = thing_in_wall_at(thing, &locpos);
+    long tri_from = ariadne_triangle_at(thing->mappos.x.val, thing->mappos.y.val);
+    long tri_to = ariadne_triangle_at(locpos.x.val, locpos.y.val);
+    long reg_from = (tri_from >= 0) ? get_triangle_region_id(tri_from) : -1;
+    long reg_to = (tri_to >= 0) ? get_triangle_region_id(tri_to) : -1;
+    TbBool connected = ((tri_from >= 0) && (tri_to >= 0)) ? regions_connected(tri_from, tri_to) : false;
+    long waypoints = ariadne_count_waypoints_on_creature_route_to_target_f(thing, &thing->mappos, &locpos, NavRtF_Default, __func__);
+    long waypoints_any_door = ariadne_count_waypoints_on_creature_route_to_target_f(thing, &thing->mappos, &locpos, NavRtF_NoOwner, __func__);
+    int doors = 0;
+    int locked = 0;
+    long i = game.thing_lists[TngList_Doors].index;
+    unsigned long k = 0;
+    while (i > 0)
+    {
+        struct Thing *doortng = thing_get(i);
+        if (thing_is_invalid(doortng))
+            break;
+        i = doortng->next_of_class;
+        if (doortng->owner == thing->owner)
+        {
+            doors++;
+            if (doortng->door.is_locked)
+                locked++;
+        }
+        k++;
+        if (k > THINGS_COUNT)
+            break;
+    }
+    WARNLOG("%s: %s index %d at (%d,%d) has no route to (%d,%d): in wall %d, waypoints %ld (ignoring locked doors %ld), "
+        "mesh triangles %ld -> %ld, regions %ld -> %ld connected %d, own doors %d locked %d, map changed %d",
+        what, thing_model_name(thing), (int)thing->index, (int)thing->mappos.x.stl.num, (int)thing->mappos.y.stl.num,
+        (int)locpos.x.stl.num, (int)locpos.y.stl.num, (int)in_wall, waypoints, waypoints_any_door,
+        tri_from, tri_to, reg_from, reg_to, (int)connected, doors, locked, (int)game.map_changed_for_navigation);
 }
 
 TbBool setup_person_move_backwards_to_coord(struct Thing *thing, const struct Coord3d *pos, NaviRouteFlags flags)
