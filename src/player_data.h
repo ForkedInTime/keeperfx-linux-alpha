@@ -42,7 +42,7 @@ extern "C" {
 
 enum PlayerInitFlags {
     PlaF_Allocated               = 0x01,
-    PlaF_unusedparam             = 0x02,
+    PlaF_OriginallyHuman         = 0x02, /**< Was controlled by a human user when match started > */
     PlaF_CompCtrl                = 0x40,
 };
 
@@ -300,6 +300,14 @@ extern struct LocalState {
     short minimap_pos_y;
     unsigned short minimap_zoom;
     int roomspace_size;
+    // FIXME: use fixed-point precision instead
+    float camera_movement_x;
+    float camera_movement_y;
+    TbBool camera_speedup_pressed;
+    // freecam. TODO: use spectator implementation instead, once that is implemented
+    TbBool replay_detached;
+    unsigned char replay_view_type;
+    unsigned char replay_cam_idx;
 } local_state;
 
 extern unsigned short player_colors_map[];
