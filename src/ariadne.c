@@ -1215,6 +1215,12 @@ static void route_through_gates(const struct Pathway *pway, struct Path *path, l
     path->waypoints[i].y = pway->finish_coordinate_y;
 }
 
+/** The triangle of the navigation mesh under a map coordinate, or -1; for diagnostics. */
+long ariadne_triangle_at(long pos_x, long pos_y)
+{
+    return triangle_findSE8(pos_x, pos_y);
+}
+
 static long triangle_findSE8(long ptfind_x, long ptfind_y)
 {
     int32_t ntri;
