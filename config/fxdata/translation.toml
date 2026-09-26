@@ -191,3 +191,24 @@ _RUS = "Это сохранение повреждено и не может бы
 _SPA = "Esta partida guardada está dañada y no se puede cargar"
 _SWE = "Detta sparade spel är skadat och kan inte laddas"
 _UKR = "Це збереження пошкоджене і не може бути завантажене"
+
+# Title of the score column in the high score table (draw_high_score_header in
+# front_highscore.c). The classic text files have no plain "Score" string; the
+# other two column titles reuse the existing "Level" and "Name" strings.
+[HIGH_SCORE_COLUMN_SCORE]
+ENG = "Score"
+_CHI = "分数"
+_CZE = "Skóre"
+_DUT = "Score"
+_FRE = "Score"
+_GER = "Punkte"
+_ITA = "Punteggio"
+_JPN = "スコア"
+_KOR = "점수"
+_LAT = "Puncta"
+_POL = "Wynik"
+_POR = "Pontuação"
+_RUS = "Очки"
+_SPA = "Puntuación"
+_SWE = "Poäng"
+_UKR = "Очки"
