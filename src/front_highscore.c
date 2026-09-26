@@ -131,17 +131,32 @@ static void draw_high_score_column_text(int pos_x, int pos_y, int width, int uni
 }
 
 /**
- * Column titles above the entries. The score has no string in the classic
- * text files, so it comes from translation.toml; a mod shipping its own
- * table without that alias gets a blank title, not a wrong one.
+ * String id of the "Score" column title, or 0 when the loaded translation table
+ * has no entry for it. The score has no string in the classic text files, so it
+ * comes from translation.toml; a mod shipping its own table without that alias
+ * gets a blank title, not a wrong one. Resolved once per visit to the screen
+ * (see frontstats_save_high_score), not per frame: campaigns, maps and mods may
+ * each add a translation.toml and renumber the table, so it cannot be resolved
+ * once for the whole run, and the lookup logs an error when the alias is
+ * missing, which per frame would flood the log.
+ */
+static TextStringId score_title_stridx = 0;
+
+static void resolve_score_title(void)
+{
+    TextStringId stridx = get_string_id_by_alias("HIGH_SCORE_COLUMN_SCORE");
+    score_title_stridx = (stridx > 0) ? stridx : 0;
+}
+
+/**
+ * Column titles above the entries.
  */
 static void draw_high_score_header(long pos_x, long pos_y, int col1_width, int col2_width, int col3_width, int col4_width, int units_per_px)
 {
     RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
     int i = pos_x + col1_width + col2_width;
-    TextStringId score_stridx = get_string_id_by_alias("HIGH_SCORE_COLUMN_SCORE");
-    if (score_stridx > 0)
-        LbTextStringDraw(i, pos_y, units_per_px, get_string(score_stridx), Fnt_LeftJustify);
+    if (score_title_stridx > 0)
+        LbTextStringDraw(i, pos_y, units_per_px, get_string(score_title_stridx), Fnt_LeftJustify);
     i += col3_width;
     draw_high_score_column_text(i, pos_y, col4_width, units_per_px, get_string(GUIStr_MnuLevel));
     i += col4_width;
@@ -424,6 +439,9 @@ void add_score_to_high_score_table(void)
 
 void frontstats_save_high_score(void)
 {
+    // Runs on every entry to the high score screen, from the level statistics
+    // and from the main menu alike, so this is where the column title resolves.
+    resolve_score_title();
     struct Dungeon* dungeon = get_players_num_dungeon(my_player_number);
     if (dungeon->lvstats.allow_save_score)
     {
