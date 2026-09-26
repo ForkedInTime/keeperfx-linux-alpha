@@ -169,6 +169,8 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > upstream's headline count; the team ships the *game*, and our job is the platform work they don't do.
 > That layer is real, and every line of it is traceable to a commit in this repo:
 >
+> [![This page last updated](https://img.shields.io/github/last-commit/ForkedInTime/keeperfx-linux-alpha/alpha?path=README.md&style=flat-square&label=this%20page%20last%20updated&color=2ea44f)](https://github.com/ForkedInTime/keeperfx-linux-alpha/commits/alpha/README.md)
+>
 > | | What we added | Roughly |
 > |---|---|---|
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
