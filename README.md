@@ -219,6 +219,17 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   deletions for 30 days, whichever comes first, both configurable. The list also closes up when
   you delete, rather than leaving an `UNUSED` hole in the middle of it. Clicking away from a
   save-name you are typing no longer freezes the menu, in any text field in the game.
+
+  ![Deleting a saved game: the skull, the confirmation that names the save, and the list closed up afterwards](docs/assets/save-delete-before-after.png)
+- **The High Score Table names the level.** Bullfrog's table printed a level *number*, which reads
+  fine in the numbered original campaign and means nothing for a custom map, whose number is whatever
+  id its author picked. Each row now shows the level's name, looked up in the campaign or map pack the
+  table belongs to, under a title row (Score / Level / Name). The number is kept as a fallback for a
+  row the selected pack has no such level for, because several packs write the same score file. The
+  score itself is untouched: it is Bullfrog's peak dungeon rating, not a measure of time played.
+
+  ![High score table, a custom campaign, before and after](docs/assets/highscore-campaign-before-after.png)
+  ![High score table, a custom map pack, before and after](docs/assets/highscore-mappack-before-after.png)
 - **Your saved games survive an engine update.** A save is a raw copy of the engine's internal
   state, so a single field added anywhere inside it makes every earlier save unreadable — the
   bytes are intact, they simply mean something different to the newer engine. Upstream added one
