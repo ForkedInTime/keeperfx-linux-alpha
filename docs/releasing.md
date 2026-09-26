@@ -68,6 +68,30 @@ would have taken over that link — handing stable users an alpha, and building
 the next stable's payload on top of an alpha's. All 27 existing alpha releases
 were flagged retroactively on 2026-08-08; keep new ones flagged.
 
+## The artwork is regenerated from FXGraphics on every build
+
+Upstream keeps the game's artwork in a separate repository, `dkfans/FXGraphics`,
+and its own alpha workflow regenerates every sprite sheet, texture and land view
+from it on each run (`make pkg-enginegfx` and friends in `pkg_gfx.mk`). Their
+stable release package carries the sheets as they were at release time.
+
+Our payload used to take its `data/` from upstream's *latest stable release*,
+while the engine in the same package is built from upstream's *master*. Any
+upstream change that pairs code with new art therefore shipped here with the
+code and without the art. Found 2026-09-26: upstream #5106 (13 August) added an
+in-game Load/Save scrollbar drawn from six new `gui1` sprites; the July release
+sheet has 239 entries, the code wanted 245, every log carried "Reserved button
+sprite 239 has no matching entry in the loaded spritesheet", and a player with
+more than eight saves got no scrollbar at all. Eight FXGraphics commits since
+July were missing by then.
+
+Both release workflows now run `make -f Makefile pkg-gfx` after building the
+engine (it shallow-clones FXGraphics, about 930 MB, and fetches the prebuilt
+Linux converters) and lay `pkg/data`, `pkg/ldata` and `pkg/campgns` over the
+payload *after* the upstream release overlay. `-f Makefile` matters: a bare
+`make` is forwarded to `linux.mk` by the GNUmakefile. The AUR data package is
+cut from the release archive, so it inherits the regenerated artwork.
+
 ## Why the AUR only gets stable
 
 `publish-aur.yml` skips any tag ending in `-alpha` or `-prototype`.
