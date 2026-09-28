@@ -294,8 +294,11 @@ int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
             }
             break;
         case SGC_PacketHeader:
-            if (!chunk_version_ok(fhandle, &hdr, PACKET_SAVE_HEAD_VER))
-                break;
+            if (hdr.ver != PACKET_SAVE_HEAD_VER)
+            {
+                ERRORLOG("Packet file header is version %u, expected %u", (unsigned)hdr.ver, (unsigned)PACKET_SAVE_HEAD_VER);
+                return GLoad_Failed;
+            }
             if (hdr.len != sizeof(struct PacketSaveHead))
             {
                 if (LbFileSeek(fhandle, hdr.len, Lb_FILE_SEEK_CURRENT) < 0)
@@ -311,8 +314,11 @@ int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
             }
             break;
         case SGC_PacketData:
-            if (!chunk_version_ok(fhandle, &hdr, PACKET_VER))
-                break;
+            if (hdr.ver != PACKET_VER)
+            {
+                ERRORLOG("Packet file data is version %u, expected %u", (unsigned)hdr.ver, (unsigned)PACKET_VER);
+                return GLoad_Failed;
+            }
             if (hdr.len != 0)
             {
                 if (LbFileSeek(fhandle, hdr.len, Lb_FILE_SEEK_CURRENT) < 0)
@@ -360,7 +366,7 @@ int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
             }
             break;
         default:
-            WARNLOG("Unrecognized chunk, ID = %08lx", hdr.id);
+            WARNLOG("Unrecognized chunk, ID = %08x", (unsigned)hdr.id);
             if (LbFileSeek(fhandle, hdr.len, Lb_FILE_SEEK_CURRENT) < 0)
                 LbFileSeek(fhandle, 0, Lb_FILE_SEEK_END);
             break;
