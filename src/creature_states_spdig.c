@@ -1886,7 +1886,8 @@ short creature_picks_up_trap_object(struct Thing *thing)
     }
     if ( !setup_person_move_backwards_to_coord(thing, &traptng->mappos, NavRtF_Default) )
     {
-        WARNLOG("Cannot deliver crate to position of %s index %d",thing_model_name(traptng),(int)traptng->index);
+        // One line with the route diagnostics; the plain "cannot deliver" told nobody why.
+        log_route_failure("Cannot deliver crate to trap", thing, &traptng->mappos);
         cctrl->arming_thing_id = 0;
         set_start_state(thing);
         return 0;

@@ -65,6 +65,7 @@ TbBool setup_person_move_backwards_to_position_f(struct Thing *thing, MapSubtlCo
 TbBool setup_person_move_to_coord_f(struct Thing *thing, const struct Coord3d *pos, NaviRouteFlags flags, const char *func_name);
 #define setup_person_move_to_coord(thing, pos, flags) setup_person_move_to_coord_f(thing, pos, flags,__func__)
 TbBool setup_person_move_backwards_to_coord(struct Thing *thing, const struct Coord3d *pos, NaviRouteFlags flags);
+void log_route_failure(const char *what, struct Thing *thing, const struct Coord3d *dstpos);
 
 TbBool creature_can_travel_over_lava(const struct Thing *creatng);
 TbBool can_step_on_unsafe_terrain_at_position(const struct Thing *creatng, MapSubtlCoord stl_x, MapSubtlCoord stl_y);
