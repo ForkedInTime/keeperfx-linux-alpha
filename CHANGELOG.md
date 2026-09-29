@@ -4,7 +4,38 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
-## 1.4.0.5751 — 2026-09-28 — alpha
+## 1.4.0.5762 — 2026-09-28 — alpha
+
+- **The High Score Table names the level and titles its columns.** Bullfrog's table printed a level
+  *number*, which reads fine in the numbered original campaign and meant nothing for a custom map (a
+  personal map showed as "30117"). Each row now shows the level's name, looked up in the campaign
+  or map pack the table belongs to, under a Score / Level / Name title row; the number is kept as
+  a fallback for a row the selected pack has no such level for, because several packs write the
+  same score file. Long names are cut at the column edge; nine rows are visible instead of ten.
+  The score itself is untouched: Bullfrog's peak dungeon rating, doubled for free-play maps.
+- **The artwork now tracks upstream, not their July release.** The payload took its sprite sheets,
+  fonts, textures and land views from upstream's last *stable* package while the engine in the
+  same download was built from their *master*, so anything upstream added together with new art
+  shipped here without the art. Found with the in-game Load/Save scrollbar (their #5106): six new
+  sprites, a sheet with 239 entries against 245 wanted, "Reserved button sprite 239 has no
+  matching entry" in every log, and no scrollbar at all for anyone with more than eight saves.
+  Fourteen upstream artwork commits since July were missing by now. Every release build now
+  regenerates the artwork from upstream's FXGraphics repository the way their own builds do, so
+  this download carries the scrollbar, the coloured message icons, the multiplayer bullfrog
+  colours, the font fixes, the torture screen and the floor next to the Abyss slab.
+- **When an imp cannot deliver a crate to a trap, the log now says why.** "Cannot deliver crate"
+  appeared two dozen times in one session for traps on plain claimed floor, and every reason the
+  engine can refuse the walk was logged only at debug level. The failure now writes one line with
+  the pieces that decide it: the in-wall check at the target, the route with and without the
+  locked-door rule, the mesh regions at both ends and whether they connect, the owner's door
+  counts and the map-changed flag. Only on failure, so it costs nothing in normal play.
+- **README:** before/after pictures of the high score table on a custom campaign and a custom map
+  pack, a three-step picture of deleting a saved game, and a live "this page last updated" badge.
+- **Launcher:** the **Viewport mode** dropdown, the **Max. zoom distance** slider and the replay
+  controls (**Max. replay size**, **Keep replays** per campaign / free play / multiplayer), written
+  under whichever key names the running engine reads and showing the engine's defaults when a
+  config has no replay lines; the retired *Command character* field is gone; the log viewer's open
+  folder button and the workshop links open with the AppImage's library path stripped.
 
 - **Saved games from 1.4.0.5732 keep loading.** The save format did not move this time
   (`sizeof(struct Game)` is still 53383086 bytes), measured by the release guard, not assumed.
