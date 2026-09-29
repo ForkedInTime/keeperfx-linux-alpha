@@ -1306,6 +1306,13 @@ void set_call_to_arms_as_birthing(struct Thing *objtng)
     int frame;
     switch (objtng->call_to_arms_flag.state)
     {
+    case CTAOL_Unset:
+        // A flag just created by magic_use_power_call_to_arms() arrives here
+        // with no life state yet; its birth simply starts at the first frame.
+        // Falling into the error branch below logged "Invalid CTA object life
+        // state 0" on every cast for a state that is the expected one.
+        frame = 0;
+        break;
     case CTAOL_Birthing:
         frame = objtng->current_frame;
         break;
