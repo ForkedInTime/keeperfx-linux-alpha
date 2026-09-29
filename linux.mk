@@ -265,6 +265,7 @@ src/packets.c \
 src/packets_cheats.c \
 src/packets_input.c \
 src/packets_misc.c \
+src/replay.c \
 src/player_compchecks.c \
 src/player_compevents.c \
 src/player_complookup.c \

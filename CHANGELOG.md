@@ -4,6 +4,39 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5751 — 2026-09-28 — alpha
+
+- **Saved games from 1.4.0.5732 keep loading.** The save format did not move this time
+  (`sizeof(struct Game)` is still 53383086 bytes), measured by the release guard, not assumed.
+- **Upstream sync: dkfans master through d19666f9a (14 commits, 23–29 September).** Every game is
+  now recorded as a compressed replay under `replays/` (campaign, free-play and multiplayer folders),
+  kept to `MAX_REPLAYS=5 5 10` files of at most `REPLAY_MAX_SIZE=32768` kB each, oldest evicted
+  first; a manual `-packetsave` still takes precedence, and `-packetload` is now a replay viewer with
+  a free camera and Tab cycling through the human players, with the console usable during playback
+  and chat messages replayed deterministically. Multiplayer can no longer be won by proposing
+  alliances, and the non-scripted victory checks that produced surprise wins in co-op are gone. The
+  OpenGL renderer packs sprites with atlas UVs so edges no longer bleed. The configurable command
+  character is gone (it was a workaround for broken keyboards). Lua: `StandIn` is now `Placeholder`,
+  `AddShotToLevel` takes a parent, and things moved by script no longer interpolate across the jump.
+  Two multiplayer maps get their creature attraction back. The `player->is_active` flag was
+  refactored away with no gameplay change.
+- **Upstream's script-command union fix, made right for a 64-bit build.** Their #5357 moves the
+  x/y/icon of positioned messages to bytes 8–13 of the script value, which clears the location on
+  their 32-bit Windows build (bytes 4–7) but lands exactly on it here, where `long` is 8 bytes and
+  the location sits in bytes 8–15. This build takes their short slots and keeps the location where
+  the fork already moved it (bytes 16–23), so both are clear. The fork's rule that only
+  `DISPLAY_INFORMATION` carries an icon argument stays: upstream still reads the y coordinate of
+  `DISPLAY_INFORMATION_WITH_POS` as an icon name. Proven with the positioned-message test map: the
+  green information icon, not a random panel sprite.
+- **Two config keys of ours moved again.** Upstream took ids 52 and 53 for the replay settings, on
+  top of 51 and 52 last week; `TRASH_MAX_COUNT` and `TRASH_MAX_DAYS` now sit at 55 and 56.
+  Existing config files need no edit. `COMMAND_CHAR` and `PACKETSAVE_MAX_SIZE` leave the shipped
+  config; an old file still carrying them logs one "deprecated" line and carries on.
+- **Verified** with the headless suites against stable 5656: the sync check (12/12), the common
+  regression suite (same warning set as stable), the new-paths suite (all pass), the OpenGL smoke
+  test, a twenty-second sweep of every campaign's levels (all alive), a replay autosaved on a menu
+  quit, and the positioned-message proof map.
+
 ## 1.4.0.5732 — 2026-09-21 — alpha
 
 - **Saved games from 1.4.0.5700 and from every stable build will not load in this build.** Upstream

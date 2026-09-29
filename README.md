@@ -180,7 +180,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 268 commits of ours on top
-> of theirs, on top of 23 upstream merges. The sections below are the line items.</sub>
+> of theirs, on top of 24 upstream merges. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
