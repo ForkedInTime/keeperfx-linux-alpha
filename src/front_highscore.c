@@ -41,7 +41,15 @@
 #include "gui_frontbtns.h"
 #include "custom_sprites.h"
 #include "highscores.h"
+#include "config_translation.h"
 #include "post_inc.h"
+
+// Rows of the table on screen at once. The box holds VISIBLE_HIGH_SCORES_COUNT
+// lines of text; one of them is now the column-title row, so one fewer entry
+// fits and the scrolling has to agree with the drawing or the last row lands on
+// the box's bottom border.
+#define HIGH_SCORE_ROWS_ON_SCREEN (VISIBLE_HIGH_SCORES_COUNT - 1)
+
 
 /******************************************************************************/
 static unsigned long high_score_entry_index;
@@ -68,10 +76,91 @@ static void finalize_high_score_entry(TbBool restore_default_name)
     {
         snprintf(hscore->name, HISCORE_NAME_LENGTH, "%s", high_score_entry);
     }
-    highscore_scroll_offset = high_score_entry_input_active - (VISIBLE_HIGH_SCORES_COUNT-1);
+    highscore_scroll_offset = high_score_entry_input_active - (HIGH_SCORE_ROWS_ON_SCREEN-1);
     high_score_entry_input_active = -1;
     LbStopTextInput();
     save_high_score_table();
+}
+
+/**
+ * Text for the level column of a high score row.
+ *
+ * Level numbers only mean something in a numbered campaign; a free-play map's
+ * number is whatever id its author picked. The row is labelled with the level's
+ * name when its number belongs to the selected campaign or map pack, and with
+ * the bare number otherwise. The "otherwise" case is real: several campaigns
+ * and packs point at the same score file, so a row written by one can show up
+ * in another's table, where its number would resolve to the wrong level.
+ */
+static const char *high_score_level_label(const struct HighScore *hscore, char *numbuf, size_t numbuf_len)
+{
+    struct LevelInformation *lvinfo = get_campaign_level_info(&campaign, hscore->lvnum);
+    if (lvinfo != NULL)
+    {
+        const char *name = NULL;
+        if (lvinfo->name_stridx > 0)
+            name = get_string(lvinfo->name_stridx);
+        else
+            name = lvinfo->name;
+        if ((name != NULL) && (name[0] != '\0'))
+            return name;
+    }
+    snprintf(numbuf, numbuf_len, "%ld", (long)hscore->lvnum);
+    return numbuf;
+}
+
+/**
+ * Draws text confined to one column of one row: wider text is cut at the
+ * column edge instead of running into the next column. The clip window is the
+ * column; the justify window is left wide so the text is cut mid-word rather
+ * than word-wrapped onto a second line that the clip would then hide (which
+ * turned "ONE LEVEL CAMPAIGN" into "ONE LEVEL").
+ */
+static void draw_high_score_column_text(int pos_x, int pos_y, int width, int units_per_px, const char *text)
+{
+    if ((text == NULL) || (width <= 0))
+        return;
+    // Keep a two-space gap before the next column even when the text is cut.
+    width -= LbTextStringWidthM("  ", units_per_px);
+    if (width <= 0)
+        return;
+    int h = LbTextLineHeight() * units_per_px / 16;
+    LbTextSetWindow(pos_x, pos_y, width, h);
+    LbTextSetJustifyWindow(pos_x, pos_y, LbTextStringWidthM(text, units_per_px) + 1);
+    LbTextDrawResized(0, 0, units_per_px, text);
+}
+
+/**
+ * String id of the "Score" column title, or 0 when the loaded translation table
+ * has no entry for it. The score has no string in the classic text files, so it
+ * comes from translation.toml; a mod shipping its own table without that alias
+ * gets a blank title, not a wrong one. Resolved once per visit to the screen
+ * (see frontstats_save_high_score), not per frame: campaigns, maps and mods may
+ * each add a translation.toml and renumber the table, so it cannot be resolved
+ * once for the whole run, and the lookup logs an error when the alias is
+ * missing, which per frame would flood the log.
+ */
+static TextStringId score_title_stridx = 0;
+
+static void resolve_score_title(void)
+{
+    TextStringId stridx = get_string_id_by_alias("HIGH_SCORE_COLUMN_SCORE");
+    score_title_stridx = (stridx > 0) ? stridx : 0;
+}
+
+/**
+ * Column titles above the entries.
+ */
+static void draw_high_score_header(long pos_x, long pos_y, int col1_width, int col2_width, int col3_width, int col4_width, int units_per_px)
+{
+    RendererSetDrawFlags(Lb_TEXT_HALIGN_LEFT);
+    int i = pos_x + col1_width + col2_width;
+    if (score_title_stridx > 0)
+        LbTextStringDraw(i, pos_y, units_per_px, get_string(score_title_stridx), Fnt_LeftJustify);
+    i += col3_width;
+    draw_high_score_column_text(i, pos_y, col4_width, units_per_px, get_string(GUIStr_MnuLevel));
+    i += col4_width;
+    LbTextStringDraw(i, pos_y, units_per_px, get_string(GUIStr_NetName), Fnt_LeftJustify);
 }
 
 void draw_high_score_entry(int idx, long pos_x, long pos_y, int col1_width, int col2_width, int col3_width, int col4_width, int units_per_px)
@@ -88,7 +177,8 @@ void draw_high_score_entry(int idx, long pos_x, long pos_y, int col1_width, int 
     i += col2_width;
     LbTextNumberDraw(i, pos_y, units_per_px, hscore->score, Fnt_LeftJustify);
     i += col3_width;
-    LbTextNumberDraw(i, pos_y, units_per_px, hscore->lvnum, Fnt_LeftJustify);
+    char numbuf[16];
+    draw_high_score_column_text(i, pos_y, col4_width, units_per_px, high_score_level_label(hscore, numbuf, sizeof(numbuf)));
     i += col4_width;
     if (idx == high_score_entry_input_active)
     {
@@ -138,20 +228,29 @@ void frontend_draw_high_score_table(struct GuiButton *gbtn)
     long col1_width = LbTextStringWidthM("99", tx_units_per_px);
     long col2_width = LbTextStringWidthM("  999", tx_units_per_px);
     long col3_width = LbTextStringWidthM("   9999", tx_units_per_px);
-    long col4_width = LbTextStringWidthM(" 99999", tx_units_per_px);
+    // The level column holds a name, not a number (see high_score_level_label);
+    // sized for the longest original-campaign name plus a gap, and longer names
+    // are cut at the column edge.
+    long col4_width = LbTextStringWidthM("Lushmeadow-on-Down  ", tx_units_per_px);
     int k;
     if (high_score_entry_input_active >= 0)
     {
-        if (high_score_entry_input_active <= VISIBLE_HIGH_SCORES_COUNT)
+        if (high_score_entry_input_active <= HIGH_SCORE_ROWS_ON_SCREEN)
         {
             highscore_scroll_offset = 0;
         }
         else
         {
-            highscore_scroll_offset = high_score_entry_input_active - (VISIBLE_HIGH_SCORES_COUNT-1);
+            highscore_scroll_offset = high_score_entry_input_active - (HIGH_SCORE_ROWS_ON_SCREEN-1);
         }
     }
-    for (k=highscore_scroll_offset; k < (highscore_scroll_offset+VISIBLE_HIGH_SCORES_COUNT)-1; k++)
+    draw_high_score_header(pos_x, pos_y, col1_width, col2_width, col3_width, col4_width, tx_units_per_px);
+    pos_y += LbTextLineHeight() * tx_units_per_px / 16;
+    if (dbc_initialized && dbc_enabled)
+    {
+        pos_y += scale_value_menu(4);
+    }
+    for (k=highscore_scroll_offset; k < (highscore_scroll_offset+HIGH_SCORE_ROWS_ON_SCREEN)-1; k++)
     {
         draw_high_score_entry(k, pos_x, pos_y, col1_width, col2_width, col3_width, col4_width, tx_units_per_px);
         pos_y += LbTextLineHeight() * tx_units_per_px / 16;
@@ -340,6 +439,9 @@ void add_score_to_high_score_table(void)
 
 void frontstats_save_high_score(void)
 {
+    // Runs on every entry to the high score screen, from the level statistics
+    // and from the main menu alike, so this is where the column title resolves.
+    resolve_score_title();
     struct Dungeon* dungeon = get_players_num_dungeon(my_player_number);
     if (dungeon->lvstats.allow_save_score)
     {
@@ -357,20 +459,20 @@ void highscore_scroll_up(struct GuiButton *gbtn)
 
 void highscore_scroll_down(struct GuiButton *gbtn)
 {
-  if (highscore_scroll_offset < scores_count-VISIBLE_HIGH_SCORES_COUNT)
+  if (highscore_scroll_offset < scores_count-HIGH_SCORE_ROWS_ON_SCREEN)
     highscore_scroll_offset++;
 }
 
 void highscore_scroll(struct GuiButton *gbtn)
 {
-    highscore_scroll_offset = frontend_scroll_tab_to_offset(gbtn, GetMouseY(), VISIBLE_HIGH_SCORES_COUNT-1, scores_count);
+    highscore_scroll_offset = frontend_scroll_tab_to_offset(gbtn, GetMouseY(), HIGH_SCORE_ROWS_ON_SCREEN-1, scores_count);
 }
 
 void frontend_highscore_scroll_up_maintain(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
         return;
-    if (scores_count > VISIBLE_HIGH_SCORES_COUNT)
+    if (scores_count > HIGH_SCORE_ROWS_ON_SCREEN)
         gbtn->flags |= LbBtnF_Visible;
     else
         gbtn->flags &= ~LbBtnF_Visible;
@@ -384,11 +486,11 @@ void frontend_highscore_scroll_down_maintain(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
         return;
-    if (scores_count > VISIBLE_HIGH_SCORES_COUNT)
+    if (scores_count > HIGH_SCORE_ROWS_ON_SCREEN)
         gbtn->flags |= LbBtnF_Visible;
     else
         gbtn->flags &= ~LbBtnF_Visible;
-    if (highscore_scroll_offset < scores_count-VISIBLE_HIGH_SCORES_COUNT)
+    if (highscore_scroll_offset < scores_count-HIGH_SCORE_ROWS_ON_SCREEN)
         gbtn->flags |= LbBtnF_Enabled;
     else
         gbtn->flags &= ~LbBtnF_Enabled;
@@ -398,7 +500,7 @@ void frontend_highscore_scroll_tab_maintain(struct GuiButton *gbtn)
 {
     if (gbtn == NULL)
         return;
-    if (scores_count > VISIBLE_HIGH_SCORES_COUNT)
+    if (scores_count > HIGH_SCORE_ROWS_ON_SCREEN)
         gbtn->flags |= LbBtnF_Visible;
     else
         gbtn->flags &= ~LbBtnF_Visible;
@@ -406,7 +508,7 @@ void frontend_highscore_scroll_tab_maintain(struct GuiButton *gbtn)
 
 void frontend_draw_highscores_scroll_tab(struct GuiButton *gbtn)
 {
-    frontend_draw_scroll_tab(gbtn, highscore_scroll_offset, VISIBLE_HIGH_SCORES_COUNT-1, scores_count);
+    frontend_draw_scroll_tab(gbtn, highscore_scroll_offset, HIGH_SCORE_ROWS_ON_SCREEN-1, scores_count);
 }
 
 void frontend_high_scores_update()
@@ -419,18 +521,18 @@ void frontend_high_scores_update()
     {
         highscore_scroll_offset = 0;
     } 
-    else if (highscore_scroll_offset > scores_count-VISIBLE_HIGH_SCORES_COUNT+1)
+    else if (highscore_scroll_offset > scores_count-HIGH_SCORE_ROWS_ON_SCREEN+1)
     {
         if (highscore_scroll_offset != high_score_entry_input_active)
         {
-            highscore_scroll_offset = scores_count-VISIBLE_HIGH_SCORES_COUNT+1;
+            highscore_scroll_offset = scores_count-HIGH_SCORE_ROWS_ON_SCREEN+1;
         }
     }
-    if (scores_count > VISIBLE_HIGH_SCORES_COUNT)
+    if (scores_count > HIGH_SCORE_ROWS_ON_SCREEN)
     {
         if (wheel_scrolled_down || (is_key_pressed(KC_DOWN,KMod_NONE)))
         {
-            if (highscore_scroll_offset < scores_count-VISIBLE_HIGH_SCORES_COUNT)
+            if (highscore_scroll_offset < scores_count-HIGH_SCORE_ROWS_ON_SCREEN)
             {
                 highscore_scroll_offset++;
             }
