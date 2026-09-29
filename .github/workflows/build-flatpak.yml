@@ -200,6 +200,31 @@ jobs:
       # The AppDir MUST be assembled inside launcher/, because the Flatpak manifest
       # resolves its sources relative to its own folder (launcher/packaging/) and
       # refers to "../AppDir". Building it anywhere else silently breaks the manifest.
+      - name: Regenerate the artwork from upstream's FXGraphics repository
+        run: |
+          # Upstream keeps the game's artwork in dkfans/FXGraphics, and its own alpha
+          # builds regenerate every sprite sheet from it on each run. The payload
+          # assembled below is upstream's last STABLE release data, which lags their
+          # master by months, while the engine built above IS their master: code that
+          # arrived together with new art drew nothing here. Seen with the in-game
+          # Load/Save scrollbar (upstream #5106, sprites 239-244 of gui1), which left
+          # "Reserved button sprite ... has no matching entry" in every log and no
+          # scrollbar for anyone with more than eight saves. So the artwork is
+          # regenerated the way upstream does it and laid over the payload.
+          #
+          # Upstream's Makefile shallow-clones FXGraphics (~930 MB) into gfx/, fetches
+          # the prebuilt Linux pngpal2raw/png2bestpal, and pkg-gfx writes data/, ldata/
+          # and the campaign land views into pkg/ at the repo root. "-f Makefile" is
+          # required: a bare make is forwarded to linux.mk by the GNUmakefile.
+          # Guarded: this workflow builds the stable TAG's tree, and a tag older than
+          # upstream's pkg_gfx.mk would have nothing to regenerate with.
+          if [ -f pkg_gfx.mk ]; then
+            make -f Makefile pkg-gfx -j"$(nproc)"
+          else
+            echo "no pkg_gfx.mk in this tree; artwork stays as the payload has it"
+          fi
+          [ -d pkg ] && echo "regenerated $(find pkg -type f | wc -l) files, $(du -sh pkg | cut -f1)" || true
+
       - name: Assemble the AppDir (launcher + engine + payload data)
         working-directory: launcher
         run: |
@@ -256,6 +281,15 @@ jobs:
           mkdir -p "$P"
           cp -rf pkg/. "$P/"
           cp -f ../bin/keeperfx "$P/keeperfx"
+          # The artwork regenerated from FXGraphics (previous step) goes on AFTER
+          # upstream's release data, being newer than that release. It carries no
+          # movies, so the re-encoded .smk files restored above are untouched.
+          for d in data ldata campgns; do
+            if [ -d "../pkg/$d" ]; then
+              mkdir -p "$P/$d"
+              cp -rf "../pkg/$d/." "$P/$d/"
+            fi
+          done
           # Overlay the freshly-built engine's game data over the downloaded payload.
           # This step was missing entirely here, so the Flatpak never even received the
           # config fix the AppImage got: every payload is assembled from the PREVIOUS

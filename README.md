@@ -571,7 +571,7 @@ After the sync PR is merged, a release is cut, and publishing it is the whole jo
 the game package (`full.7z`), the portable tarball and a small update patch from the previous release of
 each channel, and attaches them all to the release; a stable release also updates the AUR recipe. Each
 build layers the KeeperFX team's current data package over ours, so their new content arrives on its own
-rather than waiting to be noticed. The Flatpak is rebuilt monthly and after each stable (it self-updates
+rather than waiting to be noticed, and the artwork itself is regenerated from the team's FXGraphics repository on every build, so sprites that arrive alongside new code arrive with it. The Flatpak is rebuilt monthly and after each stable (it self-updates
 its game package on launch, so it catches up in between). Existing installs are offered the new build by
 the launcher's built-in updater, which downloads the patch when one fits and the full package otherwise.
 
