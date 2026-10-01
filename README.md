@@ -177,11 +177,11 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 8 wins |
-> | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland | 4 items |
+> | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland, artwork regenerated from upstream's graphics repository on every build | 5 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 278 commits of ours on top
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 279 commits of ours on top
 > of theirs, on top of 24 upstream merges. The sections below are the line items.</sub>
 
 <details>
@@ -206,6 +206,14 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   track number are placed by it; the rest are used in alphabetical order. Existing installs are untouched —
   `keeperNN` names are still looked up first and still win. And when something doesn't play, `keeperfx.log`
   now names every file the game skipped and why, instead of failing silently.
+- **The artwork tracks upstream, not their last release.** Upstream keeps the game's sprites, fonts,
+  textures and land views in a separate repository and regenerates them on every build of theirs; this
+  edition used to take them from their last *stable* package while building the engine from their
+  *master*, so anything upstream added together with new art arrived here without the art. Found when
+  the in-game Load/Save scrollbar (six new sprites) drew nothing and logged a missing sprite on every
+  menu. Every release build now regenerates the artwork the way upstream does, so the scrollbar, the
+  coloured message icons, the multiplayer bullfrog colours, the font fixes and the floor next to the
+  new Abyss slab all ship.
 - **A real window icon and desktop identity.** The game window came up with a generic placeholder icon in
   the taskbar and dock. It now sets its own icon *and* a matching desktop entry — Wayland ignores the icon
   a window asks for and instead matches the window's app ID to an installed `.desktop` file, so both halves
@@ -310,6 +318,10 @@ first.)
   told you on screen to install one as a mod. They also sort ahead of the file they shadow, so anything
   choosing by position chose the wrong one. Hidden files are now ignored everywhere the game looks for
   content, and the scanner has tests that run it against a real directory.
+- **When an imp cannot deliver a crate to a trap, the log says why.** The refusal used to leave one
+  unexplained line; it now records the in-wall check at the target, the route with and without the
+  locked-door rule, the mesh regions at both ends and whether they connect, and the owner's door counts,
+  only on failure, so the next report of "my traps never re-arm" can be read off the log.
 - **Creature-list corruption — found and fixed at the root.** Deleting a room never unlinked the
   creatures still working in it, and a creature leaving its room trusted that "no previous neighbour"
   meant it led the room's list. Together, one defeated keeper plus reclaimed territory let a dead room's
