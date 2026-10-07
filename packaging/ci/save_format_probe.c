@@ -29,6 +29,7 @@
 
 #include "game_legacy.h"
 #include "thing_data.h"
+#include "game_saves.h"
 
 int main(void)
 {
@@ -39,5 +40,13 @@ int main(void)
     printf("sizeof_struct_game=%zu\n", sizeof(struct Game));
     printf("sizeof_struct_thing=%zu\n", sizeof(struct Thing));
     printf("things_count=%d\n", THINGS_COUNT);
+    /* The file framing around that blob. Every chunk starts with a
+       FileChunkHeader, and the info block (what the save menus list) is
+       accepted only at exactly sizeof(struct CatalogueEntry). Upstream's
+       #5353 shrank the header from 24 to 12 bytes on 64-bit Linux without
+       moving struct Game at all, which hid every older save from the menus;
+       these two lines are what makes that kind of change trip the guard. */
+    printf("sizeof_chunk_header=%zu\n", sizeof(struct FileChunkHeader));
+    printf("sizeof_catalogue_entry=%zu\n", sizeof(struct CatalogueEntry));
     return 0;
 }

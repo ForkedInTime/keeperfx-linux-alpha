@@ -114,6 +114,23 @@ measured="$(printf '%s\n' "$measured_all" | read_baseline)"
 thing_size="$(printf '%s\n' "$measured_all" | sed -n 's/^sizeof_struct_thing=\([0-9]*\).*/\1/p')"
 things_count="$(printf '%s\n' "$measured_all" | sed -n 's/^things_count=\([0-9]*\).*/\1/p')"
 
+# The framing around the blob: a change here does not move sizeof(struct Game)
+# but can still hide or break every older save (24 -> 12 byte chunk header,
+# 2026-09-28 sync). The reader accepts both header layouts; anything else must
+# be a deliberate decision, made by editing these baseline lines.
+framing_bad=0
+for fkey in sizeof_chunk_header sizeof_catalogue_entry; do
+    want="$(sed -n "s/^${fkey}=\([0-9][0-9]*\).*/\1/p" "$BASELINE_FILE" | tail -n 1)"
+    got="$(printf '%s\n' "$measured_all" | sed -n "s/^${fkey}=\([0-9]*\).*/\1/p")"
+    if [ -z "$want" ] || [ "$want" != "$got" ]; then
+        echo "save-format check: ${fkey} is ${got:-?} bytes, ${BASELINE_FILE} says ${want:-nothing}." >&2
+        echo "  This is the save FILE framing (src/game_saves.h). Read the history in ${BASELINE_FILE}" >&2
+        echo "  and read_chunk_header() in src/game_saves.c before changing either." >&2
+        framing_bad=1
+    fi
+done
+[ "$framing_bad" = 0 ] || exit 1
+
 if [ "$measured" = "$expected" ]; then
     echo "save-format check: OK -- sizeof(struct Game) = ${measured} bytes, matching ${BASELINE_FILE}."
     echo "  (struct Thing = ${thing_size} bytes x ${things_count} things)"
