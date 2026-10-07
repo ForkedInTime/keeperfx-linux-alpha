@@ -4,6 +4,26 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.5660 — 2026-10-06 — stable
+
+**Replaces 1.4.0.5656.** One engine fix and the September launcher, nothing else:
+
+- **No more black band across the screen when you cast Call to Arms.** The charge bar under the
+  selected spell measured the spell's age without a ceiling. Call to Arms lasts a single turn, so
+  one turn after you planted the flag the bar's empty part had a negative width, which the drawing
+  code read as a huge one: a black strip about 20 pixels tall ran from the panel to the right edge
+  of the screen and slid off over the next second, every time you cast. The age is now capped
+  before the bar is drawn, and a freshly planted flag no longer logs "Invalid CTA object life
+  state 0". Checked on the save it was reported on: the band shows on 5656 and in none of 20
+  consecutive frames on this build. Upstream has the same bug.
+- **The launcher from the alpha channel, out there since 1.4.0.5762.** New settings: VSync,
+  relative mouse mode, cursor capture, the maximum zoom distance and a Multiplayer tab; clearer
+  4:3 choices under Resize movies; packet file names can no longer be edited in the Run packetfile
+  dialog. Controls for features this engine does not have yet (the OpenGL renderer, the map fade,
+  viewport mode and replays) are greyed out and arrive with the next stable.
+
+Saved games from 1.4.0.5652, 5653 and 5656 load unchanged: no data layout was touched.
+
 ## 1.4.0.5656 — 2026-09-20 — stable
 
 **Replaces 1.4.0.5653.** One fix on top of it, with its safety nets, and nothing else:
