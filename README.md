@@ -24,7 +24,7 @@
 > its releases are tagged `-alpha`. The launcher has a release-channel setting in its Settings dialog, and
 > it only ever offers you releases from the channel you picked. Not sure? Stay on stable.
 >
-> **Stable is 1.4.0.5656 (20 September 2026)** — 5652 plus two fixes, stray message icons and the room worker-list corruption after a keeper's defeat; the first stable on SDL3, carrying everything the alpha line
+> **Stable is 1.4.0.5660 (6 October 2026)** — 5652 plus three fixes (stray message icons, the room worker-list corruption after a keeper's defeat, the black band when casting Call to Arms) and the September launcher; the first stable on SDL3, carrying everything the alpha line
 > proved over August: saves that survive an engine update, the creature-list root fix, the GPU present path,
 > RAR add-ons, and three upstream syncs. The badges above track both channels live.
 
@@ -181,7 +181,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 279 commits of ours on top
+> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 280 commits of ours on top
 > of theirs, on top of 24 upstream merges. The sections below are the line items.</sub>
 
 <details>
