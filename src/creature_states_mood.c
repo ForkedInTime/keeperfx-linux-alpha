@@ -600,6 +600,18 @@ TbBool process_job_stress_and_going_postal(struct Thing *creatng)
             }
         }
     }
+    // The assigned job is the one the keeper gave the creature by dropping it on
+    // a room, and it outlives that room: a trainee that later goes scavenging on
+    // its own still carries TRAIN. Judging the scavenger room by "may this keeper
+    // still train it?" took the creature out of a room it was rightly working in
+    // -- without leaving its job state -- every 20 turns, forever, and each time
+    // the scavenge handler had to find the missing room and reset it (a computer
+    // keeper's vampire, 382 times in one session). Only judge the assigned job in
+    // a room that serves it; jobs with no room role keep the old behaviour.
+    RoomRole assigned_role = get_room_role_for_job(cctrl->job_assigned);
+    if ((assigned_role != RoRoF_None) && !room_role_matches(room->kind, assigned_role)) {
+        return false;
+    }
     if (creature_will_reject_job(creatng, cctrl->job_assigned))
     {
         state_cleanup_in_room(creatng);
