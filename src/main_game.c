@@ -20,6 +20,7 @@
 #include "bflib_math.h"
 #include "bflib_sound.h"
 
+#include "ariadne.h"
 #include "ariadne_update.h"
 #include "config_compp.h"
 #include "config_settings.h"
@@ -216,6 +217,16 @@ static TbBool init_level(void)
     int level = get_selected_level_number();
     level_load_time_phase(LevelLoadTime_Data);
     TbBool script_preloaded = preload_script(level);
+    // The navigation map belongs to the level about to be replaced. create_door()
+    // skips its incremental navigation update until the map has been initialised
+    // ("can't update triangulation before map start"), but the flag was only
+    // ever set, never cleared, so from the second level of a session on, every
+    // door the level file creates updated navigation around itself mid-load --
+    // reaching neighbouring door slabs whose doors did not exist yet ("Cannot
+    // find door for flagged position", six times on original level 20, whose
+    // keeper has four doors in a row). init_navigation() below rebuilds the
+    // whole map once everything is placed, exactly as it does on a first level.
+    nav_map_initialised = 0;
     if (!load_map_file(level)) {
         create_frontend_error_box(15000, "Map content is missing or incompatible.");
         JUSTMSG("Unable to load level %d from %s", level, campaign.name);
