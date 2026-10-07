@@ -822,6 +822,16 @@ void gui_area_big_spell_button(struct GuiButton *gbtn)
     RendererClearDrawFlags(Lb_SPRITE_TRANSPAR4);
     RendererClearDrawFlags(Lb_SPRITE_OUTLINE);
     int pwage = find_spell_age_percentage(player->id_number, pwkind);
+    // The age is (elapsed << 8) / duration and is not capped at 100%. Call to
+    // Arms has Duration = 1 in magic.cfg (its real lifetime is the player's
+    // choice), so its age passes 100% one turn after the flag is planted; the
+    // uncapped value made fill_bar negative below, and LbDrawBox took the
+    // negative width as a huge unsigned one and painted a black band from
+    // somewhere right of the panel to the screen edge, at the bar's own row,
+    // sweeping right a little more each turn until it left the screen. A power
+    // past its duration is simply "spent": show the bar full.
+    if (pwage > 256)
+        pwage = 256;
     if (((powerst->config_flags & PwCF_HasProgress) != 0) && (pwage >= 0))
     {
         draw_gui_panel_sprite_left(gbtn->scr_pos_x, gbtn->scr_pos_y, ps_units_per_px, GPS_rpanel_frame_wide_wbar);
