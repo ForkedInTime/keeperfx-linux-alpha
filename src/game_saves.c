@@ -238,6 +238,37 @@ TbBool save_packet_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry)
     return true;
 }
 
+/** Reads one chunk header, in either on-disk layout.
+ *
+ *  The header was three `unsigned long`s until upstream's replay rewrite (#5353)
+ *  made them uint32_t. On upstream's 32-bit Windows build that changed nothing;
+ *  on 64-bit Linux it shrank the header from 24 bytes to 12, so every save this
+ *  port wrote before 1.4.0.5751 has the wide layout -- and read as narrow, its
+ *  info block fails the id check and the menus list the slot as unused, inviting
+ *  a save over it. Chunk ids are four ASCII characters and never zero, while the
+ *  wide layout's second 32-bit word is the high half of a length and always is,
+ *  so one look tells the two apart. Saves are still written in the narrow layout. */
+static TbBool read_chunk_header(TbFileHandle fhandle, struct FileChunkHeader *hdr)
+{
+    uint32_t word[6];
+    if (LbFileRead(fhandle, word, 3 * sizeof(uint32_t)) != 3 * sizeof(uint32_t))
+        return false;
+    if (word[1] != 0)
+    {
+        hdr->len = word[0];
+        hdr->id = word[1];
+        hdr->ver = word[2];
+        return true;
+    }
+    // Wide layout: len, id and ver are each a little-endian 64-bit value.
+    if (LbFileRead(fhandle, &word[3], 3 * sizeof(uint32_t)) != 3 * sizeof(uint32_t))
+        return false;
+    hdr->len = word[0];
+    hdr->id = word[2];
+    hdr->ver = word[4];
+    return true;
+}
+
 static TbBool chunk_version_ok(TbFileHandle fhandle, const struct FileChunkHeader *hdr, unsigned expected)
 {
     if (hdr->ver == expected)
@@ -255,7 +286,7 @@ int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
     while (!LbFileEof(fhandle))
     {
         struct FileChunkHeader hdr;
-        if (LbFileRead(fhandle, &hdr, sizeof(struct FileChunkHeader)) != sizeof(struct FileChunkHeader))
+        if (!read_chunk_header(fhandle, &hdr))
             break;
         switch (hdr.id)
         {
@@ -423,7 +454,7 @@ TbBool is_save_game_loadable(long slot_num)
     {
         // Let's try to read the file, just to be sure
         struct FileChunkHeader hdr;
-        if (LbFileRead(fh, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
+        if (read_chunk_header(fh, &hdr))
         {
             LbFileClose(fh);
             return true;
@@ -653,7 +684,7 @@ static TbBool save_file_state_chunk_fits(TbFileHandle fhandle)
     while (!LbFileEof(fhandle))
     {
         struct FileChunkHeader hdr;
-        if (LbFileRead(fhandle, &hdr, sizeof(struct FileChunkHeader)) != sizeof(struct FileChunkHeader))
+        if (!read_chunk_header(fhandle, &hdr))
             break;
         if (hdr.id == SGC_GameOrig)
             return (hdr.len == sizeof(struct Game));
@@ -902,7 +933,7 @@ TbBool load_game_save_catalogue(void)
         if (!fh)
             continue;
         struct FileChunkHeader hdr;
-        if (LbFileRead(fh, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
+        if (read_chunk_header(fh, &hdr))
         {
             if (load_catalogue_entry(fh,&hdr,centry))
                 saves_found++;

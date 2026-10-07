@@ -117,3 +117,17 @@ sizeof_struct_game@v1.4.0.5425=53269285
 # Accepted: the union let a room's fields alias each other by kind, which
 # upstream stopped relying on; carrying the old layout would mean forking
 # struct Game itself.
+
+# 2026-10-06: the FILE FRAMING around struct Game, checked since the
+# 2026-09-28 sync slipped a change past the line above. Upstream's replay
+# rewrite (#5353) turned `struct FileChunkHeader`'s three `unsigned long`s
+# into uint32_t. On upstream's 32-bit Windows build nothing changed; on 64-bit
+# Linux every chunk header went from 24 bytes to 12, struct Game did not move,
+# and so this check stayed green while builds 5751..5768 read every older save
+# as an empty slot (its info block failed the id check) -- hidden from Load,
+# listed as "Unused", and overwritable from the save menu. read_chunk_header()
+# in src/game_saves.c now reads both layouts and writes the 12-byte one. These
+# two lines make any further framing change fail here instead of in players'
+# save folders.
+sizeof_chunk_header=12
+sizeof_catalogue_entry=412
