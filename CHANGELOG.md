@@ -72,6 +72,15 @@ slash is used; Linux does. Now handled the Windows way:
   character no longer empties a whole text file;
 - `MUSIC_FROM_DISK=OFF` or `-cd` play the music folder (there is no CD audio on Linux) instead of nothing.
 
+**A downloaded map's scripts can no longer change your files.** Level and campaign Lua comes with
+maps and Workshop items, and the team's new sandbox still let a script overwrite or delete any file
+you own, or load a native library shipped beside it. Scripts can now read files and nothing more:
+writing, appending and deleting are refused the way a failed open always was (so a script that checks
+carries on), and `require` no longer loads native code. Nothing the game ships or the team's tree
+contains uses any of that; the game's own Lua, including how it saves and restores script state, is
+unaffected. It closes the one-line attacks, not every route: the full write-up is in
+`src/lua_readonly_io.c`.
+
 **Saved games.**
 - A damaged save (truncated by a full disk, a block of the wrong size) is refused before anything is
   loaded, instead of half-loading into the running game; a read error part-way leaves the level, as
