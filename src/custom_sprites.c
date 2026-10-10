@@ -2968,6 +2968,11 @@ const struct TbSprite *get_panel_sprite(short sprite_idx)
     return &bad_icon;
 }
 
+TbBool panel_sprite_is_unshipped(short sprite_idx)
+{
+    return (sprite_idx >= num_sprites(gui_panel_sprites)) && (sprite_idx < GUI_PANEL_SPRITES_COUNT);
+}
+
 int is_custom_icon(short icon_idx)
 {
     icon_idx -= GUI_PANEL_SPRITES_COUNT;
