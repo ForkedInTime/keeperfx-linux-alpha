@@ -40,15 +40,7 @@ make -f linux.mk BUILD_NUMBER="$BUILD_NUMBER" VER_SUFFIX=alpha -j"$(nproc)"
 echo "==> generating UTF-8 unifont .fxfont files (needed since #4920; not built by linux.mk)"
 # The engine loads fxdata/font12.fxfont + font16.fxfont (+ _JPN/_CHT variants) for
 # text rendering. The team's CI generates them from tools/fxfontmaker; replicate that.
-( cd tools/fxfontmaker && PY=$(command -v python3 || command -v python) && \
-  "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex && \
-  "$PY" bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex && \
-  "$PY" merge_hex.py unifont12.hex wenquanyi.hex merged12.hex && \
-  "$PY" unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16 && \
-  "$PY" unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16 && \
-  "$PY" unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16 && \
-  "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12 && \
-  rm -f merged12.hex wenquanyi.hex unifont12.hex )
+packaging/ci/make-fonts.sh
 
 echo "==> installing engine + config into $PREFIX (binaries/saves untouched)"
 

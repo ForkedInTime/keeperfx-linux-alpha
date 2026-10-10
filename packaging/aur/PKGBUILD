@@ -151,18 +151,7 @@ build() {
 
   # The UTF-8 fonts are required since upstream #4920 but linux.mk does not build
   # them; the project's CI generates them from tools/fxfontmaker.
-  (
-    cd tools/fxfontmaker
-    local PY; PY=$(command -v python3 || command -v python)
-    "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
-    "$PY" bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
-    "$PY" merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
-    "$PY" unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
-    "$PY" unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
-    "$PY" unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
-    "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
-    rm -f merged12.hex wenquanyi.hex unifont12.hex
-  )
+  packaging/ci/make-fonts.sh
 
   # The Qt launcher. CMake pulls bit7z and LIEF from GitHub via CPM at configure
   # time and builds them in-tree. Neither can come from the system:
