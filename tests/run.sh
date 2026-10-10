@@ -58,10 +58,17 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflag
 	-Dmain=keeperfx_platform_main_unused \
 	-c "$ROOT_DIR/src/kfx/platform/PlatformLinux.cpp" \
 	-o "$ROOT_DIR/bin/platform_linux_for_tests.o"
+# The enumerator finds its directory through LbFileCaseInsensitivePath(), so the
+# real bflib_fileio.c is linked too (it is C, so it gets its own object), with
+# the -Wno-format-truncation linux.mk builds it with.
+cc -Wall -Wextra -Wno-format-truncation $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflags sdl3) \
+	-c "$ROOT_DIR/src/bflib_fileio.c" \
+	-o "$ROOT_DIR/bin/bflib_fileio_for_tests.o"
 g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflags sdl3) \
 	-o "$ROOT_DIR/bin/test_file_find" \
 	"$ROOT_DIR/tests/test_file_find.cpp" \
 	"$ROOT_DIR/src/kfx/platform/PlatformManager.cpp" \
 	"$ROOT_DIR/bin/platform_linux_for_tests.o" \
+	"$ROOT_DIR/bin/bflib_fileio_for_tests.o" \
 	$(pkg-config --libs sdl3)
 "$ROOT_DIR/bin/test_file_find"

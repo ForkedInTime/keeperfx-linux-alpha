@@ -18,6 +18,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <ftw.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -71,6 +72,17 @@ static std::vector<std::string> enumerate(const std::string & filespec)
 		LbFileFindEnd(ff);
 	}
 	return names;
+}
+
+static int remove_entry(const char * path, const struct stat *, int, struct FTW *)
+{
+	return std::remove(path);
+}
+
+// rm -r, for the nested fixtures.
+static void remove_tree(const std::string & path)
+{
+	nftw(path.c_str(), remove_entry, 16, FTW_DEPTH | FTW_PHYS);
 }
 
 static void touch(const std::string & path)
@@ -151,6 +163,55 @@ int main()
 		unlink((hidden_only + "/._only.ogg").c_str());
 		rmdir(hidden_only.c_str());
 	}
+
+	{
+		// A folder named in a config written on Windows, in whatever case:
+		// LEVELS_LOCATION = levels/MyPack beside a real levels/mypack. Every
+		// file in it opens through LbFileOpen's case-insensitive fallback, so
+		// the listing has to find the folder the same way -- before, it found
+		// nothing and the map pack was rejected for having no .LIF files.
+		mkdir((root + "/levels").c_str(), 0755);
+		mkdir((root + "/levels/mypack").c_str(), 0755);
+		touch(root + "/levels/mypack/map00001.lif");
+		touch(root + "/levels/mypack/MAP00002.LIF");
+		touch(root + "/levels/mypack/readme.txt");
+		std::vector<std::string> got = enumerate(root + "/levels/MyPack/*.lif");
+		expect(got.size() == 2 && got[0] == "map00001.lif" && got[1] == "MAP00002.LIF",
+			"a directory whose case differs from disk is still listed");
+		got = enumerate(root + "/LEVELS/MYPACK/*.lif");
+		expect(got.size() == 2, "every directory segment is matched case-insensitively");
+		got = enumerate(root + "/levels/mypack/*.lif");
+		expect(got.size() == 2, "an exactly-spelt directory is listed as before");
+		got = enumerate(root + "/levels/OtherPack/*.lif");
+		expect(got.empty(), "a directory that does not exist in any case lists nothing");
+	}
+
+	{
+		// Only the file-name part is a pattern; the directory is a literal
+		// name. fnmatch() used to run over the whole path, so the brackets in
+		// an INSTALL_PATH such as "/games/DK [GOG]" were a character class
+		// that never matches the literal "[GOG]" -- every listing under such
+		// an install came back empty.
+		const std::string gog = root + "/DK [GOG]";
+		mkdir(gog.c_str(), 0755);
+		touch(gog + "/campaign.cfg");
+		touch(gog + "/other.txt");
+		std::vector<std::string> got = enumerate(gog + "/*.cfg");
+		expect(got.size() == 1 && got[0] == "campaign.cfg", "a directory named \"DK [GOG]\" is listed");
+		got = enumerate(root + "/dk [gog]/*.cfg");
+		expect(got.size() == 1, "a bracketed directory name also matches case-insensitively");
+
+		// '?' and '*' in a folder name are literal too.
+		const std::string odd = root + "/What? Keeper*";
+		mkdir(odd.c_str(), 0755);
+		touch(odd + "/odd.cfg");
+		got = enumerate(odd + "/*.cfg");
+		expect(got.size() == 1 && got[0] == "odd.cfg", "a directory named with '?' and '*' is listed");
+	}
+
+	remove_tree(root + "/levels");
+	remove_tree(root + "/DK [GOG]");
+	remove_tree(root + "/What? Keeper*");
 
 	unlink((root + "/keeper02.ogg").c_str());
 	unlink((root + "/KEEPER03.OGG").c_str());
