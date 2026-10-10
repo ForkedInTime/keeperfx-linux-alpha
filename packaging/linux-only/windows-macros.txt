@@ -1,0 +1,48 @@
+# Preprocessor symbols that mean "this is a Windows (or DOS) compiler/target".
+#
+# filter-tree.sh hands each one to unifdef as -U<symbol>: every #if/#ifdef/#elif
+# that the symbol decides is resolved as "not defined" -- exactly what GCC and
+# Clang on Linux already see -- and the dead branch is deleted. check-tree.sh
+# fails on any #if/#elif line that still names one.
+#
+# A symbol belongs here only if NO Linux compiler predefines it and NOTHING in
+# this tree #defines it (nor passes -D for it): otherwise unifdef would delete
+# code the Linux build actually compiles. prove-equivalence.sh is the check that
+# the list is right -- it preprocesses every source file before and after the
+# filter and requires byte-identical output.
+
+_WIN32
+_WIN64
+__WIN32__
+__WIN64__
+WIN32
+WIN64
+_WINDOWS
+__WINDOWS__
+__NT__
+_MSC_VER
+_MSC_FULL_VER
+__MINGW32__
+__MINGW64__
+__CYGWIN__
+__CYGWIN32__
+__MSYS__
+__BORLANDC__
+__WATCOMC__
+__DJGPP__
+MSDOS
+__MSDOS__
+_MSDOS
+__DOS__
+
+# Microsoft Visual C++ target-architecture macros (GCC and Clang use __x86_64__,
+# __i386__, __aarch64__ ... instead and never define these).
+_M_X64
+_M_AMD64
+_M_IX86
+_M_IX86_FP
+_M_IA64
+_M_ARM
+_M_ARMT
+_M_ARM64
+_M_ARM64EC

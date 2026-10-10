@@ -1,0 +1,111 @@
+# What the Linux-only filter removes from the KeeperFX team's tree.
+#
+# Read by filter-tree.sh (which deletes these paths) and check-tree.sh (which
+# fails if any of them is present). See packaging/linux-only/README.md for how
+# the filter fits into the weekly sync.
+#
+# Format: one pattern per line, relative to the repository root.
+#   - a trailing "/" means a whole directory;
+#   - "*", "?" and "**" glob as in bash with globstar ("**/" = any depth);
+#   - "#" starts a comment; blank lines are ignored.
+#
+# Every entry is something the Linux build never compiles, links, packages or
+# runs. Before adding one, check that nothing Linux uses refers to it -- the
+# filter has no way to know, and a wrong entry silently deletes a file the
+# build needed (check-tree.sh and the compile check in the weekly sync are the
+# safety net, not a substitute for looking).
+#
+# Removing a line brings that path back: the next weekly snapshot includes it,
+# and merging the snapshot adds it to the fork like any other upstream change.
+
+[upstream-only]
+# Removed from the team's snapshots, but NOT checked in the fork: the fork owns
+# these paths and keeps its own content there.
+
+# The team's CI cross-compiles and signs Windows builds. This fork's .github/ is
+# its own (Linux builds, AUR, the sync bot); none of theirs applies here, and a
+# new workflow arriving from them would run in this repository with its secrets.
+.github/
+
+[windows]
+# Removed from the team's snapshots AND must never appear in the fork.
+
+# --- Visual Studio solution, projects and launch configuration ---
+keeperfx_vs2010.sln
+keeperfx_vs2010.vcxproj
+keeperfx_vs2010.vcxproj.filters
+keeperfx_vs2010.vcxproj.user
+launch.vs.json
+
+# --- Windows executable resources (application manifest, icon/version resource) ---
+# res/*.png stays: the AUR package installs those icons.
+keeperfx.exe.manifest
+res/keeperfx_stdres.rc
+
+# --- Windows-only platform layer (linux.mk never compiled these) ---
+src/kfx/platform/PlatformWindows.cpp
+src/kfx/platform/PlatformWindows.h
+src/kfx/platform/WindowCompositorWin.cpp
+src/kfx/platform/WindowCompositorWin.h
+
+# --- IDE setups for Windows development ---
+# .vscode/ carries a Windows gdb.exe, a PowerShell script and tasks that build
+# the MinGW target through WSL; .cproject/.project are an Eclipse CDT setup for
+# the MinGW toolchain.
+.vscode/
+.cproject
+.project
+
+# --- The team's CMake build ---
+# Its presets are MinGW, MSVC and clang-cl; dependencies come from vcpkg; the
+# Linux configuration does not link (see the README). This fork builds with
+# linux.mk only. The Steam Deck developer bundle is built through this CMake
+# tree from a Windows host (Git Bash + Docker), so it goes with it -- players
+# on a Deck use the AppImage.
+CMakeLists.txt
+CMakePresets.json
+CMakeUserPresets.json.example
+build/
+build-cmake.sh
+tools/CMakeLists.txt
+vcpkg.json
+vcpkg-configuration.json
+external/
+scripts/build-deck-bundle.sh
+scripts/deploy-to-deck.sh
+docs/steam-deck.md
+
+# --- Windows build documentation (MinGW/MSYS, SVN-era instructions, IDE setup) ---
+docs/build_instructions.txt
+docs/ide-setup.md
+
+# --- Windows batch helpers ---
+# tools/fxfontmaker's Python scripts stay; refresh-alpha.sh, the PKGBUILD and
+# the release workflows run them directly.
+tools/fxfontmaker/make_fonts.bat
+
+# --- Unit-test harness built only by the MinGW Makefile (bin/tests.exe) ---
+# CUnit ships Visual C++ 7/8/9 solutions; nothing on Linux builds these tests.
+# The fork's own tests (tests/run.sh, test_*.cpp) are unaffected.
+deps/CUnit-2.1-3/
+tests/tst_main.cpp
+tests/tst_main.h
+tests/001_test.cpp
+tests/tst_enet_client.cpp
+tests/tst_enet_server.cpp
+
+# --- Catch-alls for Windows file types, wherever the team adds them next ---
+**/*.sln
+**/*.vcxproj
+**/*.vcxproj.filters
+**/*.vcxproj.user
+**/*.vcproj
+**/*.suo
+**/*.bat
+**/*.cmd
+**/*.ps1
+**/*.exe
+**/*.dll
+**/*.rc
+**/*.ico
+**/*.exe.manifest

@@ -423,6 +423,13 @@ clean:
 
 .PHONY: all clean
 
+# `make -f linux.mk print-VAR` prints one variable's expanded value and builds
+# nothing. packaging/linux-only/prove-equivalence.sh reads the source lists and
+# compiler flags this way, so its check always uses exactly what the build uses.
+print-%:
+	$(info $($*))
+	@:
+
 # Prints sizeof(struct Game), which is the save-file format version whether or
 # not anyone intended it to be -- see packaging/ci/save_format_probe.c. Built
 # with $(KFX_CFLAGS), the same variable the engine's C objects below use, so the
