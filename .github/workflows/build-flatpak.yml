@@ -196,14 +196,19 @@ jobs:
           # launcher refuses to ever update. That exact bundle reached the stable
           # release for eleven minutes on 2026-08-11.
           make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX= -j"$(nproc)"
-          cd tools/fxfontmaker
-          python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
-          python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
-          python3 merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
-          python3 unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
-          python3 unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
-          python3 unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
-          python3 unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+          if [ -x packaging/ci/make-fonts.sh ]; then
+            packaging/ci/make-fonts.sh
+          else  # a stable tag from before the script: the commands it replaced
+            (cd tools/fxfontmaker
+            python3 rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
+            python3 bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
+            python3 merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
+            python3 unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
+            python3 unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
+            python3 unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
+            python3 unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+            )
+          fi
 
       # The AppDir MUST be assembled inside launcher/, because the Flatpak manifest
       # resolves its sources relative to its own folder (launcher/packaging/) and

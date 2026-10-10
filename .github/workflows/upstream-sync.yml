@@ -11,8 +11,8 @@
 #   2. The snapshot is merged into a throwaway branch off `alpha`; new or
 #      deleted engine sources are added to / dropped from linux.mk's list.
 #   3. The result is checked: no Windows content (check-tree.sh), it compiles,
-#      the unit tests pass, and prove-equivalence.sh shows the filter changed
-#      nothing the Linux compiler sees.
+#      the fonts generate, the unit tests pass, and prove-equivalence.sh shows
+#      the filter changed nothing the Linux compiler sees.
 #
 # Outcomes:
 #   - nothing new, or only Windows-only changes   -> exits quietly
@@ -192,6 +192,14 @@ jobs:
           rm -f src/ver_defs.h
           make -f linux.mk BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" VER_SUFFIX=alpha -j"$(nproc)"
 
+      # Release builds generate the UTF-8 fonts from the team's tools/fxfontmaker;
+      # a rename there breaks every release, so find out on the sync PR.
+      - name: Generate the fonts
+        id: fonts
+        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: packaging/ci/make-fonts.sh
+
       - name: Unit tests
         id: tests
         if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
@@ -231,6 +239,7 @@ jobs:
           TESTS: ${{ steps.tests.outcome }}
           PROOF: ${{ steps.proof.outcome }}
           SAVEFORMAT: ${{ steps.saveformat.outcome }}
+          FONTS: ${{ steps.fonts.outcome }}
         run: |
           today="$(date +%Y-%m-%d)"
           upstream_short="$(git rev-parse --short=9 upstream/master)"
@@ -270,6 +279,10 @@ jobs:
           elif [ "$TESTS" != success ]; then
             title="Upstream sync: unit tests fail ($today)"
             problem="The merge builds, but \`tests/run.sh\` fails -- see the run log."
+          elif [ "$FONTS" != success ]; then
+            title="Upstream sync: the fonts no longer generate ($today)"
+            problem="\`packaging/ci/make-fonts.sh\` fails on the team's tools/fxfontmaker (a renamed
+          or removed font source?) -- every release build would fail the same way. See the run log."
           fi
 
           if [ -n "$problem" ]; then
