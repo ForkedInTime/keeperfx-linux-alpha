@@ -63,7 +63,7 @@
 # It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
 # mismatch is always a source change, never a toolchain difference.
 
-sizeof_struct_game=53383086
+sizeof_struct_game=53317550
 
 # 2026-08-25: upstream's custom-icon feature (#5147, #5139) added
 #     short icon_idx;   // 2 bytes (+ padding)
@@ -131,3 +131,16 @@ sizeof_struct_game@v1.4.0.5425=53269285
 # save folders.
 sizeof_chunk_header=12
 sizeof_catalogue_entry=412
+
+# 2026-10-10: the fork's own fix, not an upstream sync. 53383086 -> 53317550.
+# `struct ScriptValue` (src/lvl_script.h), saved as
+# `script.values[SCRIPT_VALUES_COUNT]` (2048) inside `struct Game`, declared
+# its `longs[8]`/`ulongs[8]` union members as `long`: 4 bytes on upstream's
+# 32-bit Windows build, 8 here, so the union was 64 bytes instead of 32 and
+# the level-script commands that pack shorts and bytes next to a long slot by
+# index overlapped differently than upstream (ADD_EFFECT_GENERATOR_TO_LEVEL,
+# CREATE_EFFECTS_LINE, DISPLAY_VARIABLE_WITH_LABEL, ...). They are int32_t and
+# uint32_t now, as on Windows: 69 -> 37 bytes per value, x2048 = -65536.
+# Accepted deliberately by the owner: the alternative is keeping a script
+# value layout that silently runs level scripts wrong; saves from earlier
+# builds will not load.
