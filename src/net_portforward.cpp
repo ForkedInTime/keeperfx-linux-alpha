@@ -28,9 +28,10 @@
 #define NATPMP_STATICLIB
 #include <natpmp.h>
 
+#include <atomic>
 #include <cstdio>
 #include <ctime>
-#include <thread>
+#include <future>
 
 #define NATPMP_TIMEOUT_SECONDS 1.0
 #define UPNP_TIMEOUT_MS 3000
@@ -45,7 +46,8 @@ enum PortForwardMethod {
 
 static enum PortForwardMethod active_method = PORT_FORWARD_NONE;
 static uint16_t mapped_port = 0;
-static std::thread mapping_thread;
+static std::future<void> mapping_task;
+static std::atomic<uint32_t> mapping_generation = 0;
 
 static struct UPNPUrls upnp_urls;
 static struct IGDdatas upnp_data;
@@ -186,18 +188,8 @@ static void port_forward_add_mapping_internal(uint16_t port)
     active_method = PORT_FORWARD_UPNP;
 }
 
-int port_forward_add_mapping(uint16_t port)
+static void port_forward_remove_mapping(void)
 {
-    port_forward_remove_mapping();
-    mapping_thread = std::thread(port_forward_add_mapping_internal, port);
-    return 1;
-}
-
-void port_forward_remove_mapping(void)
-{
-    if (mapping_thread.joinable()) {
-        mapping_thread.join();
-    }
     if (active_method == PORT_FORWARD_NONE || mapped_port == 0) {
         return;
     }
@@ -234,4 +226,22 @@ void port_forward_remove_mapping(void)
     }
     mapped_port = 0;
     active_method = PORT_FORWARD_NONE;
+}
+
+void port_forward_set_mapping(uint16_t port)
+{
+    uint32_t generation = ++mapping_generation;
+    mapping_task = std::async(std::launch::async, [previous = std::move(mapping_task), port, generation]() mutable {
+        if (previous.valid()) {
+            previous.wait();
+            previous = {};
+        }
+        if (generation != mapping_generation) {
+            return;
+        }
+        port_forward_remove_mapping();
+        if (port != 0 && generation == mapping_generation) {
+            port_forward_add_mapping_internal(port);
+        }
+    });
 }

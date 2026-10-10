@@ -73,6 +73,13 @@ struct CreditsItem {
   };
 };
 
+struct LevelDescriptionGeo {
+  int32_t pos_x;
+  int32_t pos_y;  
+  int32_t width;
+  int32_t height;
+};
+
 /*
  * Structure for storing campaign configuration.
  */
@@ -131,6 +138,11 @@ struct GameCampaign {
   TbBool assignCpuKeepers;
   unsigned char default_language;
   char soundtrack_fname[DISKPATH_SIZE];
+  TbBool show_level_description;
+  struct LevelDescriptionGeo *level_description_geo;
+  // -1 for no progress
+  int16_t progress_percent;
+
 };
 
 struct HighScore {
@@ -158,6 +170,8 @@ struct LevelInformation {
   unsigned short location;
   int mapsize_x;
   int mapsize_y;  
+  char intro_desc_id[LINEMSG_SIZE];  
+  struct LevelDescriptionGeo *level_description_geo;
 };
 
 struct CampaignsList {
@@ -197,6 +211,7 @@ TbBool load_campaigns_list(struct CampaignsList *clist, short fgroup, const char
 TbBool change_campaign(uint8_t pack, const char *cmpgn_fname);
 TbBool is_campaign_loaded(void);
 TbBool is_campaign_in_list(const char *cmpgn_fname, struct CampaignsList *clist);
+struct GameCampaign *find_campaign_in_list(const char *cmpgn_fname, struct CampaignsList *clist);
 void get_campaign_sanitized_id(const char *cmpgn_fname, char *out, size_t outlen);
 uint8_t prepare_campaign_file_name(const char *cmpgn_fname, char *cmpgn_file, int cmpgn_file_len);
 TbBool is_map_pack(void);

@@ -31,22 +31,17 @@ extern "C" {
 #endif
 /******************************************************************************/
 
-struct RegionT {
-  unsigned short num_triangles;
-  unsigned char is_connected;
-};
-
 /******************************************************************************/
 /** Array of regions.
  * Note that region[0] is used for storing unused triangles and shouldn't be
  * used for actual calculations.
  */
-static struct RegionT Regions[REGIONS_COUNT];
-static long max_RegionStore;
-static long ix_RegionQput;
-static long ix_RegionQget;
-static long count_RegionQ;
-static long RegionQueue[REGION_QUEUE_LEN];
+struct RegionT Regions[REGIONS_COUNT];
+static int32_t max_RegionStore;
+static int32_t ix_RegionQput;
+static int32_t ix_RegionQget;
+static int32_t count_RegionQ;
+static int32_t RegionQueue[REGION_QUEUE_LEN];
 /******************************************************************************/
 struct RegionT bad_region;
 /******************************************************************************/
