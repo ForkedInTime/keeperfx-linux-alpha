@@ -1537,9 +1537,17 @@ extern "C" TbBool custom_sound_load_wav(const char* filepath, int sample_id)
 {
 	// Resolve to absolute path so the decoders can find the file regardless of
 	// process CWD (keeperfx changes directories at startup).
+	//
+	// Every caller accepted this path because LbFileExists() found it, and that
+	// matches case-insensitively; realpath() and std::ifstream do not. Take the
+	// name that is really on disk first, or "Sound/Growl.wav" in a cfg/script
+	// beside a real sound/growl.wav passes the check and then fails to open --
+	// a mismatch Windows' case-insensitive filesystem never shows.
+	char ci_buf[4096];
+	const char* disk_path = LbFileCaseInsensitivePath(filepath, ci_buf, sizeof(ci_buf));
 	char abs_buf[4096];
-	if (realpath(filepath, abs_buf) == nullptr)
-		snprintf(abs_buf, sizeof(abs_buf), "%s", filepath);
+	if (realpath(disk_path, abs_buf) == nullptr)
+		snprintf(abs_buf, sizeof(abs_buf), "%s", disk_path);
 
 	// Read the whole file once so we can inspect the magic bytes and route to
 	// the right decoder without reopening.
