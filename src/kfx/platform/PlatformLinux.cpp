@@ -23,9 +23,18 @@
 #include <unistd.h>
 #include "post_inc.h"
 
+// Only the file-name part of a filespec is a pattern. The directory part is a
+// path as configured -- an INSTALL_PATH such as "/games/DK [GOG]" names a real
+// folder; it is not a bracket expression.
+static const char* pattern_from_filespec(const char* filespec)
+{
+    const auto sep = strrchr(filespec, '/');
+    return sep ? sep + 1 : filespec;
+}
+
 static bool filespec_is_pattern(const char* filespec)
 {
-    return strchr(filespec, '*') != nullptr;
+    return strchr(pattern_from_filespec(filespec), '*') != nullptr;
 }
 
 static std::string directory_from_filespec(const char* filespec)
@@ -71,7 +80,16 @@ TbFileFind* PlatformLinux::FileFindFirst(const char* filespec, TbFileEntry* entr
     try {
         auto ff = std::make_unique<TbFileFind>();
         bool is_pattern = filespec_is_pattern(filespec);
-        std::string path = is_pattern ? directory_from_filespec(filespec) : filespec;
+        const char* pattern = pattern_from_filespec(filespec);
+        // Find the directory the way LbFileOpen finds a file: as written if it
+        // exists, otherwise case-insensitively. Configs written on Windows
+        // (LEVELS_LOCATION = levels/MyPack beside a real levels/mypack) name
+        // folders in whatever case, and every file inside one already opens
+        // through LbFileOpen -- only the listing failed, so the pack had "no
+        // .LIF files" and was rejected.
+        char dir_buf[PATH_MAX];
+        const std::string path = LbFileCaseInsensitivePath(
+            is_pattern ? directory_from_filespec(filespec).c_str() : filespec, dir_buf, sizeof(dir_buf));
         DIR* handle = opendir(path.c_str());
         if (handle) {
             while (auto de = readdir(handle)) {
@@ -96,10 +114,10 @@ TbFileFind* PlatformLinux::FileFindFirst(const char* filespec, TbFileEntry* entr
                 if (de->d_name[0] == '.') {
                     continue;
                 }
-                const std::string file_path = path + "/" + de->d_name;
-                if (is_pattern && fnmatch(filespec, file_path.c_str(), FNM_FILE_NAME | FNM_CASEFOLD) != 0) {
+                if (is_pattern && fnmatch(pattern, de->d_name, FNM_CASEFOLD) != 0) {
                     continue;
                 }
+                const std::string file_path = path + "/" + de->d_name;
                 struct stat sb;
                 if (stat(file_path.c_str(), &sb) < 0 || !S_ISREG(sb.st_mode)) {
                     continue;
