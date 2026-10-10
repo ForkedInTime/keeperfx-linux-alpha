@@ -6,10 +6,11 @@ Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), w
 
 ## Unreleased — alpha
 
-> **Saved games from earlier versions will not load in this build.** A 64-bit fix below changes the
-> size of the saved game state (`sizeof(struct Game)` 53383086 → 53317550). Finish anything in
-> progress on the current version first, or keep it alongside. The release notes repeat this
-> automatically.
+> **Saved games from earlier versions will not load in this build.** A 64-bit fix below and the
+> team's changes merged in this round both change the size of the saved game state
+> (`sizeof(struct Game)` 53383086 → 53384602). Finish anything in progress on the current version
+> first, or keep it alongside. The release notes repeat this automatically. **Campaign progress — the
+> Continue button and where each campaign is up to — carries over** (see below).
 
 **No more Windows in this repository.**
 - **The team's Windows content is gone, and the weekly sync cannot bring it back.** Their Visual Studio
@@ -19,12 +20,29 @@ Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), w
   commits directly: it takes their tree, removes the Windows content (`packaging/linux-only/`), and
   merges that snapshot, so Windows files are on neither side of a merge and never conflict again.
   **Proven not to change the game:** every file the Linux build compiles was preprocessed with and
-  without the filter — 311 identical, one with identical machine code — and the sync repeats that
+  without the filter — 315 identical, one with identical machine code — and the sync repeats that
   proof every week. A guard workflow fails any pull request that reintroduces Windows content.
 - The sync also adds the team's new source files to `linux.mk` by itself (previously a manual edit
   after every sync that added one), generates the fonts and runs the unit tests, and when it cannot
   finish it updates the open sync issue instead of opening a new one every Monday. Upstream's
   `Makefile` stays: the release builds use it to regenerate the artwork.
+
+**The team's changes through 9 October** (48 commits, merged through the new Linux-only sync).
+Among them: every campaign you play keeps its own progress, and a saved game that fails to load
+resumes that campaign instead; replays can be zoomed, paused, turned off, and survive resyncs;
+multiplayer gains spectators, keeps lobbies listed while playing, and fixes several desyncs; the
+parchment-map fade is on by default at every resolution (`PARCHMENT_MAP_FADE=OFF` turns it off);
+creatures and objects get configurable inertia and fall acceleration; Lua scripts are sandboxed and
+read the date and time without desyncing multiplayer; plus fixes to flying over lava, boulders,
+hatcheries, the abyss, possession and camera stutter with VSync. Two of these needed Linux fixes:
+- **Campaign progress carries over.** The team moved progress from one `fx1contn.sav` to a file per
+  campaign and imports the old file once — but only in the layout 32-bit Windows writes. Every Linux
+  build wrote it 160 bytes longer (its campaign flags were 8-byte `long`s), so the import would have
+  skipped it and the Continue button would have vanished with every player's campaign position. The
+  64-bit layout is now imported too, checked field by field against a file written by stable
+  1.4.0.5660 itself.
+- The new multiplayer matchmaking passed curl a 4-byte timeout where curl reads 8 bytes on 64-bit
+  Linux, leaving half of it undefined.
 
 **64-bit fixes.** KeeperFX was built for 32-bit Windows, where a `long` is 4 bytes; on 64-bit Linux
 it is 8, and these behaved differently from Windows:
