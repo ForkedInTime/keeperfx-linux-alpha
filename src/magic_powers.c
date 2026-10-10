@@ -1541,7 +1541,7 @@ static TbResult magic_use_power_sight(PowerKind power_kind, PlayerNumber plyr_id
             cdt = cdlimit;
         }
         cit = power_sight_close_instance_time[dungeon->sight_casted_power_level];
-        cgt = get_gameturn() - powerst->strength[dungeon->sight_casted_power_level];
+        cgt = (GameTurnDelta)(get_gameturn() - powerst->strength[dungeon->sight_casted_power_level]);
         i = cdlimit / cit;
         if (i > 0) {
             dungeon->sight_casted_gameturn = cgt + cdt/i - cit;
