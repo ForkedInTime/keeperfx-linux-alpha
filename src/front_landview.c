@@ -19,6 +19,7 @@
 #include "pre_inc.h"
 #include "kfx/renderer/RendererManager.h"
 #include "front_landview.h"
+#include "front_landview_textbox.h"
 
 #include "globals.h"
 #include "bflib_basics.h"
@@ -34,6 +35,8 @@
 #include "bflib_math.h"
 #include "bflib_sndlib.h"
 #include "bflib_sound.h"
+#include "sprites.h"
+#include "gui_draw.h"
 #include "bflib_vidraw.h"
 
 #include "config_strings.h"
@@ -50,6 +53,7 @@
 #include "front_network.h"
 #include "front_lvlstats.h"
 #include "frontend.h"
+#include "gui_frontbtns.h"
 #include "kjm_input.h"
 #include "vidmode.h"
 #include "vidfade.h"
@@ -58,6 +62,7 @@
 #include "net_game.h"
 #include "keeperfx.hpp"
 #include "custom_sprites.h"
+#include "config_translation.h"
 #include "api.h"
 #include "post_inc.h"
 
@@ -90,10 +95,97 @@ unsigned char *map_screen;
 
 static unsigned char netfont_palette_remap[PALETTE_COLORS];
 static unsigned char netfont_source_palette[PALETTE_SIZE];
+static unsigned char landview_text_remap[PALETTE_COLORS];
+static unsigned char landview_gui_remap[PALETTE_COLORS];
+/* The land view has its own palette, so it cannot use pixmap.ghost. */
+static unsigned char landview_glass_map[PALETTE_COLORS * PALETTE_COLORS];
+static struct LandViewTextBox landview_textbox;
 /******************************************************************************/
 #ifdef __cplusplus
 }
 #endif
+/******************************************************************************/
+static LevelNumber landview_textbox_lvnum;
+
+static void make_palette_remap(unsigned char *remap, const unsigned char *source_palette, const unsigned char *destination_palette)
+{
+    for (int i = 0; i < PALETTE_COLORS; i++)
+    {
+        remap[i] = LbPaletteFindColour(
+            destination_palette,
+            source_palette[i * 3 + 0],
+            source_palette[i * 3 + 1],
+            source_palette[i * 3 + 2]);
+    }
+}
+
+void landview_set_text(const char *text)
+{
+    landview_textbox_show(&landview_textbox, text);
+}
+
+static void landview_build_glass_map(void)
+{
+    for (int screen_colour = 0; screen_colour < PALETTE_COLORS; screen_colour++) {
+        const unsigned char *colour = &frontend_palette[3 * screen_colour];
+        unsigned char darkened = LbPaletteFindColour(frontend_palette, colour[0] / 4, colour[1] / 4, colour[2] / 4);
+
+        for (int drawn_colour = 0; drawn_colour < PALETTE_COLORS; drawn_colour++) {
+            landview_glass_map[screen_colour * PALETTE_COLORS + drawn_colour] = darkened;
+        }
+    }
+}
+
+
+static void landview_populate_textbox_values(LevelNumber lvnum){
+    if(!campaign.show_level_description)
+        return;
+    struct LevelInformation* lvinfo = get_level_info(lvnum);
+    if (lvinfo == NULL)
+        return;
+    landview_textbox_lvnum = lvnum;
+
+    const TextStringId lv_intro_desc_id = get_string_id_by_alias(lvinfo->intro_desc_id);
+    const char* lv_name = (lvinfo->name_stridx > 0) ? get_string(lvinfo->name_stridx) : lvinfo->name;
+    const char* lv_description;
+
+    if(lv_intro_desc_id >= 0){
+        lv_description = get_string(lv_intro_desc_id);
+        landview_set_text(lv_description);        
+        
+        int32_t width;
+        int32_t pos_x;
+        int32_t pos_y;
+        int32_t height;
+        if(lvinfo->level_description_geo != NULL){
+            width = lvinfo->level_description_geo->width;
+            pos_x = lvinfo->level_description_geo->pos_x;
+            pos_y = lvinfo->level_description_geo->pos_y;
+            height = lvinfo->level_description_geo->height;
+        } else {
+            width = campaign.level_description_geo != NULL ? campaign.level_description_geo->width : 480;
+            pos_x = campaign.level_description_geo != NULL ? campaign.level_description_geo->pos_x : ((RendererPhysicalWidth()*16/units_per_pixel_landview)-480) / 2;
+            pos_y = campaign.level_description_geo != NULL ? campaign.level_description_geo->pos_y : (RendererPhysicalHeight()*16/units_per_pixel_landview) - 86 - 24;
+            height = campaign.level_description_geo != NULL ? campaign.level_description_geo->height : 86;
+        }    
+        landview_textbox_set_geometry(&landview_textbox, pos_x,  pos_y, width, height);
+    }
+    
+    set_level_name_text(mouse_over_lvnum, lv_name);  
+}
+
+/**
+ * Fills the text box with a description of the level the mouse hovers over.
+ * This is just the default content - call landview_set_text() from anywhere to replace it.
+ */
+static void landview_update_textbox_text(void)
+{   
+    if ((mouse_over_lvnum <= 0) || (mouse_over_lvnum == landview_textbox_lvnum))
+        return;
+    landview_populate_textbox_values(mouse_over_lvnum);
+}
+
+
 /******************************************************************************/
 void draw_map_screen(void)
 {
@@ -113,9 +205,9 @@ void draw_map_screen(void)
     RendererPresentImage(&desc);
 }
 
-TbBool init_netfont_palette_remap(void)
+TbBool init_netfont_palette_remap(char* land_view)
 {
-    const char *fname = prepare_file_path(FGrp_LandView, "rgmap00.pal");
+    const char *fname  = prepare_file_fmtpath(FGrp_LandView, "%s.pal", land_view);
 
     if (LbFileLoadAt(fname, netfont_source_palette) != PALETTE_SIZE)
     {
@@ -123,18 +215,6 @@ TbBool init_netfont_palette_remap(void)
         return false;
     }
     return true;
-}
-
-static void make_palette_remap(unsigned char *remap, const unsigned char *source_palette, const unsigned char *destination_palette)
-{
-    for (int i = 0; i < PALETTE_COLORS; i++)
-    {
-        remap[i] = LbPaletteFindColour(
-            destination_palette,
-            source_palette[i * 3 + 0],
-            source_palette[i * 3 + 1],
-            source_palette[i * 3 + 2]);
-    }
 }
 
 void pop_palette_remap(void){
@@ -929,6 +1009,8 @@ TbBool load_map_and_window(LevelNumber lvnum)
         unload_map_and_window();
         return false;
     }
+    
+    init_netfont_palette_remap(land_view);  
     SYNCDBG(9,"Finished");
     return true;
 }
@@ -1004,6 +1086,18 @@ TbBool frontmap_update_zoom(void)
     return false;
 }
 
+static void landview_textbox_setup(void){
+    landview_textbox_init(&landview_textbox);
+    make_palette_remap(landview_text_remap, engine_palette, frontend_palette);
+    make_palette_remap(landview_gui_remap, engine_palette, frontend_palette);
+    landview_build_glass_map();
+    /* Match the objective panel's front-end glyphs and palette remap. */
+    landview_textbox_set_text_rendering(&landview_textbox, winfont, landview_text_remap);
+    landview_textbox_set_gui_remap(&landview_textbox, landview_gui_remap);
+    landview_textbox_set_glass_map(&landview_textbox, landview_glass_map);
+    landview_textbox_lvnum = SINGLEPLAYER_NOTSTARTED;
+}
+
 TbBool frontmap_load(void)
 {
     SYNCDBG(4,"Starting");
@@ -1031,9 +1125,9 @@ TbBool frontmap_load(void)
     }
     // append any custom ensigns to the sheet
     map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette);      
-    init_netfont_palette_remap();  
     pop_palette_remap();
     map_font = load_spritesheet("ldata/netfont.dat", "ldata/netfont.tab");
+    winfont = load_font("data/font2-64.dat", "data/font2-64.tab");
     if (!map_flag)
     {
         ERRORLOG("Unable to load Land View Screen sprites");
@@ -1076,10 +1170,13 @@ TbBool frontmap_load(void)
     frontmap_start_music();
     fe_computer_players = 0;
     update_ensigns_visibility();
+    landview_textbox_setup();
+    landview_populate_textbox_values(lvnum);
     SYNCDBG(7,"Finished");
     api_event("CAMPAIGN_LOADED");
     return true;
 }
+
 
 void frontmap_draw(void)
 {
@@ -1098,6 +1195,7 @@ void frontmap_draw(void)
         set_pointer_graphic_spland(0);
         compressed_window_draw();
     }
+    landview_textbox_draw(&landview_textbox);
 }
 
 void check_mouse_scroll(void)
@@ -1286,10 +1384,12 @@ void frontmap_input(void)
     }
     if (zoom_done)
     {
+      if (landview_textbox_input(&landview_textbox))
+        return;
       check_mouse_scroll();
       if (is_game_key_pressed(Gkey_LVShowAllEnsigns, true, false))
       {
-        if (game.easter_eggs_enabled == true)
+        if (start_params.easter_egg == true)
         {
           set_all_ensigns_state(LvSt_Visible);
           return;
@@ -1297,7 +1397,7 @@ void frontmap_input(void)
       }
       if (is_game_key_pressed(Gkey_LVNextLevel, true, false))
       {
-        if (game.easter_eggs_enabled == true)
+        if (start_params.easter_egg == true)
         {
           move_campaign_to_next_level();
           frontmap_unload();
@@ -1308,7 +1408,7 @@ void frontmap_input(void)
       }
       if (is_game_key_pressed(Gkey_LVPrevLevel, true, false))
       {
-        if (game.easter_eggs_enabled == true)
+        if (start_params.easter_egg == true)
         {
           move_campaign_to_prev_level();
           frontmap_unload();
@@ -1334,6 +1434,8 @@ void frontmap_input(void)
 void frontmap_unload(void)
 {
     SYNCDBG(8,"Starting");
+    landview_textbox_lvnum = SINGLEPLAYER_NOTSTARTED;
+    landview_textbox_hide(&landview_textbox);
     set_pointer_graphic_none();
     unload_map_and_window();
     free_spritesheet(&map_flag);
@@ -1346,6 +1448,7 @@ void frontmap_unload(void)
 long frontmap_update(void)
 {
   SYNCDBG(8,"Starting");
+  landview_update_textbox_text();
   if ((mouse_over_lvnum > 0) && (playing_speech_lvnum != mouse_over_lvnum))
   {
       play_desc_speech_time = 0;

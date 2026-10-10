@@ -463,12 +463,8 @@ TbBool terrain_toxic_for_creature_at_position(const struct Thing *creatng, MapSu
     if (!thing_can_traverse_abyss_at(creatng, stl_x, stl_y)) {
         return true;
     }
-    struct CreatureModelConfig* crconf = creature_stats_get_from_thing(creatng);
-    // If the position is over lava, and we can't continuously fly, then it's toxic
-    if ((crconf->hurt_by_lava > 0) && map_pos_is_lava(stl_x,stl_y)) {
-        // Check not only if a creature is now flying, but also whether it's natural ability
-        if (!flag_is_set(creatng->movement_flags, TMvF_Flying) || (!crconf->flying))
-            return true;
+    if (map_pos_is_lava(stl_x, stl_y) && !creature_can_travel_over_lava(creatng)) {
+        return true;
     }
     return false;
 }
@@ -565,7 +561,7 @@ long creature_turn_to_face_angle(struct Thing *thing, long angle)
     thing->move_angle_xy = (thing->move_angle_xy + angle_delta) & ANGLE_MASK;
 
     struct PlayerInfo* my_player = get_my_player();
-    if (my_player->controlled_thing_idx == thing->index && my_player->view_mode == PVM_CreatureView) {
+    if (my_player->controlled_thing_idx == thing->index && ((get_player_view_type(my_player) == PVT_CreatureContrl) || (get_player_view_type(my_player) == PVT_CreaturePasngr))) {
         set_local_camera_destination(my_player);
     }
 

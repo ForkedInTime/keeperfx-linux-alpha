@@ -252,7 +252,7 @@ TbBool all_dungeons_destroyed(const struct PlayerInfo *win_player)
 
 void init_censorship(void)
 {
-  if ( censorship_enabled() )
+  if ( local_censorship_enabled() )
   {
     // Modification for Dark Mistress
       set_creature_model_graphics(20, 14, 48);
@@ -433,7 +433,7 @@ short setup_game(void)
       }
   }
 
-  game.frame_skip = start_params.frame_skip;
+  game.fast_forward = start_params.fast_forward;
   redetect_screen_refresh_rate_for_draw();
 
   // Intro problems shouldn't force the game to quit,
@@ -487,8 +487,8 @@ short setup_game(void)
  */
 static bool players_cursor_is_at_top_of_view()
 {
-    const struct PlayerInfo *const player = get_my_player();
-    const struct UserState *const ustate = get_local_user_state();
+    const struct PlayerInfo *const player = get_displayed_player();
+    const struct UserState *const ustate = get_player_user_state(player);
     switch (player->work_state)
     {
     case PSt_BuildRoom:
@@ -563,22 +563,10 @@ TbBool screen_to_map(struct Camera *camera, int32_t screen_x, int32_t screen_y, 
     result = false;
     if (camera != NULL)
     {
-      switch (camera->view_mode)
-      {
-        case PVM_CreatureView:
-        case PVM_IsoWibbleView:
-        case PVM_FrontView:
-        case PVM_IsoStraightView:
-          // 3D view mode
-          result = engine_point_to_map(camera,screen_x,screen_y,&x,&y);
-          break;
-        case PVM_ParchmentView: //map mode
+      if (get_local_view_type(get_my_player()) == PVT_MapScreen)
           result = point_to_overhead_map(camera,screen_x/pixel_size,screen_y/pixel_size,&x,&y);
-          break;
-        default:
-          result = false;
-          break;
-      }
+      else
+          result = engine_point_to_map(camera,screen_x,screen_y,&x,&y);
     }
     if ( result )
     {
@@ -685,7 +673,7 @@ void toggle_hero_health_flowers(void)
 void reset_gui_based_on_player_mode(void)
 {
     struct PlayerInfo *player = get_my_player();
-    if (player->view_type == PVT_CreatureContrl)
+    if (get_player_view_type(player) == PVT_CreatureContrl)
     {
         turn_on_menu(vid_change_query_menu);
         if (player->victory_state == VicS_LostLevel)
@@ -693,7 +681,7 @@ void reset_gui_based_on_player_mode(void)
             turn_off_query_menus();
         }
     }
-    else if (player->view_type == PVT_CreaturePasngr)
+    else if (get_player_view_type(player) == PVT_CreaturePasngr)
     {
         turn_on_menu(vid_change_query_menu);
         turn_off_query_menus();
@@ -859,16 +847,13 @@ void reinit_level_after_load(void)
     player = get_my_player();
     local_state.lens_palette = 0;
     local_state.main_palette = engine_palette;
-    init_navigation();
-    reinit_packets_after_load();
-    game.easter_eggs_enabled = start_params.easter_egg;
     parchment_loaded = 0;
     for (i=0; i < PLAYERS_COUNT; i++)
     {
         player = get_player(i);
         if (player_exists(player))
         {
-            set_engine_view(player, player->view_mode);
+            update_engine_view(player, false);
             update_panel_color_player_color(player->id_number, get_dungeon(i)->color_idx);
         }
     }
@@ -975,7 +960,6 @@ void clear_players_for_save(void)
     unsigned short saved_player_id;
     unsigned char saved_player_type;
     unsigned short saved_allocation_flags;
-    struct Camera cammem;
     int i;
     for (i=0; i < PLAYERS_COUNT; i++)
     {
@@ -983,7 +967,6 @@ void clear_players_for_save(void)
       saved_player_id = player->id_number;
       saved_player_type = player->player_type;
       saved_allocation_flags = player->allocflags;
-      memcpy(&cammem,&player->cameras[CamIV_FirstPerson],sizeof(struct Camera));
       memset(player, 0, sizeof(struct PlayerInfo));
       player->id_number = saved_player_id;
       player->user_id = -1;
@@ -991,8 +974,6 @@ void clear_players_for_save(void)
       set_flag_value(player->allocflags, PlaF_Allocated, ((saved_allocation_flags & PlaF_Allocated) != 0));
       set_flag_value(player->allocflags, PlaF_CompCtrl, ((saved_allocation_flags & PlaF_CompCtrl) != 0));
       set_flag_value(player->allocflags, PlaF_Placeholder, ((saved_allocation_flags & PlaF_Placeholder) != 0));
-      memcpy(&player->cameras[CamIV_FirstPerson],&cammem,sizeof(struct Camera));
-      set_player_active_camera(player, CamIV_FirstPerson);
     }
 }
 
@@ -1197,7 +1178,6 @@ void level_lost_go_first_person(PlayerNumber plyr_idx)
         return;
     }
     spectator_breed = get_players_spectator_model(plyr_idx);
-    player->dungeon_camera_zoom = get_camera_zoom(get_player_active_camera(player));
     struct CompoundTngFilterParam param = {};
     param.class_id = TCls_Creature;
     struct Thing *spawn_creatng = get_random_thing_of_class_with_filter(filter_creatures_owned_by_keepers, &param, plyr_idx);
@@ -1322,9 +1302,10 @@ short complete_level(struct PlayerInfo *player)
     SYNCDBG(6,"Starting");
     if (!is_my_player(player))
         return false;
-    if (network_is_active())
+    if (game.game_kind == GKind_MultiGame)
     {
-        LbNetwork_Stop();
+        if (network_is_active())
+            LbNetwork_Stop();
         quit_game = 1;
         return true;
     }
@@ -1369,7 +1350,7 @@ void update_local_mouse_light(void)
     if (player->instance_num != PI_Unset)
         return;
     // ... or when watching a replay
-    if (game.packet_load_enable)
+    if (replay.load_enable)
         return;
     // ... or during text input (save menu)
     if (game_is_busy_doing_gui_string_input())
@@ -1546,6 +1527,7 @@ void engine(struct PlayerInfo *player, struct Camera *cam)
     view_height_over_2 = ewnd.height/2;
     view_width_over_2 = ewnd.width/2;
     LbScreenSetGraphicsWindow(ewnd.x, ewnd.y, ewnd.width, ewnd.height);
+    setup_vecs(lbDisplay.GraphicsWindowPtr, NULL, RendererScreenWidth(), ewnd.width, ewnd.height);
     WorldViewRenderer_BeginWorldPass(ewnd.width, ewnd.height, ewnd.x, ewnd.y);
     RendererSetGameViewport(ewnd.x, ewnd.y, ewnd.width, ewnd.height);
     camera_zoom = scale_camera_zoom_to_screen(cam->zoom);
@@ -1727,7 +1709,7 @@ void redetect_screen_refresh_rate_for_draw()
 bool use_delta_time()
 {
     // Always enable interpolation in multiplayer games.
-    return is_feature_on(Ft_DeltaTime) || network_is_active();
+    return is_feature_on(Ft_DeltaTime) || network_is_active() || game.fast_forward > 1;
 }
 
 void update_frontend_delta_time()
@@ -1742,17 +1724,21 @@ void update_frontend_delta_time()
 
 void update_gameplay_delta_time()
 {
-    if (use_delta_time()) {
-        static int64_t prev = 0;
-        const int64_t now = get_time_tick_ns();
-        const int64_t ns = now - prev;
-        prev = now;
+    static int64_t prev = 0;
+    const int64_t now = get_time_tick_ns();
+    const int64_t ns = now - prev;
+    prev = now;
 
+    if (use_delta_time()) {
         const long double seconds = max(ns / 1e9L, 0.L);
         const long double turns = seconds * turns_per_second;
         const long double frames = seconds * fps_limit_current;
 
-        game.process_turn_time += turns * multiplayer_clock_adjust * max(game.frame_skip, 1);
+        if (game.fast_forward >= GAME_FAST_FORWARD_MAX && !network_is_active()) {
+            game.process_turn_time = 1;
+        } else {
+            game.process_turn_time += turns * multiplayer_clock_adjust * max(game.fast_forward, 1);
+        }
 
         // This sets game.delta_time, which is used to pace locally-displayed
         // things (eg. tooltip scroll speed).  It should not be affected by
@@ -2011,6 +1997,9 @@ static short process_command_line(unsigned short argc, char *argv[])
       {
          start_params.easter_egg = true;
       }
+      else if (strcasecmp(parstr, "spectate") == 0) {
+          net_join_role = NetRole_Spectator;
+      }
       else if (strcasecmp(parstr,"connect") == 0)
       {
           narg++;
@@ -2047,7 +2036,7 @@ static short process_command_line(unsigned short argc, char *argv[])
       }
       else if (strcasecmp(parstr,"frameskip") == 0)
       {
-         start_params.frame_skip = atoi(pr2str);
+         start_params.fast_forward = atoi(pr2str);
          narg++;
       } else
       if (strcasecmp(parstr,"framestep") == 0)
@@ -2207,7 +2196,6 @@ static short resolve_startup_config(void)
     features_enabled &= ~Ft_DisableCursorCameraPanning; // don't disable cursor camera panning
     features_enabled |= Ft_DeltaTime; // enable delta time
     features_enabled |= Ft_NoCdMusic; // use music files (OGG) rather than CD music
-    features_enabled &= ~Ft_ParchmentFade; // do not fade into and out of the parchment map
     if (!load_configuration())
     {
         ERRORLOG("Configuration load error.");

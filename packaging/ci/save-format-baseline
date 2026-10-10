@@ -63,7 +63,7 @@
 # It does not vary between GCC versions -- struct layout is ABI-fixed -- so a
 # mismatch is always a source change, never a toolchain difference.
 
-sizeof_struct_game=53317550
+sizeof_struct_game=53384602
 
 # 2026-08-25: upstream's custom-icon feature (#5147, #5139) added
 #     short icon_idx;   // 2 bytes (+ padding)
@@ -144,3 +144,21 @@ sizeof_catalogue_entry=412
 # Accepted deliberately by the owner: the alternative is keeping a script
 # value layout that silently runs level scripts wrong; saves from earlier
 # builds will not load.
+
+# 2026-10-10: upstream sync (dkfans fb0ab7f4d, 48 commits 2026-09-29 to
+# 2026-10-09). 53317550 -> 53384602 (+67052), every byte accounted for by
+# diffing `ptype /o struct Game` from both trees:
+#   +61440  #5396 added `last_turn_pushed` + `pushed_by_player` to struct Thing
+#           (5 bytes x things_data[12288]), for the "lost in battle" message
+#           when a creature is pushed into the abyss.
+#    +9024  #5394/#5402 unlocked inertia and fall acceleration: new fields in
+#           the creature and object configs held in game.conf.
+#     +468  #5377 (camera refactor) and #5417 (user preferences out of saves
+#           and packets) moved the cameras, view mode and zoom levels from
+#    -2556  `players[9]` into `user_states[4]`; fewer users than players.
+#    -1024  #5377 dropped `head_bob` from struct CreatureControl (x1024).
+#     -288  #5376 (replay rewrite) moved the packet-file state out of struct
+#           Game, #5383 added the host timestamp Lua's date/time now reads,
+#           #5417 dropped easter_eggs_enabled.
+# Accepted: all upstream design changes, and carrying the old layout would mean
+# forking struct Game itself.
