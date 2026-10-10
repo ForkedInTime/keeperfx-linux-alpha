@@ -2222,6 +2222,15 @@ static short resolve_startup_config(void)
 
     process_cmdline_overrides();
 
+    // There is no CD audio (Redbook) backend on Linux -- PlatformLinux's Redbook
+    // calls are stubs -- so MUSIC_FROM_DISK=OFF or -cd would leave the game
+    // without any music. Play the music files instead, and say why.
+    if ((features_enabled & Ft_NoCdMusic) == 0)
+    {
+        WARNLOG("CD audio is not supported on Linux; ignoring MUSIC_FROM_DISK=OFF / -cd and playing music from the music folder.");
+        features_enabled |= Ft_NoCdMusic;
+    }
+
     requested_renderer_type = (int)RendererResolveType((RendererType)requested_renderer_type);
     return 1;
 }
