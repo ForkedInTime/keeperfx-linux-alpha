@@ -152,6 +152,36 @@ inline int music_trailing_number(const std::string & fname, bool * had_digit_run
 	return (int)value;
 }
 
+// The track a file occupies through play_music_track()'s direct stock-name
+// lookup, which probes exactly "keeper%02d<ext>" (case-insensitively) for a
+// recognised extension before it ever consults the index -- or -1 when the
+// direct lookup would never find this file for a track the game asks for.
+inline int music_direct_lookup_track(const std::string & fname) {
+	const std::string lower = music_to_lower(fname);
+	for (int i = 0; i < MUSIC_DIRECT_LOOKUP_EXTENSION_COUNT; ++i) {
+		const std::string ext(MUSIC_DIRECT_LOOKUP_EXTENSIONS[i]);
+		if (lower.size() != 8 + ext.size() || lower.compare(8, ext.size(), ext) != 0)
+			continue;
+		if (lower.compare(0, 6, "keeper") != 0 || !std::isdigit((unsigned char)lower[6]) ||
+			!std::isdigit((unsigned char)lower[7]))
+			continue;
+		const int track = (lower[6] - '0') * 10 + (lower[7] - '0');
+		return (track >= MUSIC_TRACK_MIN && track <= MUSIC_TRACK_MAX) ? track : -1;
+	}
+	return -1;
+}
+
+// Index into MUSIC_DIRECT_LOOKUP_EXTENSIONS (lower is probed first), or -1.
+inline int music_direct_lookup_rank(const std::string & fname) {
+	const std::string lower = music_to_lower(fname);
+	for (int i = 0; i < MUSIC_DIRECT_LOOKUP_EXTENSION_COUNT; ++i) {
+		const std::string ext(MUSIC_DIRECT_LOOKUP_EXTENSIONS[i]);
+		if (lower.size() >= ext.size() && lower.compare(lower.size() - ext.size(), ext.size(), ext) == 0)
+			return i;
+	}
+	return -1;
+}
+
 // Maps track number -> filename for the given directory contents. Entries are
 // bare filenames, not paths; anything that is not a recognised audio file is
 // ignored.
@@ -161,12 +191,18 @@ inline int music_trailing_number(const std::string & fname, bool * had_digit_run
 // priority-format collision loser, a file sorted-mode had no track left for,
 // a file numeric mode had no number -- or no in-range number -- for). Each
 // note describes *this function's own mapping decision*, not what the game
-// actually plays: build_music_index() is deliberately kept unaware of
+// actually plays: numeric mode is deliberately kept unaware of
 // play_music_track()'s separate direct stock-name lookup (see
-// docs/design/specs/2026-08-03-music-track-detection-design.md), so a
-// file this function "dropped" may still be exactly what plays, via that
-// other path, and a file it kept may be shadowed by it. Callers that want to
-// describe actual playback must account for the direct lookup themselves.
+// docs/design/specs/2026-08-03-music-track-detection-design.md), so a file
+// it "dropped" may still be exactly what plays, via that other path.
+//
+// Sorted mode cannot be unaware of it. It numbers files by position, while
+// the direct lookup plays keeper02..keeper07 on their own numbers whatever the
+// index says -- so a folder of keeper02-05 plus intro and outro used to map
+// 2=intro, 3=keeper02 ... 6=keeper05, 7=outro, and play keeper02-05 on 2-5
+// (direct), keeper05 again on 6 (index), and intro never. Sorted mode therefore
+// leaves every track a stock-named file claims (music_direct_lookup_track())
+// to that file, and gives the remaining songs the remaining tracks.
 // Hidden/dotfile entries are not "the user's music" and are filtered out
 // silently, with no note, before any of this.
 inline std::map<int, std::string> build_music_index(const std::vector<std::string> & entries,
@@ -284,8 +320,26 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 	std::vector<std::string> sorted_notes;
 	std::map<int, std::string> sorted_index;
 	{
+		// Tracks the direct stock-name lookup will serve no matter what this
+		// index says, and the file it will play for each. Its probe order is
+		// MUSIC_DIRECT_LOOKUP_EXTENSIONS', so among several formats of one
+		// keeperNN the first in that order is the one that plays.
+		std::map<int, std::size_t> direct; // track -> index into files
+		for (std::size_t i = 0; i < files.size(); ++i) {
+			const int track = music_direct_lookup_track(files[i].first);
+			if (track < 0)
+				continue;
+			const std::map<int, std::size_t>::iterator seen = direct.find(track);
+			if (seen == direct.end() ||
+				music_direct_lookup_rank(files[i].first) < music_direct_lookup_rank(files[seen->second].first))
+				direct[track] = i;
+		}
+
 		std::map<std::string, std::size_t> best_for_stem; // lower stripped stem -> index into files
 		for (std::size_t i = 0; i < files.size(); ++i) {
+			if (music_direct_lookup_track(files[i].first) >= 0)
+				continue; // a keeperNN file: placed on its own track below
+
 			const std::string lower_stem = music_to_lower(music_strip_extensions(files[i].first));
 			const std::map<std::string, std::size_t>::iterator seen = best_for_stem.find(lower_stem);
 			if (seen == best_for_stem.end()) {
@@ -327,9 +381,16 @@ inline std::map<int, std::string> build_music_index(const std::vector<std::strin
 				return (sa != sb) ? (sa < sb) : (files[a].first < files[b].first);
 			});
 
+		for (std::map<int, std::size_t>::const_iterator it = direct.begin(); it != direct.end(); ++it) {
+			sorted_index[it->first] = files[it->second].first;
+		}
 		int track = MUSIC_TRACK_MIN;
 		std::size_t i = 0;
-		for (; i < reps.size() && track <= MUSIC_TRACK_MAX; ++i) {
+		for (; i < reps.size(); ++i) {
+			while (track <= MUSIC_TRACK_MAX && direct.count(track))
+				++track; // claimed by a stock-named file
+			if (track > MUSIC_TRACK_MAX)
+				break;
 			sorted_index[track] = files[reps[i]].first;
 			++track;
 		}

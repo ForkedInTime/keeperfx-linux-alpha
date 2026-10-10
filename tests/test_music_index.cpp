@@ -99,8 +99,60 @@ int main()
 		in.push_back("keeper02.ogg"); in.push_back("bonus.flac");
 		const std::map<int, std::string> got = build_music_index(in);
 		expect_size(got, 2, "FIX 2: lone numbered file plus one unnumbered file -- sorted resolves both");
-		expect_track(got, 2, "bonus.flac", "FIX 2: sorted fallback, bonus.flac sorts first");
-		expect_track(got, 3, "keeper02.ogg", "FIX 2: sorted fallback, keeper02.ogg sorts second");
+		// Changed again: sorted mode used to put bonus.flac on track 2 and
+		// keeper02.ogg on 3, but play_music_track()'s direct stock-name lookup
+		// plays keeper02.ogg for track 2 whatever the index says -- so keeper02
+		// played on both 2 and 3 and bonus.flac never. keeper02.ogg now keeps
+		// its own track and bonus.flac takes the next free one.
+		expect_track(got, 2, "keeper02.ogg", "sorted fallback leaves track 2 to keeper02.ogg (direct lookup plays it there)");
+		expect_track(got, 3, "bonus.flac", "sorted fallback gives bonus.flac the next free track");
+	}
+
+	// 5a. Sorted fallback must not double one song and lose another when a
+	// partial stock set sits next to unnumbered songs. keeper02-05 + intro +
+	// outro: numeric places 4, sorted places all 6, so sorted wins. It used to
+	// map 2=intro, 3=keeper02 ... 6=keeper05, 7=outro; the direct lookup then
+	// played keeper02-05 on 2-5 and the index keeper05 again on 6 -- intro.ogg
+	// never played. Each song must now play exactly once.
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper02.ogg"); in.push_back("keeper03.ogg");
+		in.push_back("keeper04.ogg"); in.push_back("keeper05.ogg");
+		in.push_back("intro.ogg"); in.push_back("outro.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 6, "partial stock set + 2 songs: all six placed");
+		expect_track(got, 2, "keeper02.ogg", "partial stock set: keeper02 on 2");
+		expect_track(got, 5, "keeper05.ogg", "partial stock set: keeper05 on 5, not repeated on 6");
+		expect_track(got, 6, "intro.ogg", "partial stock set: intro.ogg takes the first free track");
+		expect_track(got, 7, "outro.ogg", "partial stock set: outro.ogg takes the next");
+	}
+
+	// 5a-ii. One stock file + five songs: keeper02 keeps 2, a-e fill 3-7
+	// (a.ogg used to be lost to keeper02 being placed on 3).
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper02.ogg");
+		in.push_back("a.ogg"); in.push_back("b.ogg"); in.push_back("c.ogg");
+		in.push_back("d.ogg"); in.push_back("e.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_size(got, 6, "one stock file + 5 songs: all six placed");
+		expect_track(got, 2, "keeper02.ogg", "one stock file: keeper02 on 2");
+		expect_track(got, 3, "a.ogg", "one stock file: a.ogg on 3, not dropped");
+		expect_track(got, 7, "e.ogg", "one stock file: e.ogg on 7");
+	}
+
+	// 5a-iii. Two formats of one stock track: the direct lookup probes OGG
+	// first, so that is what sorted mode records for the track; the FLAC is not
+	// placed anywhere else (it is the same song).
+	{
+		std::vector<std::string> in;
+		in.push_back("keeper03.flac"); in.push_back("keeper03.ogg");
+		in.push_back("x.ogg"); in.push_back("y.ogg");
+		const std::map<int, std::string> got = build_music_index(in);
+		expect_track(got, 3, "keeper03.ogg", "stock track in two formats: the OGG the direct lookup plays");
+		expect_track(got, 2, "x.ogg", "stock track in two formats: x.ogg on the free track 2");
+		expect_track(got, 4, "y.ogg", "stock track in two formats: y.ogg skips claimed 3");
+		expect_size(got, 3, "stock track in two formats: the FLAC is not placed a second time");
 	}
 
 	// 5b. A complete stock set plus one stray unnumbered file: the exact
