@@ -8,48 +8,29 @@ PREFIX="${PREFIX:-$HOME/.local/share/keeperfx-alpha}"
 echo "==> fetching upstream (the KeeperFX team's master)"
 git fetch upstream
 
-echo "==> what the team changed since our base:"
-git log --oneline HEAD..upstream/master | head -60 || true
+echo "==> what the team changed since our last sync:"
+# Not HEAD..upstream/master: the sync merges Linux-only snapshots of the team's
+# tree, so their commits are not in our history (packaging/linux-only/README.md).
+git log --oneline "$(packaging/linux-only/synced-upstream.sh)..upstream/master" | head -60 || true
 
-# This script was written when the fork was a handful of fixes carried on top of
-# the team's master, so refreshing meant rebasing onto it. That is no longer what
-# this repository is: sync is merge-based (the weekly bot opens a merge PR, and
-# those are merged, never squashed), and the fork's implementation wins where the
-# two disagree -- a rebase inverts that and replays our commits onto their tree.
-#
-# It is also actively destructive right now. Upstream migrated to SDL3 (#5085) on
-# 2026-08-05. That migration is ported and verified, but parked on
-# sync/upstream-2026-08-05-sdl3 until the release workflows build somewhere that
-# ships SDL3 -- ubuntu-24.04 does not. Rebasing here would drag every fork commit
-# onto the migration we deliberately have not taken.
-#
-# Left behind an opt-in rather than deleted, because the reconciliation it does is
-# still occasionally the right tool -- just never the default.
-if [ "${REBASE_ONTO_UPSTREAM:-0}" = "1" ]; then
-  echo "==> rebasing our fixes onto their latest master (REBASE_ONTO_UPSTREAM=1)"
-  if ! git rebase upstream/master; then
-    cat <<MSG
-!! Rebase hit conflicts. The team touched a file our fixes change
-   (bflib_video.c / linux.mk / LensManager.cpp / main.cpp). Resolve them, then:
-       git rebase --continue
-   and re-run this script.
-MSG
-    exit 1
-  fi
-else
-  echo "==> not rebasing onto upstream; building this checkout as it stands"
-  echo "    (sync is merge-based -- see the note in this script)"
-fi
+# This script used to offer REBASE_ONTO_UPSTREAM=1, a rebase of the fork onto the
+# team's master. It is gone: the sync merges Linux-only snapshots of their tree
+# (packaging/linux-only/README.md), and a rebase onto their raw master would
+# bring back every Windows-only file and #ifdef the filter removed -- on top of
+# inverting which side wins where the fork and the team disagree. To take the
+# team's latest by hand, merge a snapshot instead:
+#     git merge "$(packaging/linux-only/make-snapshot.sh upstream/master)"
+echo "==> building this checkout as it stands (to sync, merge a snapshot -- see above)"
 
 echo "==> building (fetch curl-downloaded deps serially first to avoid a -j race)"
 make -f linux.mk deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
                  deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
-# Build number = git commit count, exactly as the team's CI computes it
-# (build-alpha-patch-unsigned.yml: BUILD_NUMBER=$(git rev-list --count HEAD)).
+# Build number = the team's numbering: git commit count, plus the team's commits
+# that arrived through Linux-only snapshots (packaging/linux-only/build-number.sh).
 # Version then reads "<major>.<minor>.<release>.<count> alpha", with the first three
 # taken from version.mk (upstream controls them; 1.4.0 at the time of writing), and
 # a count high enough that keeperfx-launcher-qt enables every version-gated setting.
-BUILD_NUMBER=$(git rev-list --count HEAD)
+BUILD_NUMBER=$(packaging/linux-only/build-number.sh)
 echo "    BUILD_NUMBER=$BUILD_NUMBER"
 # ver_defs.h only regenerates when version.mk changes, so force it — otherwise a
 # stale build number (e.g. 0) is silently reused and the launcher disables settings.

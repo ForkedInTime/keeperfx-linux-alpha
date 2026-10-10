@@ -181,8 +181,8 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
-> <sub>Count it yourself: `git log --oneline --no-merges upstream/master..HEAD` — 280 commits of ours on top
-> of theirs, on top of 24 upstream merges. The sections below are the line items.</sub>
+> <sub>Count it yourself: `git log --oneline --no-merges --invert-grep --grep='^Linux-Snapshot-Of:' upstream/master..HEAD`
+> — 280 commits of ours on top of theirs, on top of 24 upstream merges. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -352,10 +352,12 @@ first.)
   filename case, so mixed-case files referenced by mods/campaigns actually play on Linux.
 
 **Tooling**
-- **Weekly upstream-sync bot** — a GitHub Action merges the team's latest `master`, compile-checks it, and
-  opens a pull request for review (details [below](#how-the-tux-edition-stays-current-with-upstream)).
-- **`refresh-alpha.sh`** — pulls upstream, builds with the correct version number, generates the UTF-8
-  fonts, and deploys locally.
+- **Weekly upstream-sync bot** — a GitHub Action merges a Linux-only snapshot of the team's latest `master`
+  (Windows files and `#ifdef` branches removed, proven not to change the build), compile-checks and tests it,
+  keeps `linux.mk`'s source list current, and opens a pull request for review (details
+  [below](#how-the-tux-edition-stays-current-with-upstream)).
+- **`refresh-alpha.sh`** — shows what the team changed since the last sync, builds with the correct version
+  number, generates the UTF-8 fonts, and deploys locally.
 - **`make` builds Linux.** A bare `make` ran upstream's Windows/mingw target, which also overwrote a shared
   prebuilt dependency and left the *next* Linux build failing with a bare `cannot find -ljson`. It now
   builds Linux, and repairs that dependency automatically if a Windows build clobbered it.
@@ -503,59 +505,40 @@ This produces **`bin/keeperfx`** (a native ELF).
 
 **4. Assemble a playable install.** This repo has engine source + text config only — not the game data. Get a
 KeeperFX data tree (via the launcher or an official install), then overlay your build + fonts + `config/` and
-write `version.txt`. The whole rebase-build-deploy is automated by **`./refresh-alpha.sh`**.
+write `version.txt`. The whole build-and-deploy is automated by **`./refresh-alpha.sh`**.
 
 The native launcher is its own repo:
 [**keeperfx-launcher-qt-linux**](https://github.com/ForkedInTime/keeperfx-launcher-qt-linux).
 </details>
 
-## 🔧 Why this fork builds with `linux.mk`, not upstream's CMake
+## 🔧 Why this fork builds with `linux.mk` only
 
-Upstream builds with CMake and we deliberately do not. This is the single biggest structural
-difference between the two trees, so it is worth stating plainly rather than leaving people to
-discover it in a build error.
+Upstream has a CMake build; this fork does not carry it. It was never what CI, the AppImage or the AUR
+package were built with, and as a Linux build it did not work: its presets are MinGW, MSVC and clang-cl, its
+dependencies come from vcpkg, and the Linux configuration — the last time it was measured — stopped at the
+link step for want of `libswscale`, which `bflib_fmvids.cpp` needs. The Steam Deck developer bundle that
+builds through it is meant to be driven from a Windows PC.
 
-Their CMake **does not build a working Linux target**, measured against the current tree rather
-than remembered — upstream has improved it since this section was first written, and two of the
-three problems it used to describe are gone:
+So the Linux-only filter removes the whole CMake tree, with vcpkg, the MinGW toolchain and the Deck bundle
+([`packaging/linux-only/remove.list`](packaging/linux-only/remove.list)). `linux.mk` is the build — CI, the
+AppImage, the Flatpak and the AUR package all use it — and the weekly sync now keeps its source list current
+by itself: sources the team adds or deletes are added to or dropped from it in the sync's own merge commit.
 
-- **It configures cleanly now.** SDL3 detection was fixed: it probes `sdl3-image` and `sdl3-mixer`,
-  the names SDL actually ships, and falls back to the capitalised spellings. `cmake -S . -B build`
-  completes in seconds with no `FetchContent` fallback. It also filters platform sources correctly
-  in both directions, rather than only excluding a Linux file from Windows builds.
-- **It still does not link — by one library.** `libswscale`, which `bflib_fmvids.cpp` calls for video
-  scaling, is absent from its Linux dependency set, and the last full attempt stopped at the link step
-  with **4 undefined `swscale` symbols** and no binary. `linux.mk` links it. The other gap this section
-  used to describe, `libepoxy`, went away with the September 2026 renderer sync: upstream vendors its own
-  GL loader (`deps/glad`), so nothing in the tree resolves through epoxy any more. The swscale count is
-  from before that sync and has not been re-measured since.
-
-So the conclusion is unchanged and the reason is a single missing library. That is a small gap, and
-worth revisiting rather than treating as permanent.
-
-None of that is a criticism of upstream: KeeperFX is a Windows project, their CMake serves their
-platform, and the Linux path in it is untested because nobody there runs it.
-
-**It is exactly the reason this fork exists.** `linux.mk` is ours, it is what CI and the AppImage are
-actually built with, and it is kept honest by every release. The price is small and paid knowingly:
-when upstream adds source files we add them to `linux.mk` by hand — a few lines per refactor. We
-consider that a better trade than adopting a build system that does not currently produce a working
-Linux binary.
-
-If upstream's CMake ever builds cleanly on Linux, this is worth revisiting; it would remove that
-manual step. Until then, `linux.mk` is the supported way to build the Tux Edition.
+None of that is a criticism of upstream: KeeperFX is a Windows project and their CMake serves their
+platform. If it ever produces a working Linux binary, bringing it back is one deleted line in
+`remove.list` — the next snapshot then includes it.
 
 ## How the Tux Edition stays current with upstream
 
 **A weekly sync bot does it automatically.** Every Monday a GitHub Action checks the KeeperFX team's
-`master` for new commits and:
+`master` for new commits, takes a **Linux-only snapshot** of it — their tree with every Windows-only file
+and `#ifdef _WIN32` branch removed — and merges that:
 
-- **nothing new** → exits quietly;
-- **merges cleanly and compiles** → opens a pull request into `alpha` listing every upstream change. Nothing
-  merges itself: I read the diff before clicking **Merge** — closely where it touches the Linux path (engine
-  internals, the SDL/OpenGL layer, the build, packaging), lightly where it's Windows-only churn that can
-  never reach this build;
-- **merge conflicts, or the build breaks** → opens an issue for manual attention instead.
+- **nothing new, or only Windows-only changes** → exits quietly;
+- **merges cleanly, compiles, passes the tests and the filter proof** → opens a pull request into `alpha`
+  listing every upstream change. Nothing merges itself: I read the diff before clicking **Merge**;
+- **merge conflicts, a red build or a failed check** → opens an issue for manual attention instead (or adds
+  the week's result to the one already open).
 
 <details>
 <summary><b>More — curation policy, how releases are cut, and manual syncing</b></summary>
@@ -569,15 +552,18 @@ trimmed independently, so we adopted theirs and dropped ours — and we keep our
 better fit. The result is a fork that stays current with the team's work while remaining a deliberate,
 reviewed selection rather than an automatic mirror.
 
-**The Windows half doesn't come along for the ride.** Upstream builds for Windows — their CI cross-compiles
-with MinGW and signs `.exe` patches — so those five workflows are deleted here and this repo's CI is
-Linux-only. That's the standing rule, not a one-off tidy-up: a file that exists purely to build, sign or
-ship the Windows product isn't applicable to this fork and doesn't get carried in, and a sync that tries to
-restore one gets resolved by hand. What we deliberately *don't* do is rip
-the Windows code paths out of the engine: they sit behind `#ifdef _WIN32` in a handful of files, cost this
-build nothing, and tearing them out would mean re-fighting the same merge conflict every single week. Cut
-the Windows *plumbing*, leave the shared *source* alone — that's what keeps the weekly merge cheap enough to
-actually keep doing.
+**The Windows half doesn't come along for the ride — not the plumbing, not the code.** Upstream builds for
+Windows first: a Visual Studio project, MinGW and MSVC CMake presets, vcpkg, Windows CI that signs `.exe`
+patches, a Windows debugger binary in `.vscode/`, and `#ifdef _WIN32` branches through the engine. None of it
+is in this repository. The sync never merges the team's commits directly: it filters their tree first —
+deleting the files in [`packaging/linux-only/remove.list`](packaging/linux-only/remove.list) and, with
+[unifdef](https://dotat.at/prog/unifdef/), every preprocessor branch that only a Windows compiler would ever
+take — and merges that snapshot. Because the previous snapshot is the merge base, Windows content is on
+neither side of the merge: it can't conflict and can't come back, so stripping it costs nothing week to
+week. The filter is **proven** not to change the game: every source the Linux build compiles is
+preprocessed with and without it, and the results must be identical. A guard workflow fails any pull request
+that reintroduces Windows content. The full story, including how to sync by hand, is in
+[`packaging/linux-only/README.md`](packaging/linux-only/README.md).
 
 After the sync PR is merged, a release is cut, and publishing it is the whole job: CI builds the AppImage,
 the game package (`full.7z`), the portable tarball and a small update patch from the previous release of
@@ -587,13 +573,15 @@ rather than waiting to be noticed, and the artwork itself is regenerated from th
 its game package on launch, so it catches up in between). Existing installs are offered the new build by
 the launcher's built-in updater, which downloads the patch when one fits and the full package otherwise.
 
-The same sync can still be done by hand:
+The same sync can still be done by hand (needs `unifdef`: `sudo pacman -S unifdef`):
 ```bash
-git fetch upstream                          # the KeeperFX team's master
-git log --oneline HEAD..upstream/master     # see what they changed
-git merge upstream/master                   # merge (resolve any conflicts)
-./refresh-alpha.sh                          # rebuild and redeploy locally
+git fetch upstream                                                  # the KeeperFX team's master
+git log --oneline "$(packaging/linux-only/synced-upstream.sh)..upstream/master"   # what they changed
+git merge "$(packaging/linux-only/make-snapshot.sh upstream/master)" # merge the Linux-only snapshot
+packaging/linux-only/sync-linux-mk-sources.sh                      # add their new sources to linux.mk
+./refresh-alpha.sh                                                  # rebuild and redeploy locally
 ```
+Never `git merge upstream/master` directly: that brings the Windows content back.
 
 </details>
 

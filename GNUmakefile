@@ -4,11 +4,10 @@
 # Linux-only fork builds the Linux target instead of upstream's mingw/Windows one.
 # Everything is forwarded to linux.mk unchanged.
 #
-# Upstream's Makefile and linux.mk are deliberately left untouched: both are
-# upstream-owned and this fork takes weekly syncs, so keeping the fix in a file
-# upstream does not have keeps the conflict surface at zero.
-#
-# Run `make -f Makefile <target>` if you ever genuinely want the Windows build.
+# Upstream's Makefile is deliberately left untouched: it is theirs, and the
+# release workflows still use it for one Linux job -- `make -f Makefile pkg-gfx`
+# regenerates the artwork. linux.mk is this fork's own (upstream deleted theirs
+# in #5083) and is the only engine build; see packaging/linux-only/README.md.
 
 # Goals to forward. `make` with no arguments means `all`.
 GOALS := $(or $(MAKECMDGOALS),all)

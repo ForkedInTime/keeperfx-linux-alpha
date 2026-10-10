@@ -1,0 +1,45 @@
+# Linux-only guard: keeps Windows content out of this fork.
+#
+# The weekly sync never brings Windows files or #ifdef'd Windows code in (it
+# merges filtered snapshots -- packaging/linux-only/README.md), but a manual
+# `git merge upstream/master`, a cherry-pick or a hand-made commit could. This
+# check runs on every pull request into alpha and every push to it, in seconds,
+# with no build:
+#   - the filter's own self-test (synthetic repo, exact expected output);
+#   - check-tree.sh: no Windows-only files, no #if on a Windows symbol;
+#   - linux.mk's source list matches the engine sources in the tree;
+#   - shellcheck over the filter's scripts.
+name: Linux-only guard
+
+on:
+  pull_request:
+    branches: [alpha]
+  push:
+    branches: [alpha]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install unifdef
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends unifdef
+
+      - name: Filter self-test
+        run: packaging/linux-only/selftest.sh
+
+      - name: No Windows-only files or code
+        run: packaging/linux-only/check-tree.sh
+
+      - name: linux.mk lists every engine source
+        run: packaging/linux-only/sync-linux-mk-sources.sh --check
+
+      - name: shellcheck the filter scripts
+        run: shellcheck -x -P packaging/linux-only packaging/linux-only/*.sh

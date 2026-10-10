@@ -181,7 +181,9 @@ jobs:
         run: |
           make -f linux.mk deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
                            deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
-          BN="$(git rev-list --count HEAD)"
+          # packaging/linux-only/build-number.sh keeps counting the team's commits now
+          # that the sync merges filtered snapshots; a tag from before it falls back.
+          BN="$(if [ -x packaging/linux-only/build-number.sh ]; then packaging/linux-only/build-number.sh; else git rev-list --count HEAD; fi)"
           echo "Build number: $BN"
           rm -f src/ver_defs.h
           # VER_SUFFIX must be EXPLICITLY empty: linux.mk defaults an unset suffix
