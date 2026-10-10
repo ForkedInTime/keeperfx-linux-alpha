@@ -384,7 +384,7 @@ static int matchmaking_connect_thread(void *request)
         LbNetLog("Matchmaking: connecting to \"%s\"\n", matchmaking_ws_url);
         curl_easy_setopt(curl_handle, CURLOPT_URL, matchmaking_ws_url);
         curl_easy_setopt(curl_handle, CURLOPT_CONNECT_ONLY, 2L);
-        curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT_MS, (int32_t)CONNECT_TIMEOUT_MS);
+        curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT_MS, (long)CONNECT_TIMEOUT_MS);
         curl_easy_setopt(curl_handle, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         CURLcode curl_result = curl_easy_perform(curl_handle);
         if (curl_result != CURLE_OK) {
