@@ -177,7 +177,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
 > | 🧹 | **Linux-only source** — every Windows-only file and `#ifdef _WIN32` branch is stripped from the team's code before it is merged (281 files, ~101,000 lines at the switch), [proven](packaging/linux-only/README.md) not to change what Linux compiles; a guard workflow keeps it from coming back | the whole tree |
 > | 🧮 | **64-bit & Windows-assumption fixes** — the game was written for 32-bit Windows: level-script argument slots, the software rasteriser's carries (creature shadows), signed game-turn arithmetic, movie-recorder and high-score file layouts, campaign progress written by earlier Linux builds, a network timeout; plus mod files in any letter case, `\` paths, Korean code page 949, an API-server SIGPIPE | ~17 fixes |
-> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
+> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008, and map scripts that can read files but not change them | ~35 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 8 wins |
 > | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland, artwork regenerated from upstream's graphics repository on every build | 5 items |
@@ -185,7 +185,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges --invert-grep --grep='^Linux-Snapshot-Of:' upstream/master..HEAD`
-> — 321 commits of ours on top of theirs, on top of 27 merges of their work (snapshot commits excluded). The sections below are the line items.</sub>
+> — 324 commits of ours on top of theirs, on top of 27 merges of their work (snapshot commits excluded). The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -354,6 +354,11 @@ first.)
   message index when given a chat-icon argument (a `ScriptValue` union overlap on 64-bit), crashing workshop
   campaigns like *Tempest Keeper* the moment their script ran. *(reported upstream:
   [dkfans/keeperfx#4969](https://github.com/dkfans/keeperfx/issues/4969))*
+- **Map scripts can read files, not change them** — level and campaign Lua arrives with downloaded maps
+  and Workshop items, and upstream's sandbox still let one line of it overwrite or delete any file you own
+  (or load a native library shipped beside it). Here scripts can only read: writes and deletes are refused
+  the way a failed open always was, and `require` loads no native code. The game's own scripts, and how it
+  saves their state, are unaffected — validated against every Lua file in the game and upstream's tree.
 - **Hardened against crafted add-ons** — a multi-agent Linux audit found several out-of-bounds writes a
   malicious or buggy campaign/map/mod could trigger (script index checks, `.lif`/`.slx`/texture/palette
   file-load size bounds, PNG sprite & movie buffers) plus more union-aliasing and an unbounded WAV parse.
