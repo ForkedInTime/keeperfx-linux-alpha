@@ -24,9 +24,7 @@
 #ifndef BFLIB_RENDER_GLWORLD_H
 #define BFLIB_RENDER_GLWORLD_H
 
-#ifndef _WIN32
 #include <epoxy/gl.h>
-#endif
 #include <stdint.h>
 #include "bflib_basics.h"
 
@@ -67,7 +65,6 @@ extern TbBool gl_hires_sprites_active;
  *  a solid fill by GUI/overlay pixels in the 3D view. */
 #define GL_WORLD_SENTINEL_INDEX 0
 
-#ifndef _WIN32
 
 /** Initialise the GL world module. Creates an RGBA16F offscreen scene FBO
  *  sized world_w x world_h using the GL context that is already current
@@ -230,7 +227,6 @@ GLuint glworld_hires_sprites_array(void);
 /** Look up the array layer for frame_key; returns >=0 or -1 if no override. */
 int glworld_hires_sprites_layer(uint32_t frame_key);
 
-#endif /* !_WIN32 */
 
 #ifdef __cplusplus
 }

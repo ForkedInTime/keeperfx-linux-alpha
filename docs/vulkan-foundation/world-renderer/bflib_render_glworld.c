@@ -26,7 +26,6 @@
 
 #include "bflib_basics.h"
 
-#ifndef _WIN32
 #include <epoxy/gl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +36,6 @@
 #include "engine_textures.h"
 #include "bflib_video.h"
 #include "vidmode.h"
-#endif
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -53,7 +51,6 @@ TbBool gl_hires_active = false;
 /** True when the hi-res sprite override store is active and >=1 frame loaded. */
 TbBool gl_hires_sprites_active = false;
 
-#ifndef _WIN32
 
 /* ----------------------------------------------------------------------- */
 /* Internal state                                                           */
@@ -2135,11 +2132,6 @@ void glworld_debug_dump(const char *path)
     free(rgb);
 }
 
-#else /* _WIN32: stubs — the module compiles to nothing on Windows. */
-
-/* gl_world_active is defined above (outside the #ifndef) — no stub needed. */
-
-#endif /* !_WIN32 */
 
 #ifdef __cplusplus
 }

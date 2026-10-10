@@ -22,9 +22,6 @@
 
 #include "bflib_basics.h"
 
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif // _MSC_VER
 
 #ifdef FUNCTESTING
   #include "ftests/ftest.h"
@@ -674,11 +671,7 @@ int32_t LbArcTanAngle(int32_t x,int32_t y)
 static long bitScanReverse(long s)
 {
   unsigned long source = (unsigned long)s;
-#if defined(_MSC_VER)
-    unsigned long i; // DWORD, without pulling in <windows.h> just for the typedef
-    uint8_t success = _BitScanReverse(&i, source);
-    return success != 0 ? i : -1;
-#elif defined(__GNUC__)
+#if   defined(__GNUC__)
     int result = source == 0 ? -1 : __builtin_clz(source) ^ 31;
     return result;
 #else

@@ -150,9 +150,6 @@
 
 #include "post_inc.h"
 
-#ifdef _MSC_VER
-#define strcasecmp _stricmp
-#endif
 
 
 short default_loc_player = 0;
