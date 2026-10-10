@@ -1,5 +1,9 @@
 include version.mk
 
+# A recipe that fails must not leave its half-written target behind looking
+# finished (an extracted header, a downloaded archive).
+.DELETE_ON_ERROR:
+
 BUILD_NUMBER ?= $(VER_BUILD)
 VER_SUFFIX ?= Prototype
 VER_STRING = $(strip $(VER_MAJOR).$(VER_MINOR).$(VER_RELEASE).$(BUILD_NUMBER) $(VER_SUFFIX))
@@ -485,26 +489,39 @@ deps/centitoml/toml_conv.c: deps/centijson/include/json.h
 # before an incremental build after switching commits when distributing.
 -include $(KFX_OBJECTS:.o=.d) $(TOML_OBJECTS:.o=.d) $(GLAD_OBJECTS:.o=.d)
 
+# Prebuilt dependencies from dkfans/kfx-deps. `curl -f` makes an HTTP error fail
+# instead of saving the error page as the archive (which was then never fetched
+# again, so every later build failed -- in an AUR build directory, until a clean
+# build). The download goes to a temporary name and is moved into place only
+# once its SHA-256 matches, so a truncated or substituted archive is never used.
+# A new upstream release of one of these means a new URL here, and a new hash:
+#   curl -fLsS -o x.tar.gz <url> && sha256sum x.tar.gz
+define fetch_dep
+	curl -fLsS --retry 3 -o $@.part "$(1)"
+	echo "$(2)  $@.part" | sha256sum -c --quiet - || { rm -f $@.part; echo "linux.mk: checksum mismatch for $(1)" >&2; exit 1; }
+	mv -f $@.part $@
+endef
+
 deps/astronomy-lin64.tar.gz:
-	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20250418/astronomy-lin64.tar.gz"
+	$(call fetch_dep,https://github.com/dkfans/kfx-deps/releases/download/20250418/astronomy-lin64.tar.gz,7d2bedd5e97035b26257c6f593eaf24a853bcd72a1db0da4aa56706bdfbc0e22)
 
 deps/astronomy/include/astronomy.h: deps/astronomy-lin64.tar.gz | deps/astronomy
 	tar xzmf $< -C deps/astronomy
 
 deps/centijson-lin64.tar.gz:
-	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20250418/centijson-lin64.tar.gz"
+	$(call fetch_dep,https://github.com/dkfans/kfx-deps/releases/download/20250418/centijson-lin64.tar.gz,ba42b5146140978da909bff4fc89fb09c064d315c4db76e56dfd51284ddd329f)
 
 deps/centijson/include/json.h: deps/centijson-lin64.tar.gz | deps/centijson
 	tar xzmf $< -C deps/centijson
 
 deps/enet6-lin64.tar.gz:
-	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20260213/enet6-lin64.tar.gz"
+	$(call fetch_dep,https://github.com/dkfans/kfx-deps/releases/download/20260213/enet6-lin64.tar.gz,04615d63f8e540604c195f2ea40076ef51903031695104a95a1c613847e772f9)
 
 deps/enet6/include/enet6/enet.h: deps/enet6-lin64.tar.gz | deps/enet6
 	tar xzmf $< -C deps/enet6
 
 deps/libcurl-lin64.tar.gz:
-	curl -Lso $@ "https://github.com/dkfans/kfx-deps/releases/download/20260310/libcurl-lin64.tar.gz"
+	$(call fetch_dep,https://github.com/dkfans/kfx-deps/releases/download/20260310/libcurl-lin64.tar.gz,5aaac722ec4a7cf24c4c1b02279739661e9cd32e858644db5ddae6c11b8b20e9)
 
 deps/libcurl/lib/libcurl.a: deps/libcurl-lin64.tar.gz | deps/libcurl
 	tar xzmf $< -C deps/libcurl
