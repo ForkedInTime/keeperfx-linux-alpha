@@ -157,9 +157,9 @@ sizeof_catalogue_entry=412
 #           and packets) moved the cameras, view mode and zoom levels from
 #    -2556  `players[9]` into `user_states[4]`; fewer users than players.
 #    -1024  #5377 dropped `head_bob` from struct CreatureControl (x1024).
-#     -288  #5376 (replay rewrite) moved the packet-file state out of struct
-#           Game, #5383 added the host timestamp Lua's date/time now reads,
-#           #5417 dropped easter_eggs_enabled.
+#     -300  #5376 (replay rewrite) moved the packet-file state out of struct
+#           Game (-315), #5383 added the host timestamp Lua's date/time now
+#           reads (+16), #5417 dropped easter_eggs_enabled (-1).
 # Accepted: all upstream design changes, and carrying the old layout would mean
 # forking struct Game itself.
 # The same sync split campaign progress out of fx1contn.sav into one file per
