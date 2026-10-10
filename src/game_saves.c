@@ -493,8 +493,12 @@ TbBool delete_save_game(long slot_num)
     // Copy out of prepare_file_fmtpath's shared static buffer immediately -- the
     // fallback path below calls it again to build the trash destination, which
     // would otherwise overwrite this string out from under us.
+    // Take the name that is really on disk: the catalogue scan and LbFileOpen
+    // match "fx1g%04d.sav" case-insensitively, so a FX1G0003.SAV copied from a
+    // DOS/GOG install lists and loads -- and rename() below must move that file,
+    // not a lower-case name that does not exist.
     char save_path[DISKPATH_SIZE * 2];
-    snprintf(save_path, sizeof(save_path), "%s", prepare_file_fmtpath(FGrp_Save, saved_game_filename, slot_num));
+    LbFileCaseInsensitivePath(prepare_file_fmtpath(FGrp_Save, saved_game_filename, slot_num), save_path, sizeof(save_path));
 
     if (save_trash_max_count == 0)
     {
