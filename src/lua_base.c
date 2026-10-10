@@ -3,6 +3,8 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <limits.h>
+#include <string.h>
 
 #include "lua_api.h"
 
@@ -28,6 +30,84 @@ extern "C" {
 #endif
 
 struct lua_State *Lvl_script = NULL;
+
+/* Lua opens script files itself, with a plain fopen() of the name as spelt.
+ * Everything below decides whether a script exists with LbFileExists(), which
+ * matches case-insensitively (as LbFileOpen does), so a campaign whose
+ * LEVELS_LOCATION says campgns/MyCamp while the folder on disk is
+ * campgns/mycamp passes the check and then its map's .lua silently fails to
+ * load. Windows' filesystem matches case itself, so the same campaign works
+ * there. Hand Lua the name that is really on disk instead -- for every
+ * luaL_dofile() in this file, so script loading added upstream later is
+ * covered without touching each call. */
+static int lua_dofile_on_disk(lua_State *L, const char *fname)
+{
+    char disk_fname[PATH_MAX];
+    return luaL_dofile(L, LbFileCaseInsensitivePath(fname, disk_fname, sizeof(disk_fname)));
+}
+#undef luaL_dofile
+#define luaL_dofile(L, fname) lua_dofile_on_disk(L, fname)
+
+/* The same mismatch for require(): Lua's own searcher fopen()s each
+ * package.path candidate exactly as spelt, so a module under that campaign's
+ * folder -- or require "Utils" beside a real utils.lua -- is not found. This
+ * searcher runs after Lua's own ones, so it only ever sees names they could
+ * not find, and resolves each candidate the way LbFileOpen does. */
+static int lua_searcher_on_disk(lua_State *L)
+{
+    const char *name = luaL_checkstring(L, 1);
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "path");
+    const char *path = lua_tostring(L, -1);
+    if (path == NULL)
+        return 0;
+    const char *modname = luaL_gsub(L, name, ".", "/");
+    while (*path != '\0')
+    {
+        const char *sep = strchr(path, ';');
+        size_t len = (sep != NULL) ? (size_t)(sep - path) : strlen(path);
+        if (len > 0)
+        {
+            lua_pushlstring(L, path, len);
+            const char *candidate = luaL_gsub(L, lua_tostring(L, -1), "?", modname);
+            if (LbFileExists(candidate))
+            {
+                char disk_fname[PATH_MAX];
+                LbFileCaseInsensitivePath(candidate, disk_fname, sizeof(disk_fname));
+                if (luaL_loadfile(L, disk_fname) != LUA_OK)
+                    return luaL_error(L, "error loading module '%s' from file '%s':\n\t%s", name, disk_fname, lua_tostring(L, -1));
+                return 1;
+            }
+            lua_pop(L, 2);
+        }
+        if (sep == NULL)
+            break;
+        path = sep + 1;
+    }
+    return 0;
+}
+
+static void add_lua_searcher_on_disk(lua_State *L)
+{
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "searchers"); // Lua 5.2+
+    if (!lua_istable(L, -1))
+    {
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "loaders"); // Lua 5.1 / LuaJIT
+    }
+    if (lua_istable(L, -1))
+    {
+#if LUA_VERSION_NUM >= 502
+        int count = (int)lua_rawlen(L, -1);
+#else
+        int count = (int)lua_objlen(L, -1);
+#endif
+        lua_pushcfunction(L, lua_searcher_on_disk);
+        lua_rawseti(L, -2, count + 1);
+    }
+    lua_pop(L, 2);
+}
 
 
 static int lua_disabled_os_function(lua_State *L)
@@ -110,6 +190,7 @@ int setLuaPath( lua_State* L)
     lua_pushstring(L, new_path); // push the new one
     lua_setfield(L, -2, "path"); // set the field "path" in table at -2 with value at top of stack
     lua_pop(L, 1); // get rid of package table from top of stack
+    add_lua_searcher_on_disk(L);
     return 0; // all done!
 }
 
