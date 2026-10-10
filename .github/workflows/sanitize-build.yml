@@ -61,7 +61,7 @@ jobs:
       - name: Build the engine with ASan + UBSan
         run: |
           rm -f src/ver_defs.h
-          make -f linux.mk SANITIZE=1 BUILD_NUMBER="$(git rev-list --count HEAD)" \
+          make -f linux.mk SANITIZE=1 BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" \
             VER_SUFFIX=alpha -j"$(nproc)"
 
       - name: Run the unit tests under the sanitizers

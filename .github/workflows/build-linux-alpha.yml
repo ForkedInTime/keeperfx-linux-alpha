@@ -62,7 +62,9 @@ jobs:
 
       - name: Build the engine
         run: |
-          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          # packaging/linux-only/build-number.sh keeps counting the team's commits now
+          # that the sync merges filtered snapshots; a tag from before it falls back.
+          BUILD_NUMBER="$(if [ -x packaging/linux-only/build-number.sh ]; then packaging/linux-only/build-number.sh; else git rev-list --count HEAD; fi)"
           echo "Build number: $BUILD_NUMBER"
           # Suffix derived from the tag -- see the same block in build-appimage.yml.
           # A stable tag must not stamp itself "alpha", or the launcher classifies

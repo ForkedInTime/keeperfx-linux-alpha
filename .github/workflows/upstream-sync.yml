@@ -1,11 +1,26 @@
-# Weekly upstream sync bot (PR/notify — never auto-ships).
+# Weekly upstream sync bot (PR/notify -- never auto-ships).
 #
-# Every Monday it checks the KeeperFX team's master for new commits and:
-#   - nothing new                 -> exits quietly
-#   - a sync PR is already open   -> skips (won't stack PRs)
-#   - merges CLEANLY and BUILDS   -> opens a Pull Request into `alpha` (you click Merge)
-#   - merge CONFLICTS             -> opens an issue "needs manual merge", stops
-#   - merges clean but build FAILS-> opens an issue "builds red", stops
+# Every Monday it checks the KeeperFX team's master for new commits and merges
+# a LINUX-ONLY SNAPSHOT of it -- never their commits directly:
+#
+#   1. packaging/linux-only/make-snapshot.sh takes the team's tree, deletes
+#      every Windows-only file (packaging/linux-only/remove.list) and every
+#      #ifdef'd Windows branch (unifdef), and commits that on top of the last
+#      snapshot. Windows content therefore never reaches a merge, can never
+#      conflict, and is never re-imported. See packaging/linux-only/README.md.
+#   2. The snapshot is merged into a throwaway branch off `alpha`; new or
+#      deleted engine sources are added to / dropped from linux.mk's list.
+#   3. The result is checked: no Windows content (check-tree.sh), it compiles,
+#      the unit tests pass, and prove-equivalence.sh shows the filter changed
+#      nothing the Linux compiler sees.
+#
+# Outcomes:
+#   - nothing new, or only Windows-only changes   -> exits quietly
+#   - a sync PR is already open                    -> skips (won't stack PRs)
+#   - merges cleanly and every check passes        -> opens a PR into `alpha`
+#   - conflicts, a red build, or a failed check    -> opens an issue -- or, if a
+#                                                     sync issue is already open,
+#                                                     adds this week's result to it
 #
 # It never cuts a release. After you merge the PR, run the release as usual.
 # Runs on GitHub's servers, so it works while your computer is off.
@@ -19,7 +34,7 @@ on:
 permissions:
   contents: write             # push the sync branch
   pull-requests: write        # open the PR
-  issues: write               # open an issue on conflict/build failure
+  issues: write               # open or update the sync issue
 
 concurrency:
   group: upstream-sync
@@ -32,8 +47,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # Pin gh to THIS fork. Once the `upstream` remote is added, gh would
       # otherwise resolve to the parent repo (dkfans/keeperfx) and open
-      # PRs/issues there — that's what broke the 2026-07-06 run.
+      # PRs/issues there -- that's what broke the 2026-07-06 run.
       GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Checkout alpha (full history)
         uses: actions/checkout@v4
@@ -44,22 +60,29 @@ jobs:
       - name: Ensure the 'upstream-sync' label exists
         run: gh label create upstream-sync --color 1D76DB --description "Weekly upstream merge bot" --force || true
 
-      - name: Configure git + fetch upstream
+      - name: Configure git, fetch upstream, install the filter's tools
         run: |
           git config user.name "kfx-upstream-sync[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/dkfans/keeperfx.git
           git fetch --quiet upstream master
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends unifdef
 
       - name: Any new upstream commits?
         id: check
         run: |
-          if [ -z "$(git log --oneline HEAD..upstream/master)" ]; then
-            echo "Up to date with upstream — nothing to do."
+          # The team's commit the last merged snapshot was made from. Comparing
+          # with HEAD..upstream/master would not work: snapshots do not bring the
+          # team's commits into alpha's history.
+          synced="$(packaging/linux-only/synced-upstream.sh)"
+          echo "Last synced to dkfans/keeperfx@${synced}"
+          if [ "$synced" = "$(git rev-parse upstream/master)" ]; then
+            echo "Up to date with upstream -- nothing to do."
             echo "has_new=false" >> "$GITHUB_OUTPUT"
           else
             echo "has_new=true" >> "$GITHUB_OUTPUT"
-            git log --pretty=format:'- %s (`%h`)' HEAD..upstream/master > new_commits.md
+            git log --no-merges --pretty=format:'- %s (`%h`)' "$synced..upstream/master" > new_commits.md
             echo "New upstream commits:"; cat new_commits.md
           fi
 
@@ -69,21 +92,48 @@ jobs:
         run: |
           OPEN=$(gh pr list --label upstream-sync --state open --json number --jq 'length')
           if [ "$OPEN" != "0" ]; then
-            echo "A sync PR is already open — skipping so PRs don't stack."
+            echo "A sync PR is already open -- skipping so PRs don't stack."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+          # An open sync issue is updated rather than joined by another one.
+          echo "issue=$(gh issue list --label upstream-sync --state open --json number --jq '.[0].number // empty')" >> "$GITHUB_OUTPUT"
 
-      - name: Attempt the merge (on a throwaway branch)
-        id: merge
+      - name: Make the Linux-only snapshot
+        id: snap
         if: steps.check.outputs.has_new == 'true' && steps.guard.outputs.skip != 'true'
+        run: |
+          rc=0
+          sha="$(packaging/linux-only/make-snapshot.sh upstream/master 2> snapshot.log)" || rc=$?
+          cat snapshot.log
+          if [ "$rc" != 0 ]; then
+            echo "The filter could not process the team's tree (exit $rc)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$sha" ]; then
+            echo "Everything the team changed is Windows-only -- nothing to merge."
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            git log -1 --format=%B "$sha"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge the snapshot (on a throwaway branch)
+        id: merge
+        if: steps.snap.outputs.sha != ''
+        env:
+          SNAP: ${{ steps.snap.outputs.sha }}
         run: |
           BRANCH="upstream-sync/run-${{ github.run_id }}"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           git checkout -b "$BRANCH"
-          if git merge --no-ff --no-commit upstream/master; then
-            git commit -m "merge upstream master (weekly auto-sync)"
+          if git merge --no-ff --no-commit "$SNAP"; then
+            # Sources the team added or deleted this week, applied to linux.mk's
+            # list (every source left after the filter is meant for Linux).
+            packaging/linux-only/sync-linux-mk-sources.sh | tee mk_sources.txt
+            git add linux.mk
+            git commit -q -m "Merge the Linux-only snapshot of dkfans/keeperfx@$(git rev-parse --short=9 upstream/master) (weekly auto-sync)"
             echo "clean=true" >> "$GITHUB_OUTPUT"
             echo "Merge is clean."
           else
@@ -93,28 +143,15 @@ jobs:
             echo "Merge has conflicts:"; cat conflicts.txt
           fi
 
-      - name: Open issue — merge conflicts
-        if: steps.merge.outputs.clean == 'false'
-        run: |
-          {
-            echo "The weekly upstream sync hit **merge conflicts** — it needs a human to resolve them."
-            echo
-            echo "### New upstream commits"
-            cat new_commits.md
-            echo; echo
-            echo "### Conflicting files"
-            sed 's/^/- /' conflicts.txt
-            echo
-            echo "Resolve locally: \`git fetch upstream && git merge upstream/master\`, fix, build, release."
-          } > issue_body.md
-          gh issue create --label upstream-sync \
-            --title "Upstream sync needs a manual merge ($(date +%Y-%m-%d))" \
-            --body-file issue_body.md
+      - name: Linux-only check (no Windows files or code after the merge)
+        id: linuxonly
+        if: steps.merge.outputs.clean == 'true'
+        continue-on-error: true
+        run: packaging/linux-only/check-tree.sh
 
-      - name: Install build deps (clean merge)
+      - name: Install build deps
         if: steps.merge.outputs.clean == 'true'
         run: |
-          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential git python3 pkg-config \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
@@ -153,60 +190,144 @@ jobs:
             deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
             deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
           rm -f src/ver_defs.h
-          make -f linux.mk BUILD_NUMBER="$(git rev-list --count HEAD)" VER_SUFFIX=alpha -j"$(nproc)"
+          make -f linux.mk BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" VER_SUFFIX=alpha -j"$(nproc)"
+
+      - name: Unit tests
+        id: tests
+        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: tests/run.sh
+
+      # Re-derives this week's filtering from scratch and compares what the Linux
+      # compiler sees with and without it. A failure here means the filter itself
+      # did something wrong -- the most important thing for a human to look at.
+      - name: Prove the filter changed nothing on Linux
+        id: proof
+        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: packaging/linux-only/prove-equivalence.sh --upstream upstream/master
 
       # The save-format break of 2026-08-19 arrived exactly this way: an
       # upstream commit added one field to struct Thing, the merge was clean,
       # the build was green, and five campaigns in progress became unloadable.
-      # Nothing in the diff looked like a save-format change. Not fatal to the
-      # PR -- taking upstream may still be right -- but it must be on the PR
-      # before anyone clicks Merge, not discovered by a player afterwards.
+      # Not fatal to the PR -- taking upstream may still be right -- but it must
+      # be on the PR before anyone clicks Merge.
       - name: Save-format check (does this merge invalidate every saved game?)
         id: saveformat
         if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
         continue-on-error: true
         run: packaging/ci/check-save-format.sh
 
-      - name: Open issue — merged clean but build failed
-        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'failure'
+      - name: Report -- open a PR, or open/update the sync issue
+        if: steps.snap.outcome != 'skipped'
+        env:
+          ISSUE: ${{ steps.guard.outputs.issue }}
+          SNAP_OK: ${{ steps.snap.outputs.ok }}
+          SNAP: ${{ steps.snap.outputs.sha }}
+          CLEAN: ${{ steps.merge.outputs.clean }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          LINUXONLY: ${{ steps.linuxonly.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          PROOF: ${{ steps.proof.outcome }}
+          SAVEFORMAT: ${{ steps.saveformat.outcome }}
         run: |
-          {
-            echo "The weekly upstream sync **merged cleanly but failed to build** — needs a look."
-            echo
-            echo "### New upstream commits"
-            cat new_commits.md
-            echo; echo
-            echo "Failed run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          } > issue_body.md
-          gh issue create --label upstream-sync \
-            --title "Upstream sync builds red ($(date +%Y-%m-%d))" \
-            --body-file issue_body.md
+          today="$(date +%Y-%m-%d)"
+          upstream_short="$(git rev-parse --short=9 upstream/master)"
+          new_commits() { echo "### New upstream commits"; cat new_commits.md; echo; echo; }
 
-      - name: Push branch + open PR (clean + green)
-        if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
-        run: |
-          git push origin "${{ steps.merge.outputs.branch }}"
+          # Problems a person has to resolve, in the order they block each other.
+          problem="" title=""
+          if [ "$SNAP_OK" != true ]; then
+            title="Upstream sync: the Linux-only filter needs a person ($today)"
+            problem="The Linux-only filter could not process the team's tree -- usually a
+          preprocessor condition naming a Windows symbol that it cannot reduce
+          (see the log below). Teach packaging/linux-only/ about it, or rewrite that
+          line by hand in a snapshot.
+
+          \`\`\`
+          $(cat snapshot.log)
+          \`\`\`"
+          elif [ -z "$SNAP" ]; then
+            echo "Only Windows-only changes upstream -- nothing to report."
+            exit 0
+          elif [ "$CLEAN" != true ]; then
+            title="Upstream sync needs a manual merge ($today)"
+            problem="Merging the Linux-only snapshot hit **merge conflicts**.
+
+          ### Conflicting files
+          $(sed 's/^/- /' conflicts.txt)"
+          elif [ "$LINUXONLY" != success ]; then
+            title="Upstream sync: Windows content survived the merge ($today)"
+            problem="The merged tree fails \`packaging/linux-only/check-tree.sh\` -- see the run log."
+          elif [ "$BUILD" != success ]; then
+            title="Upstream sync builds red ($today)"
+            problem="The snapshot **merged cleanly but failed to build** -- see the run log."
+          elif [ "$PROOF" != success ]; then
+            title="Upstream sync: the filter changed what Linux compiles ($today)"
+            problem="\`prove-equivalence.sh\` found a file whose compiler input differs with and
+          without the Linux-only filter. Do not merge until that is understood -- see the run log."
+          elif [ "$TESTS" != success ]; then
+            title="Upstream sync: unit tests fail ($today)"
+            problem="The merge builds, but \`tests/run.sh\` fails -- see the run log."
+          fi
+
+          if [ -n "$problem" ]; then
+            {
+              printf '%s\n\n' "$problem"
+              new_commits
+              echo "Failed run: $RUN_URL"
+              echo
+              echo "**Resolve locally** (needs \`unifdef\`: \`pacman -S unifdef\` / \`apt install unifdef\`):"
+              echo '```bash'
+              echo 'git fetch origin && git switch -c sync/upstream-'"$today"' origin/alpha'
+              echo 'git remote add upstream https://github.com/dkfans/keeperfx.git 2>/dev/null; git fetch upstream master'
+              echo 'git merge "$(packaging/linux-only/make-snapshot.sh upstream/master)"   # resolve conflicts, then commit'
+              echo 'packaging/linux-only/sync-linux-mk-sources.sh && packaging/linux-only/check-tree.sh'
+              echo '```'
+              echo "Never \`git merge upstream/master\` directly: that brings the Windows content back."
+            } > issue_body.md
+            if [ -n "$ISSUE" ]; then
+              { echo "**$title**"; echo; cat issue_body.md; } > comment.md
+              gh issue comment "$ISSUE" --body-file comment.md
+            else
+              gh issue create --label upstream-sync --title "$title" --body-file issue_body.md
+            fi
+            exit 0
+          fi
+
+          git push origin "$BRANCH"
           {
-            echo "🔄 **Weekly upstream sync** — merged \`dkfans/keeperfx@master\` cleanly and it **builds** ✅"
-            echo "_(compile-checked in CI; not playtested — merge ships it to users, so give it a glance.)_"
+            echo "🔄 **Weekly upstream sync** -- merged a Linux-only snapshot of \`dkfans/keeperfx@${upstream_short}\`; it **builds**, the unit tests pass, and the filter is proven to change nothing the Linux compiler sees ✅"
+            echo "_(compile-checked in CI; not playtested -- merge ships it to users, so give it a glance.)_"
             echo
-            if [ "${{ steps.saveformat.outcome }}" != "success" ]; then
+            if [ "$SAVEFORMAT" != success ]; then
               echo "> [!WARNING]"
               echo "> **This merge breaks save compatibility.** \`sizeof(struct Game)\` changed, and the engine"
-              echo "> refuses any save whose size does not match the running build — so merging this makes"
-              echo "> every existing saved game, everyone's, unloadable."
-              echo ">"
-              echo "> The [run log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) shows the sizes and the likely field."
-              echo "> Either keep the new state out of \`struct Game\`, or accept the break by updating"
-              echo "> \`packaging/ci/save-format-baseline\` on this branch — read that file first."
+              echo "> refuses any save whose size does not match the running build -- so merging this makes"
+              echo "> every existing saved game unloadable, and the release build fails until"
+              echo "> \`packaging/ci/save-format-baseline\` is updated on this branch (read that file first)."
+              echo "> The [run log]($RUN_URL) shows the sizes and the likely field."
               echo
             fi
-            echo "### New upstream commits"
-            cat new_commits.md
-            echo; echo
-            echo "**To ship:** merge this PR into \`alpha\`, then cut the release (build the AppImage + full.7z and attach, as usual)."
+            if [ -s mk_sources.txt ] && ! grep -q 'up to date' mk_sources.txt; then
+              echo "### linux.mk source list"
+              sed 's/^/- /' mk_sources.txt
+              echo
+            fi
+            echo "### Windows content removed from the team's tree"
+            git log -1 --format=%B "$SNAP" | sed -n '/^Filtered with/,/^$/p' | sed '1d;s/^ */- /;/^- $/d'
+            echo
+            new_commits
+            echo "**To ship:** merge this PR into \`alpha\` (a merge commit -- squashing would drop the snapshot"
+            echo "commit the next sync builds on), then cut the release as usual."
           } > pr_body.md
-          gh pr create --base alpha --head "${{ steps.merge.outputs.branch }}" \
-            --label upstream-sync \
-            --title "Weekly upstream sync ($(date +%Y-%m-%d))" \
-            --body-file pr_body.md
+          url="$(gh pr create --base alpha --head "$BRANCH" \
+                   --label upstream-sync \
+                   --title "Weekly upstream sync ($today)" \
+                   --body-file pr_body.md)"
+          echo "$url"
+          if [ -n "$ISSUE" ]; then
+            gh issue comment "$ISSUE" --body "This week's sync merged cleanly: $url"
+            gh issue close "$ISSUE" --reason completed
+          fi

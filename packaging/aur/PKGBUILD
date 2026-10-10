@@ -135,8 +135,17 @@ build() {
   # warning. Given through the environment so linux.mk's own += flags survive.
   export KFX_CFLAGS="-ffile-prefix-map=${srcdir}=/usr/src/${pkgbase}"
   export KFX_CXXFLAGS="-ffile-prefix-map=${srcdir}=/usr/src/${pkgbase}"
+  # build-number.sh keeps counting the team's commits now that the sync merges
+  # filtered snapshots (packaging/linux-only/README.md); tags from before it
+  # was added fall back to the plain count, which is what they were built with.
+  local _build_number
+  if [ -x packaging/linux-only/build-number.sh ]; then
+    _build_number="$(packaging/linux-only/build-number.sh)"
+  else
+    _build_number="$(git rev-list --count HEAD)"
+  fi
   make -f linux.mk \
-    BUILD_NUMBER="$(git rev-list --count HEAD)" \
+    BUILD_NUMBER="${_build_number}" \
     VER_SUFFIX="${_ver_suffix}" \
     -j"$(nproc)"
 
