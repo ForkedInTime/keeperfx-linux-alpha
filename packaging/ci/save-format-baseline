@@ -162,3 +162,7 @@ sizeof_catalogue_entry=412
 #           #5417 dropped easter_eggs_enabled.
 # Accepted: all upstream design changes, and carrying the old layout would mean
 # forking struct Game itself.
+# The same sync split campaign progress out of fx1contn.sav into one file per
+# campaign (#5360), importing the old file once. That import only accepted the
+# 32-bit-long layout, so on Linux it would have dropped every player's progress;
+# src/game_saves.c reads the 64-bit layout too (tests/test_legacy_progress.c).
