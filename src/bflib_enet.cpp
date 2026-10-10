@@ -24,9 +24,6 @@
 #include "game_legacy.h"
 #include "player_data.h"
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#endif
 #include <enet6/enet.h>
 #include <cstddef>
 #include <climits>

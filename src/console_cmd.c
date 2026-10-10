@@ -81,22 +81,6 @@
 extern "C" {
 #endif
 
-#if defined(__MINGW32__)
-
-// Copied from stack overflow because MingW doesn't provide it.
-char *strsep(char ** stringp, const char * delim) {
-    char * rv = *stringp;
-    if (rv) {
-        *stringp += strcspn(*stringp, delim);
-        if (**stringp) {
-            *(*stringp)++ = '\0'; // Null-terminate at the next delimiter
-        } else {
-            *stringp = 0;
-        }
-    }
-    return rv;
-}
-#endif
 
 char *strsep_param_with_space(char ** stringp) {
     if (stringp == NULL || *stringp == NULL)

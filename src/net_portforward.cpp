@@ -16,14 +16,6 @@
  */
 /******************************************************************************/
 #include "pre_inc.h"
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <windows.h>
-#endif
 #include "net_portforward.h"
 #include "bflib_basics.h"
 #include "bflib_datetm.h"
@@ -34,19 +26,11 @@
 #include <miniupnpc/upnperrors.h>
 
 #define NATPMP_STATICLIB
-#ifdef __WIN32__
-#include <natpmp/natpmp.h>
-#else
 #include <natpmp.h>
-#endif
 
 #include <cstdio>
 #include <ctime>
 #include <thread>
-#ifdef __WIN32__
-#include <winsock2.h>
-#include <iphlpapi.h>
-#endif
 
 #define NATPMP_TIMEOUT_SECONDS 1.0
 #define UPNP_TIMEOUT_MS 3000
@@ -69,48 +53,9 @@ static char upnp_lanaddr[64];
 
 static natpmp_t natpmp;
 
-#ifdef __WIN32__
-static int is_cgnat_detected() {
-    ULONG buffer_size = 0;
-    if (GetAdaptersInfo(NULL, &buffer_size) != ERROR_BUFFER_OVERFLOW) {
-        return 0;
-    }
-    IP_ADAPTER_INFO *adapter_info = (IP_ADAPTER_INFO *)malloc(buffer_size);
-    if (!adapter_info) {
-        return 0;
-    }
-    if (GetAdaptersInfo(adapter_info, &buffer_size) != NO_ERROR) {
-        free(adapter_info);
-        return 0;
-    }
-    for (IP_ADAPTER_INFO *adapter = adapter_info; adapter; adapter = adapter->Next) {
-        unsigned long local_ip = inet_addr(adapter->IpAddressList.IpAddress.String);
-        if (local_ip != INADDR_NONE && local_ip != 0) {
-            unsigned char first_octet = local_ip & 0xFF;
-            unsigned char second_octet = (local_ip >> 8) & 0xFF;
-            if (first_octet == 100 && second_octet >= 64 && second_octet <= 127) {
-                free(adapter_info);
-                return 1;
-            }
-        }
-        unsigned long gateway_ip = inet_addr(adapter->GatewayList.IpAddress.String);
-        if (gateway_ip != INADDR_NONE && gateway_ip != 0) {
-            unsigned char first_octet = gateway_ip & 0xFF;
-            unsigned char second_octet = (gateway_ip >> 8) & 0xFF;
-            if (first_octet == 100 && second_octet >= 64 && second_octet <= 127) {
-                free(adapter_info);
-                return 1;
-            }
-        }
-    }
-    free(adapter_info);
-    return 0;
-}
-#else
 static int is_cgnat_detected() {
     return 0;
 }
-#endif
 
 static int natpmp_add_port_mapping(uint16_t port) {
     clock_t start_time = LbTimerClock();

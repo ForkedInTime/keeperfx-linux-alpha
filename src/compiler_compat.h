@@ -13,21 +13,7 @@
 #define COMPILER_COMPAT_H
 
 // ━━━ Compiler Detection ━━━
-#if defined(_MSC_VER)
-    // MSVC (cl.exe)
-    #define KFX_COMPILER_MSVC 1
-    // MSVC does not support __attribute__ at all — define it away so existing
-    // code using raw __attribute__((nonnull)), __attribute__((format)) etc. compiles.
-    #ifndef __attribute__
-        #define __attribute__(x)
-    #endif
-    // __builtin_offsetof is a GCC extension; map it to standard offsetof().
-    // offsetof() is a compile-time constant on MSVC (unlike address arithmetic).
-    #include <stddef.h>
-    #ifndef __builtin_offsetof
-        #define __builtin_offsetof(type, member) offsetof(type, member)
-    #endif
-#elif defined(__GNUC__)
+#if   defined(__GNUC__)
     // GCC or Clang (defines __GNUC__ for compatibility)
     #define KFX_COMPILER_GCC 1
 #else
