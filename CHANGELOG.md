@@ -92,7 +92,9 @@ instead of four.
 - **AUR:** what is published is exactly what the checksums were computed from (a script edited after
   tagging used to ship with a stale hash, failing `makepkg` for everyone); a version pacman would never
   offer — lower than, or equal to but different from, the live one — now fails loudly instead of
-  "publishing" to nobody. The launcher's self-update is no longer undone on every start.
+  "publishing" to nobody. The launcher's self-update is no longer undone on every start. On a fresh
+  install, opening the launcher first (the "KeeperFX" menu entry) now sets up the game directory, so it
+  offers to copy in your Dungeon Keeper files instead of offering to download all of KeeperFX again.
 - **AppImage:** an unbundled library now fails the build (the check only warned); the current
   directory is no longer on the library search path.
 - `linux.mk` checks the prebuilt dependencies against pinned SHA-256s and never caches a failed
