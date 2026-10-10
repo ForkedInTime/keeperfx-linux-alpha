@@ -502,11 +502,6 @@ void update(void)
         }
         clear_active_dungeons_stats();
         update_creature_pool_state();
-        if ((get_gameturn() & 0x01) != 0)
-        {
-            update_animating_texture_maps();
-            RendererUpdateAnimatedTiles();
-        }
         update_things();
         process_rooms();
         process_dungeons();
@@ -522,12 +517,12 @@ void update(void)
         process_players();
         process_action_points();
         player = get_my_player();
-        if (player->view_mode == PVM_CreatureView)
+        if ((get_player_view_type(player) == PVT_CreatureContrl) || (get_player_view_type(player) == PVT_CreaturePasngr))
         {
-            struct Thing *thing = thing_get(player->controlled_thing_idx);
+            struct Thing *thing = thing_get(get_displayed_player()->controlled_thing_idx);
             update_first_person_object_ambience(thing);
         }
-        update_footsteps_nearest_camera(get_player_active_camera(player));
+        update_footsteps_nearest_camera(get_local_active_camera(player));
         PaletteFadePlayer(player);
         process_armageddon();
         update_global_lighting();
@@ -537,12 +532,12 @@ void update(void)
         creature_stats_debug_dump();
 #endif
         game.play_gameturn++;
-        if (game.turns_packetoff == game.play_gameturn)
+        if (replay.turns_packetoff == game.play_gameturn)
             exit_keeper = 1;
     }
 
     message_update();
-    update_all_players_cameras();
+    update_camera_shake();
     update_player_sounds();
     SYNCDBG(6,"Finished");
 }
