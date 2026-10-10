@@ -27,6 +27,20 @@ fi
 g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -o "$ROOT_DIR/bin/test_music_index" "$ROOT_DIR/tests/test_music_index.cpp"
 "$ROOT_DIR/bin/test_music_index"
 
+# The software rasteriser's 32-bit carry/rotate helpers. They are static inline in
+# a file that needs the whole engine, so the two functions are cut out of the real
+# source: the test checks the code that ships, not a copy of it.
+TRIG_SRC="$ROOT_DIR/src/kfx/renderer/software/bflib_render_trig.c"
+awk '/^static inline .*__CFADDL__\(/,/^}/; /^static inline .*__ROL4__\(/,/^}/' "$TRIG_SRC" \
+	> "$ROOT_DIR/bin/render_trig_helpers.inc"
+if [ "$(grep -c '^static inline' "$ROOT_DIR/bin/render_trig_helpers.inc")" != 2 ]; then
+	echo "tests/run.sh: __CFADDL__/__ROL4__ not found in $TRIG_SRC" >&2
+	exit 1
+fi
+g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/bin" \
+	-o "$ROOT_DIR/bin/test_render_trig_carry" "$ROOT_DIR/tests/test_render_trig_carry.cpp"
+"$ROOT_DIR/bin/test_render_trig_carry"
+
 # The real Linux directory enumerator, run against a real temporary directory.
 # It lives in the platform layer since upstream #5104/#5107 (it was linux.cpp
 # before); the enumerator needs SDL3 headers to compile and the tests stub the
