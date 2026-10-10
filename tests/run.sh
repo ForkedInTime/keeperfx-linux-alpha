@@ -1,18 +1,22 @@
 #!/bin/sh
-# Builds and runs the standalone unit tests. No engine/build dependency: g++
-# and the standard library only.
+# Builds and runs the unit tests. They do not link the engine, but the
+# file-enumerator test compiles the real platform layer, so it needs the SDL3
+# headers (load packaging/ci/build-sdl3.sh --env first, as a build does) and the
+# generated src/ver_defs.h, which is made here if it is missing.
 #
 #   tests/run.sh
 #
 # SANITIZE=1 builds the tests with AddressSanitizer + UBSan, so the same
-# assertions also police memory errors and undefined behaviour. CI runs both
-# modes; the flags change nothing about what is asserted.
+# assertions also police memory errors and undefined behaviour. CI
+# (sanitize-build.yml) runs both modes; the flags change nothing about what is
+# asserted.
 #
 # Exits non-zero if any build or any test fails.
 set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$ROOT_DIR/bin"
+[ -f "$ROOT_DIR/src/ver_defs.h" ] || make -s -C "$ROOT_DIR" -f linux.mk src/ver_defs.h
 
 EXTRA_FLAGS=""
 if [ "${SANITIZE:-0}" = "1" ]; then

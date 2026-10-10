@@ -64,5 +64,8 @@ jobs:
           make -f linux.mk SANITIZE=1 BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" \
             VER_SUFFIX=alpha -j"$(nproc)"
 
+      - name: Run the unit tests
+        run: tests/run.sh
+
       - name: Run the unit tests under the sanitizers
         run: SANITIZE=1 tests/run.sh

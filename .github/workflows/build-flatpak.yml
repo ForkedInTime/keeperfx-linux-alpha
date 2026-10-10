@@ -43,7 +43,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20                   --json tagName,isDraft,isPrerelease                   --jq '[.[] | select(.isDraft or .isPrerelease | not) | .tagName
+          # --limit 200, not 20: alphas are released far more often than stables,
+          # and with more than 20 of them since the last stable the window held no
+          # stable at all -- "no stable release found", and no Flatpak that month.
+          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+                  --json tagName,isDraft,isPrerelease \
+                  --jq '[.[] | select(.isDraft or .isPrerelease | not) | .tagName
                          | select((endswith("-alpha") or endswith("-prototype")) | not)][0]')
           [ -n "$TAG" ] && [ "$TAG" != "null" ] || { echo "::error::no stable release found"; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
