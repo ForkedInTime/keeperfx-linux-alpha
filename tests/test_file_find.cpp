@@ -209,6 +209,40 @@ int main()
 		expect(got.size() == 1 && got[0] == "odd.cfg", "a directory named with '?' and '*' is listed");
 	}
 
+	{
+		// '\' written on Windows as a separator: LEVELS_LOCATION = levels\MyPack,
+		// a creature sound "creature\maiden\HIT1.wav". Read as one file name,
+		// neither ever existed on Linux.
+		std::vector<std::string> got = enumerate(root + "/levels\\MyPack/*.lif");
+		expect(got.size() == 2, "a directory written with '\\' separators is listed");
+		mkdir((root + "/creature").c_str(), 0755);
+		mkdir((root + "/creature/maiden").c_str(), 0755);
+		touch(root + "/creature/maiden/hit1.wav");
+		const std::string win_path = root + "/creature\\maiden\\HIT1.wav";
+		char buf[4096];
+		expect(LbFileExists(win_path.c_str()) == 1, "LbFileExists reads '\\' as a separator");
+		expect(std::string(LbFileCaseInsensitivePath(win_path.c_str(), buf, sizeof(buf))) == root + "/creature/maiden/hit1.wav",
+			"LbFileCaseInsensitivePath gives the real path for a '\\'-separated name");
+		TbFileHandle fh = LbFileOpen(win_path.c_str(), Lb_FILE_MODE_READ_ONLY);
+		expect(fh != NULL, "LbFileOpen opens a '\\'-separated name");
+		if (fh != NULL) {
+			LbFileClose(fh);
+		}
+
+		// A Linux file name may contain a literal '\'. It is still found as
+		// it is spelt -- also case-insensitively -- and never re-read as a path.
+		touch(root + "/odd\\name.cfg");
+		const std::string literal = root + "/odd\\name.cfg";
+		expect(std::string(LbFileCaseInsensitivePath(literal.c_str(), buf, sizeof(buf))) == literal,
+			"a file name containing a literal '\\' resolves to itself");
+		expect(std::string(LbFileCaseInsensitivePath((root + "/ODD\\NAME.CFG").c_str(), buf, sizeof(buf))) == literal,
+			"a literal '\\' name still matches case-insensitively");
+		got = enumerate(root + "/*.cfg");
+		expect(got.size() == 1 && got[0] == "odd\\name.cfg", "a literal '\\' name is enumerated");
+		unlink(literal.c_str());
+		remove_tree(root + "/creature");
+	}
+
 	remove_tree(root + "/levels");
 	remove_tree(root + "/DK [GOG]");
 	remove_tree(root + "/What? Keeper*");
