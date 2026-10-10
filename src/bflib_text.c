@@ -19,6 +19,7 @@
 #include "bflib_text.h"
 
 #include <iconv.h>
+#include <errno.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -146,16 +147,34 @@ size_t convert_codepage_to_utf8_buffer(const char *src, size_t src_size, char *d
     else if (lang_id == Lang_ChineseInt || lang_id == Lang_ChineseTra)
         cd = iconv_open("UTF-8", "CP936");
     else if (lang_id == Lang_Korean)
-        cd = iconv_open("UTF-8", "EUC-KR");
+        cd = iconv_open("UTF-8", "CP949"); // codepage 949, as Windows decodes it; EUC-KR has only 2350 of the 11172 Hangul syllables
     else
         return 0;
+    if (cd == (iconv_t)(-1))
+    {
+        dst[0] = '\0';
+        return 0;
+    }
 
     char *inbuf = (char *)src;
     size_t inbytes = src_size;
     char *outbuf = dst;
     size_t outbytes = dst_size;
 
-    size_t res = iconv(cd, &inbuf, &inbytes, &outbuf, &outbytes);
+    // Windows' MultiByteToWideChar() substitutes a character it cannot decode
+    // and carries on, where iconv() stops -- and a failure here empties the whole
+    // strings file. Substitute '?' for the offending byte and continue instead;
+    // skipping one byte at a time also keeps the NUL that ends each string, so
+    // the strings after a bad one keep their numbers.
+    size_t res;
+    while (((res = iconv(cd, &inbuf, &inbytes, &outbuf, &outbytes)) == (size_t)(-1)) &&
+           ((errno == EILSEQ) || (errno == EINVAL)) && (outbytes > 0))
+    {
+        *outbuf++ = '?';
+        outbytes--;
+        inbuf++;
+        inbytes--;
+    }
     iconv_close(cd);
     if (res == (size_t)(-1))
     {
