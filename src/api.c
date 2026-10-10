@@ -163,7 +163,11 @@ static void api_send(const char *data, int len)
     int sent = 0;
     while (sent < len)
     {
-        int r = (int)send(api.activeSocket, data + sent, len - sent, 0);
+        // MSG_NOSIGNAL: once the client has gone, send() must fail with EPIPE
+        // (and the next recv() closes the connection) rather than raise
+        // SIGPIPE, whose default action ends the game without a word.
+        // Windows has no SIGPIPE, so this never came up there.
+        int r = (int)send(api.activeSocket, data + sent, len - sent, MSG_NOSIGNAL);
         if (r > 0)
         {
             sent += r;
