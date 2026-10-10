@@ -662,42 +662,98 @@ const char *save_load_failure_text(void)
     return (text != NULL) ? text : "";
 }
 
-/** Pre-flight scan of a savegame's chunk table: is its game-state block the
- *  size this build compiles?
+/** What the pre-flight scan of a savegame found. */
+enum SaveFileCheck {
+    SaveCheck_Loadable = 0,
+    /** Intact, but its game-state block is not the size this build compiles. */
+    SaveCheck_StateSize,
+    /** Truncated, a chunk missing or malformed, or not a saved game at all. */
+    SaveCheck_Damaged,
+};
+
+/** Pre-flight scan of a savegame's chunk table: will load_game_chunks()
+ *  succeed with it?
  *
- *  The save format embeds a raw dump of `struct Game`, so any change to that
- *  struct invalidates every existing save. load_game_chunks() only discovers
- *  that half way through - by then it has already switched campaign, reloaded
- *  the stats files and re-opened a Lua script, which is exactly the state we
- *  must not leave behind when the answer is "this save cannot be loaded".
- *  Walking the headers first costs a few seeks and lets the load be refused
- *  before anything global is touched.
+ *  load_game_chunks() applies each chunk to the running game as it reads it:
+ *  the info block switches campaign, reloads the stats files and re-opens the
+ *  Lua script, the game-state block is read straight into `game`. A failure
+ *  part-way through therefore leaves a session that is neither the one the
+ *  player was in nor the saved one -- and the menus would put them back into
+ *  it. So everything that can make it fail is checked here first, before any
+ *  global state is touched:
+ *    - every chunk header is complete and its body fits in the file (a save
+ *      truncated by a full disk is refused, not half-read);
+ *    - the four chunks a saved game needs are all present, the info block in
+ *      the version and size load_catalogue_entry() accepts, the game state the
+ *      size of `struct Game`, the inter-level data the size of
+ *      `struct IntralevelData`;
+ *    - no packet chunks, which would make it a replay, not a saved game.
+ *  What remains -- a read error from the disk itself, an allocation failure --
+ *  is reported by load_game() through save_load_state_disturbed.
  *
- *  Deliberately keyed on the chunk size, not on the version fields: a save from
- *  a different build whose struct Game happens to be unchanged still loads
- *  fine today, and refusing it on the version number alone would be a
- *  regression. The file position is left undefined; the caller seeks back. */
-static TbBool save_file_state_chunk_fits(TbFileHandle fhandle)
+ *  Deliberately keyed on the chunk sizes, not on the version fields: a save
+ *  from a different build whose structs happen to be unchanged still loads
+ *  fine, and refusing it on the version number alone would be a regression.
+ *  The file position is left undefined; the caller seeks back. */
+static enum SaveFileCheck check_save_file(TbFileHandle fhandle, long file_len)
 {
     if (LbFileSeek(fhandle, 0, Lb_FILE_SEEK_BEGINNING) < 0)
-        return false;
-    while (!LbFileEof(fhandle))
+        return SaveCheck_Damaged;
+    unsigned long found = 0;
+    TbBool state_size_ok = true;
+    for (;;)
     {
+        long pos = LbFilePosition(fhandle);
+        if (pos < 0)
+            return SaveCheck_Damaged;
+        if (pos >= file_len)
+            break;
         struct FileChunkHeader hdr;
         if (!read_chunk_header(fhandle, &hdr))
+            return SaveCheck_Damaged;       // a partial header at the end
+        pos = LbFilePosition(fhandle);
+        if ((pos < 0) || ((long)hdr.len > file_len - pos))
+            return SaveCheck_Damaged;       // body runs past the end of the file
+        switch (hdr.id)
+        {
+        case SGC_InfoBlock:
+            if ((hdr.ver != CATALOGUE_ENTRY_VER) || (hdr.len != sizeof(struct CatalogueEntry)))
+                return SaveCheck_Damaged;
+            found |= SGF_InfoBlock;
             break;
-        if (hdr.id == SGC_GameOrig)
-            return (hdr.len == sizeof(struct Game));
+        case SGC_GameOrig:
+            if (hdr.len != sizeof(struct Game))
+                state_size_ok = false;
+            found |= SGF_GameOrig;
+            break;
+        case SGC_IntralevelData:
+            if (hdr.len != sizeof(struct IntralevelData))
+                state_size_ok = false;
+            found |= SGF_IntralevelData;
+            break;
+        case SGC_LuaData:
+            found |= SGF_LuaData;
+            break;
+        case SGC_PacketHeader:
+        case SGC_PacketData:
+            return SaveCheck_Damaged;       // a replay, not a saved game
+        default:
+            break;                          // skipped by the loader too
+        }
         if (LbFileSeek(fhandle, hdr.len, Lb_FILE_SEEK_CURRENT) < 0)
-            break;
+            return SaveCheck_Damaged;
     }
-    // No game-state chunk at all: not a savegame we can restore.
-    return false;
+    if ((found & SGF_SavedGame) != SGF_SavedGame)
+        return SaveCheck_Damaged;
+    return state_size_ok ? SaveCheck_Loadable : SaveCheck_StateSize;
 }
+
+TbBool save_load_state_disturbed = false;
 
 TbBool load_game(long slot_num)
 {
     last_save_load_failure = SaveLoadFail_Unreadable;
+    save_load_state_disturbed = false;
     if (!ensure_catalogue_slot(slot_num))
     {
         ERRORLOG("Outranged slot index %d",(int)slot_num);
@@ -739,12 +795,15 @@ TbBool load_game(long slot_num)
     }
     // Refuse an unloadable save before any global state is disturbed, so the
     // caller can put the player back in the menu with the session intact.
-    if (!save_file_state_chunk_fits(fh))
+    enum SaveFileCheck check = check_save_file(fh, file_len);
+    if (check != SaveCheck_Loadable)
     {
         LbFileClose(fh);
-        last_save_load_failure = other_build ? SaveLoadFail_Version : SaveLoadFail_Unreadable;
+        last_save_load_failure = (other_build && (check == SaveCheck_StateSize))
+            ? SaveLoadFail_Version : SaveLoadFail_Unreadable;
         WARNMSG("Saved game in slot %d cannot be loaded by this build (%s).",(int)slot_num,
-            other_build ? "made by another version" : "unusable game state block");
+            (check == SaveCheck_StateSize) ? (other_build ? "made by another version" : "game state is a different size")
+                                           : "file is truncated or damaged");
         return false;
     }
 
@@ -753,6 +812,11 @@ TbBool load_game(long slot_num)
     // Here is the actual loading
     if (load_game_chunks(fh,centry) != GLoad_SavedGame)
     {
+        // Only a read error or an allocation failure gets here (check_save_file
+        // ruled out everything else), but by now the session has been partly
+        // overwritten: tell the caller it cannot be resumed.
+        save_load_state_disturbed = true;
+        ERRORLOG("Loading saved game in slot %d failed part-way; the running session is no longer consistent.",(int)slot_num);
         LbFileClose(fh);
         if (game.loaded_level_number == 0)
         {

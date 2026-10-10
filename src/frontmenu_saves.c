@@ -119,6 +119,17 @@ void gui_load_game(struct GuiButton *gbtn)
     long slot_num = loadsave_row_slot(gbtn);
     if (!load_game(slot_num))
     {
+        if (save_load_state_disturbed)
+        {
+            // The load failed after it had begun overwriting the session (a disk
+            // read error; everything else is refused up front), so there is no
+            // consistent game to return to. Leave the level, as upstream does for
+            // every failed load.
+            ERRORLOG("Loading game %d failed part-way; leaving the level.", (int)slot_num);
+            set_players_packet_action(player, PckA_UpdatePause, 0, 0, 0, 0);
+            quit_game = 1;
+            return;
+        }
         // A save this build cannot read is not a reason to end the session.
         // load_game() refuses such a file before it disturbs anything, so the
         // game the player was already in is still there to go back to; say why
@@ -412,6 +423,10 @@ void init_load_menu(struct GuiMenu *gmnu)
   SYNCDBG(6,"Starting");
   resolve_delete_tooltip();
   struct PlayerInfo* player = get_my_player();
+  // Recorded as init_save_menu does: a refused load hands this state back
+  // (gui_load_game), and without it the game unpaused after a refused load
+  // even when the player had paused it before opening the menu.
+  local_state.paused_state_restore = flag_is_set(game.operation_flags, GOF_Paused);
   set_players_packet_action(player, PckA_UpdatePause, 1, 1, 0, 0);
   load_game_save_catalogue();
   gui_vscroll_offset = 0;   // load list starts at the top

@@ -128,6 +128,12 @@ TbBool save_packet_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry);
 /******************************************************************************/
 extern enum SaveLoadFailure last_save_load_failure;
 
+/** Set when the last load_game() failed AFTER it had started overwriting the
+ *  running session (only a disk read error or an allocation failure can do
+ *  that). The session must not be resumed then: callers leave the level, as
+ *  upstream always did on a failed load, instead of returning to it. */
+extern TbBool save_load_state_disturbed;
+
 /** Translated one-line explanation of the last load_game() failure, for an
  *  error box. Never NULL. */
 const char *save_load_failure_text(void);
