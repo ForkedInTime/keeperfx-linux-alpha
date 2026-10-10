@@ -43,15 +43,8 @@
 #define strnicmp strncasecmp
 #endif
 
-#elif defined(MSDOS)
-#include <dos.h>
-#include <process.h>
 #endif
 
-#ifdef _MSC_VER
-    #define strcasecmp _stricmp
-    #define strncasecmp _strnicmp
-#endif
 
 #include "version.h"
 

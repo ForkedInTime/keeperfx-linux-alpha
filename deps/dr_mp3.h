@@ -84,10 +84,6 @@ typedef   signed short          drmp3_int16;
 typedef unsigned short          drmp3_uint16;
 typedef   signed int            drmp3_int32;
 typedef unsigned int            drmp3_uint32;
-#if defined(_MSC_VER) && !defined(__clang__)
-    typedef   signed __int64    drmp3_int64;
-    typedef unsigned __int64    drmp3_uint64;
-#else
     #if defined(__clang__) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
         #pragma GCC diagnostic push
         #pragma GCC diagnostic ignored "-Wlong-long"
@@ -100,8 +96,7 @@ typedef unsigned int            drmp3_uint32;
     #if defined(__clang__) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
         #pragma GCC diagnostic pop
     #endif
-#endif
-#if defined(__LP64__) || defined(_WIN64) || (defined(__x86_64__) && !defined(__ILP32__)) || defined(_M_X64) || defined(__ia64) || defined (_M_IA64) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC) || defined(__powerpc64__)
+#if defined(__LP64__) || defined(__x86_64__) && !defined(__ILP32__) || defined(__ia64) || defined(__aarch64__) || defined(__powerpc64__)
     typedef drmp3_uint64        drmp3_uintptr;
 #else
     typedef drmp3_uint32        drmp3_uintptr;
@@ -118,11 +113,6 @@ typedef drmp3_uint32            drmp3_bool32;
 /* Decorations */
 #if !defined(DRMP3_API)
     #if defined(DRMP3_DLL)
-        #if defined(_WIN32)
-            #define DRMP3_DLL_IMPORT  __declspec(dllimport)
-            #define DRMP3_DLL_EXPORT  __declspec(dllexport)
-            #define DRMP3_DLL_PRIVATE static
-        #else
             #if defined(__GNUC__) && __GNUC__ >= 4
                 #define DRMP3_DLL_IMPORT  __attribute__((visibility("default")))
                 #define DRMP3_DLL_EXPORT  __attribute__((visibility("default")))
@@ -132,7 +122,6 @@ typedef drmp3_uint32            drmp3_bool32;
                 #define DRMP3_DLL_EXPORT
                 #define DRMP3_DLL_PRIVATE static
             #endif
-        #endif
 
         #if defined(DR_MP3_IMPLEMENTATION)
             #define DRMP3_API  DRMP3_DLL_EXPORT
@@ -209,9 +198,7 @@ typedef drmp3_int32 drmp3_result;
 #define DRMP3_MAX_SAMPLES_PER_FRAME         (DRMP3_MAX_PCM_FRAMES_PER_MP3_FRAME*2)
 
 /* Inline */
-#ifdef _MSC_VER
-    #define DRMP3_INLINE __forceinline
-#elif defined(__GNUC__)
+#if   defined(__GNUC__)
     /*
     I've had a bug report where GCC is emitting warnings about functions possibly not being inlineable. This warning happens when
     the __attribute__((always_inline)) attribute is defined without an "inline" statement. I think therefore there must be some
@@ -230,8 +217,6 @@ typedef drmp3_int32 drmp3_result;
     #else
         #define DRMP3_INLINE DRMP3_GNUC_INLINE_HINT
     #endif
-#elif defined(__WATCOMC__)
-    #define DRMP3_INLINE __inline
 #else
     #define DRMP3_INLINE
 #endif
@@ -657,17 +642,14 @@ DRMP3_API const char* drmp3_version_string(void)
 
 #if !defined(DR_MP3_NO_SIMD)
 
-#if !defined(DR_MP3_ONLY_SIMD) && ((defined(_MSC_VER) && _MSC_VER >= 1400) && defined(_M_X64)) || ((defined(__i386) || defined(_M_IX86) || defined(__i386__) || defined(__x86_64__)) && ((defined(_M_IX86_FP) && _M_IX86_FP == 2) || defined(__SSE2__)))
+#if (defined(__i386) || defined(__i386__) || defined(__x86_64__)) && defined(__SSE2__)
 #define DR_MP3_ONLY_SIMD
 #endif
-#if !defined(DR_MP3_ONLY_SIMD) && (defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC))
+#if !defined(DR_MP3_ONLY_SIMD) && (defined(__ARM_NEON) || defined(__aarch64__))
 #define DR_MP3_ONLY_SIMD
 #endif
 
-#if ((defined(_MSC_VER) && _MSC_VER >= 1400) && defined(_M_X64)) || ((defined(__i386) || defined(_M_IX86) || defined(__i386__) || defined(__x86_64__)) && ((defined(_M_IX86_FP) && _M_IX86_FP == 2) || defined(__SSE2__)))
-#if defined(_MSC_VER)
-#include <intrin.h>
-#endif
+#if (defined(__i386) || defined(__i386__) || defined(__x86_64__)) && defined(__SSE2__)
 #include <emmintrin.h>
 #define DRMP3_HAVE_SSE 1
 #define DRMP3_HAVE_SIMD 1
@@ -682,7 +664,7 @@ DRMP3_API const char* drmp3_version_string(void)
 #define DRMP3_VMUL_S(x, s)  _mm_mul_ps(x, _mm_set1_ps(s))
 #define DRMP3_VREV(x) _mm_shuffle_ps(x, x, _MM_SHUFFLE(0, 1, 2, 3))
 typedef __m128 drmp3_f4;
-#if (defined(_MSC_VER) || defined(DR_MP3_ONLY_SIMD)) && !defined(__clang__)
+#if defined(DR_MP3_ONLY_SIMD) && !defined(__clang__)
 #define drmp3_cpuid __cpuid
 #else
 static __inline__ __attribute__((always_inline)) void drmp3_cpuid(int CPUInfo[], const int InfoType)
@@ -735,7 +717,7 @@ end:
     return g_have_simd - 1;
 #endif
 }
-#elif defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC)
+#elif defined(__ARM_NEON) || defined(__aarch64__)
 #include <arm_neon.h>
 #define DRMP3_HAVE_SSE 0
 #define DRMP3_HAVE_SIMD 1
@@ -768,7 +750,7 @@ static int drmp3_have_simd(void)
 
 #endif
 
-#if defined(__ARM_ARCH) && (__ARM_ARCH >= 6) && !defined(__aarch64__) && !defined(_M_ARM64) && !defined(_M_ARM64EC) && !defined(__ARM_ARCH_6M__)
+#if defined(__ARM_ARCH) && __ARM_ARCH >= 6 && !defined(__aarch64__) && !defined(__ARM_ARCH_6M__)
 #define DRMP3_HAVE_ARMV6 1
 static __inline__ __attribute__((always_inline)) drmp3_int32 drmp3_clip_int16_arm(drmp3_int32 a)
 {
@@ -2471,7 +2453,7 @@ DRMP3_API void drmp3dec_f32_to_s16(const float *in, drmp3_int16 *out, size_t num
 #if defined(SIZE_MAX)
     #define DRMP3_SIZE_MAX  SIZE_MAX
 #else
-    #if defined(_WIN64) || defined(_LP64) || defined(__LP64__)
+    #if defined(_LP64) || defined(__LP64__)
         #define DRMP3_SIZE_MAX  ((drmp3_uint64)0xFFFFFFFFFFFFFFFF)
     #else
         #define DRMP3_SIZE_MAX  0xFFFFFFFF
@@ -3823,9 +3805,6 @@ static drmp3_result drmp3_result_from_errno(int e)
 /* fopen */
 static drmp3_result drmp3_fopen(FILE** ppFile, const char* pFilePath, const char* pOpenMode)
 {
-#if defined(_MSC_VER) && _MSC_VER >= 1400
-    errno_t err;
-#endif
 
     if (ppFile != NULL) {
         *ppFile = NULL;  /* Safety. */
@@ -3835,13 +3814,7 @@ static drmp3_result drmp3_fopen(FILE** ppFile, const char* pFilePath, const char
         return DRMP3_INVALID_ARGS;
     }
 
-#if defined(_MSC_VER) && _MSC_VER >= 1400
-    err = fopen_s(ppFile, pFilePath, pOpenMode);
-    if (err != 0) {
-        return drmp3_result_from_errno(err);
-    }
-#else
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(__APPLE__)
     *ppFile = fopen(pFilePath, pOpenMode);
 #else
     #if defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64 && defined(_LARGEFILE64_SOURCE)
@@ -3858,7 +3831,6 @@ static drmp3_result drmp3_fopen(FILE** ppFile, const char* pFilePath, const char
 
         return result;
     }
-#endif
 
     return DRMP3_SUCCESS;
 }
@@ -3875,11 +3847,6 @@ _wfopen() isn't always available in all compilation environments.
 This can be reviewed as compatibility issues arise. The preference is to use _wfopen_s() and _wfopen() as opposed to the wcsrtombs()
 fallback, so if you notice your compiler not detecting this properly I'm happy to look at adding support.
 */
-#if defined(_WIN32)
-    #if defined(_MSC_VER) || defined(__MINGW64__) || (!defined(__STRICT_ANSI__) && !defined(_NO_EXT_KEYS))
-        #define DRMP3_HAS_WFOPEN
-    #endif
-#endif
 
 static drmp3_result drmp3_wfopen(FILE** ppFile, const wchar_t* pFilePath, const wchar_t* pOpenMode, const drmp3_allocation_callbacks* pAllocationCallbacks)
 {
@@ -3894,17 +3861,10 @@ static drmp3_result drmp3_wfopen(FILE** ppFile, const wchar_t* pFilePath, const 
 #if defined(DRMP3_HAS_WFOPEN)
     {
         /* Use _wfopen() on Windows. */
-    #if defined(_MSC_VER) && _MSC_VER >= 1400
-        errno_t err = _wfopen_s(ppFile, pFilePath, pOpenMode);
-        if (err != 0) {
-            return drmp3_result_from_errno(err);
-        }
-    #else
         *ppFile = _wfopen(pFilePath, pOpenMode);
         if (*ppFile == NULL) {
             return drmp3_result_from_errno(errno);
         }
-    #endif
         (void)pAllocationCallbacks;
     }
 #else
@@ -3921,11 +3881,6 @@ static drmp3_result drmp3_wfopen(FILE** ppFile, const wchar_t* pFilePath, const 
 	need to abort with an error. If you encounter a compiler lacking such support, add it to this list
 	and submit a bug report and it'll be added to the library upstream.
 	*/
-	#if defined(__DJGPP__)
-	{
-		/* Nothing to do here. This will fall through to the error check below. */
-	}
-	#else
     {
         mbstate_t mbs;
         size_t lenMB;
@@ -3967,7 +3922,6 @@ static drmp3_result drmp3_wfopen(FILE** ppFile, const wchar_t* pFilePath, const 
 
         drmp3__free_from_callbacks(pFilePathMB, pAllocationCallbacks);
     }
-	#endif
 
     if (*ppFile == NULL) {
         return DRMP3_ERROR;
@@ -4005,15 +3959,7 @@ static drmp3_bool32 drmp3__on_tell_stdio(void* pUserData, drmp3_int64* pCursor)
     DRMP3_ASSERT(pFileStdio != NULL);
     DRMP3_ASSERT(pCursor    != NULL);
 
-#if defined(_WIN32) && !defined(NXDK)
-    #if defined(_MSC_VER) && _MSC_VER > 1200
-        result = _ftelli64(pFileStdio);
-    #else
-        result = ftell(pFileStdio);
-    #endif
-#else
     result = ftell(pFileStdio);
-#endif
 
     *pCursor = result;
 

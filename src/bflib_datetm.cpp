@@ -347,7 +347,6 @@ void LbSleepExtInit()
  */
 TbBool LbSleepUntilExt(long double tick_ns_end)
 {
-#ifndef _WIN32
   // Linux: sleep to the deadline with a high-resolution monotonic sleep. The
   // old SDL_Delay-then-busy-spin scheme burned ~1-2 ms of CPU (a fraction of a
   // core, plus battery/thermals on laptops) spinning in the tail window every
@@ -367,20 +366,6 @@ TbBool LbSleepUntilExt(long double tick_ns_end)
     nanosleep(&ts, NULL);
   }
   return true;
-#else
-  while(1)
-  {
-    long double tick_ns_cur = TimeTickNs;
-    if (tick_ns_cur >= tick_ns_end)
-      break;
-    long double tick_ns_delay = tick_ns_end - tick_ns_cur;
-    if (tick_ns_delay > sleep_precision_ns) {
-      int ms_delay = (int)(tick_ns_delay/1000000);
-      SDL_Delay(ms_delay);
-    }
-  }
-  return true;
-#endif
 }
 
 TbBool LbSleepDelayExt(long double tick_ns_delay)

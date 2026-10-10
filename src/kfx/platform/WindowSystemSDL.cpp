@@ -19,7 +19,6 @@
 
 static void ApplyWindowIcon(SDL_Window *window)
 {
-#ifndef _WIN32
     // Attach the icon to the window itself. This is what X11 taskbars read; on
     // Wayland it is ignored in favour of the app_id set before SDL_Init (see
     // LbScreenInitialize), so both are needed to cover the two display servers.
@@ -40,10 +39,6 @@ static void ApplyWindowIcon(SDL_Window *window)
     if (!SDL_SetWindowIcon(window, icon)) {
         WARNLOG("Could not set window icon: %s", SDL_GetError());
     }
-#else
-    // MS Windows executable gets icon from .rc resource
-    (void)window;
-#endif
 }
 
 /******************************************************************************/

@@ -1,14 +1,5 @@
 #include "pre_inc.h"
 
-#ifdef _WIN32
-#  define WIN32_LEAN_AND_MEAN 1
-#  include <winsock2.h>
-#  include <ws2tcpip.h>
-   typedef SOCKET kfx_socket_t;
-#  define KFX_INVALID_SOCKET INVALID_SOCKET
-#  define kfx_closesocket(s) closesocket(s)
-#  define kfx_socket_error() WSAGetLastError()
-#else
 #  include <sys/types.h>
 #  include <sys/socket.h>
 #  include <netinet/in.h>
@@ -23,7 +14,6 @@
 #  ifndef SOCKET_ERROR
 #    define SOCKET_ERROR (-1)
 #  endif
-#endif
 
 #include "api.h"
 #include <json.h>
@@ -181,11 +171,7 @@ static void api_send(const char *data, int len)
         }
         if (r < 0)
         {
-#ifdef _WIN32
-            if (WSAGetLastError() == WSAEWOULDBLOCK)
-#else
             if (errno == EAGAIN || errno == EWOULDBLOCK)
-#endif
             {
                 fd_set wfds;
                 FD_ZERO(&wfds);
@@ -225,14 +211,6 @@ int api_init_server()
         JUSTLOG("API server starting on port: %u", api_port);
     }
 
-#ifdef _WIN32
-    WSADATA wsa_data;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
-    {
-        JUSTLOG("WSAStartup failed: %d", kfx_socket_error());
-        return 1;
-    }
-#endif
 
     api.activeSocket = KFX_INVALID_SOCKET;
 
@@ -249,15 +227,10 @@ int api_init_server()
     setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
 
     // Non-blocking server socket so accept() doesn't stall the game loop
-#ifdef _WIN32
-    u_long nb = 1;
-    ioctlsocket(srv, FIONBIO, &nb);
-#else
     {
         int flags = fcntl(srv, F_GETFL, 0);
         fcntl(srv, F_SETFL, flags | O_NONBLOCK);
     }
-#endif
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
@@ -1625,11 +1598,7 @@ void api_update_server()
     // Accept a pending connection (non-blocking; no select()/socket-set needed).
     {
         struct sockaddr_in client_addr;
-#ifdef _WIN32
-        int addr_len = sizeof(client_addr);
-#else
         socklen_t addr_len = sizeof(client_addr);
-#endif
         kfx_socket_t client = accept(api.serverSocket, (struct sockaddr*)&client_addr, &addr_len);
         if (client != KFX_INVALID_SOCKET)
         {
@@ -1642,13 +1611,8 @@ void api_update_server()
             else
             {
                 // Make the new client socket non-blocking too
-#ifdef _WIN32
-                u_long nb = 1;
-                ioctlsocket(client, FIONBIO, &nb);
-#else
                 int flags = fcntl(client, F_GETFL, 0);
                 fcntl(client, F_SETFL, flags | O_NONBLOCK);
-#endif
                 api.activeSocket = client;
                 JUSTLOG("Client connected");
             }
@@ -1689,11 +1653,7 @@ void api_update_server()
         {
             // received < 0: EWOULDBLOCK/EAGAIN just means "no data yet"; any
             // other error means the connection is gone.
-#ifdef _WIN32
-            if (WSAGetLastError() != WSAEWOULDBLOCK)
-#else
             if (errno != EAGAIN && errno != EWOULDBLOCK)
-#endif
             {
                 api_clear_all_subscriptions();
                 kfx_closesocket(api.activeSocket);
@@ -1731,7 +1691,4 @@ void api_close_server()
         api.serverSocket = KFX_INVALID_SOCKET;
     }
 
-#ifdef _WIN32
-    WSACleanup();
-#endif
 }
