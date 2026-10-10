@@ -1885,6 +1885,7 @@ short is_toggleable_menu(short mnu_idx)
   case GMnu_FECAMPAIGN_SELECT:
   case GMnu_FEERROR_BOX:
   case GMnu_MP_MAPPACK_SELECT:
+  case GMnu_DELETE_SAVE:
       return false;
   default:
       return true;

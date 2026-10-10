@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "gui_frontmenu.h"
+#include "frontmenu_saves.h"
 
 #include "globals.h"
 #include "bflib_basics.h"
@@ -231,6 +232,15 @@ void set_menu_mode(long mnu_idx)
 short turn_off_all_window_menus(void)
 {
     short result = false;
+    // The delete-save confirmation sits on top of the Load/Save menu. Closing
+    // the windows (Esc) must close it too -- as "No" -- or it stays on screen
+    // over live gameplay with its "Yes" still armed.
+    if (menu_is_active(GMnu_DELETE_SAVE))
+    {
+        result = true;
+        gui_delete_save_cancelled(NULL);
+        turn_off_menu(GMnu_DELETE_SAVE);
+    }
     if (menu_is_active(GMnu_QUIT))
     {
         result = true;
