@@ -60,6 +60,13 @@ cc -std=gnu17 -Wall -Wextra -Wno-unused-parameter $EXTRA_FLAGS -I"$ROOT_DIR/bin"
 	-o "$ROOT_DIR/bin/test_legacy_progress" "$ROOT_DIR/tests/test_legacy_progress.c"
 "$ROOT_DIR/bin/test_legacy_progress"
 
+# Level and campaign Lua may read files but not change them, nor load native
+# code through require (src/lua_readonly_io.c). The state is built the way
+# open_lua_script() builds it and attacked the way a hostile map would; the
+# game's own Lua (bundled serialiser, bytecode restore, debug functions) must
+# keep working. Links the real bflib_fileio.c for its case-insensitive lookup.
+cc -Wall -Wextra -Wno-unused-parameter $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflags sdl3 luajit) \
+	-c "$ROOT_DIR/src/lua_readonly_io.c" -o "$ROOT_DIR/bin/lua_readonly_io_for_tests.o"
 # The real Linux directory enumerator, run against a real temporary directory.
 # It lives in the platform layer since upstream #5104/#5107 (it was linux.cpp
 # before); the enumerator needs SDL3 headers to compile and the tests stub the
@@ -91,3 +98,13 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflag
 	"$ROOT_DIR/bin/bflib_fileio_for_tests.o" \
 	$(pkg-config --libs sdl3)
 "$ROOT_DIR/bin/test_file_find"
+
+g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflags sdl3 luajit) \
+	-o "$ROOT_DIR/bin/test_lua_readonly" \
+	"$ROOT_DIR/tests/test_lua_readonly.cpp" \
+	"$ROOT_DIR/bin/lua_readonly_io_for_tests.o" \
+	"$ROOT_DIR/src/kfx/platform/PlatformManager.cpp" \
+	"$ROOT_DIR/bin/platform_linux_for_tests.o" \
+	"$ROOT_DIR/bin/bflib_fileio_for_tests.o" \
+	$(pkg-config --libs sdl3 luajit)
+"$ROOT_DIR/bin/test_lua_readonly" "$ROOT_DIR"
