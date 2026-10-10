@@ -1352,11 +1352,6 @@ static TbBool read_legacy_progress(const char *cmpgn_fname, struct IntralevelDat
     return true;
 }
 
-static void delete_legacy_progress(void)
-{
-    LbFileDelete(prepare_file_path(FGrp_Save, legacy_campaign_progress));
-}
-
 static TbBool load_campaign_progress(const struct GameCampaign *campgn, struct IntralevelData *ilvl, LevelNumber *continue_lvnum)
 {
     char progress_fname[DISKPATH_SIZE];
@@ -1600,9 +1595,12 @@ TbBool save_level_progress(LevelNumber lvnum, unsigned char victory_state)
     if (victory_state != VicS_Undecided)
         write_last_file_link(progress_fname);
 
-    // clean up legacy file if this is a replacement
-    if (legacy_progress_matches(campaign.fname))
-        delete_legacy_progress();
+    // Upstream deletes fx1contn.sav here once the campaign has a file of its
+    // own. It is kept: this edition ships two channels into one game folder,
+    // and a stable build from before the per-campaign files reads nothing
+    // else, so deleting it would lose stable's Continue the first time a level
+    // ended on alpha. This build never reads it again for this campaign -- the
+    // per-campaign file always wins -- so leaving it changes nothing here.
     return true;
 }
 
