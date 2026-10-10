@@ -60,9 +60,16 @@ done
 # what users open.
 cp -f /usr/share/keeperfx-tux/version.txt "$GAMEDIR/version.txt" 2>/dev/null || true
 
-if [ ! -e "$DST" ] || ! cmp -s "$SRC" "$DST"; then
+# Refreshed when the PACKAGED launcher changes (a pacman upgrade), not whenever the
+# copy differs from it: comparing the two files replaced a launcher that had
+# updated itself in place on every single start, so it updated again, and again.
+# The stamp records which packaged build the copy came from.
+STAMP="$GAMEDIR/.keeperfx-launcher-qt.packaged"
+pkgsum="$(sha256sum "$SRC" | cut -d' ' -f1)"
+if [ ! -e "$DST" ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$pkgsum" ]; then
     cp -f "$SRC" "$DST"
     chmod u+rwx "$DST"
+    printf '%s\n' "$pkgsum" > "$STAMP"
 fi
 
 # The launcher loads its 7-Zip library from beside its own binary, so it has to
