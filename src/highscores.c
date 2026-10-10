@@ -26,7 +26,45 @@
 #include "post_inc.h"
 
 /******************************************************************************/
+// The score file is the table written raw, the same file on Windows and Linux.
+_Static_assert(sizeof(struct HighScore) == 72, "high score file entries are 72 bytes");
 
+/**
+ * Entry size in the score files of earlier 64-bit Linux builds, where `score` was an
+ * 8-byte long: score at 0 (8 bytes), name at 8, lvnum at 72, padding to 80.
+ */
+#define HISCORE_ENTRY_SIZE_LP64 80
+
+/**
+ * Loads a score file written in the earlier 64-bit Linux layout, converting each
+ * entry, so those players keep their scores. The next save writes the 72-byte layout.
+ */
+static TbBool load_high_score_table_lp64(const char *fname, long file_len)
+{
+    if (campaign.hiscore_table == NULL)
+        return false;
+    unsigned char *buf = (unsigned char *)malloc(file_len);
+    if (buf == NULL)
+        return false;
+    TbBool loaded = (LbFileLoadAt(fname, buf) == file_len);
+    if (loaded)
+    {
+        for (unsigned long i = 0; i < campaign.hiscore_count; i++)
+        {
+            const unsigned char *src = buf + i * HISCORE_ENTRY_SIZE_LP64;
+            struct HighScore *hscore = &campaign.hiscore_table[i];
+            int64_t score;
+            memcpy(&score, src, sizeof(score));
+            hscore->score = (score > INT32_MAX) ? INT32_MAX : ((score < INT32_MIN) ? INT32_MIN : (int32_t)score);
+            memcpy(hscore->name, src + 8, HISCORE_NAME_LENGTH);
+            hscore->name[HISCORE_NAME_LENGTH - 1] = '\0';
+            memcpy(&hscore->lvnum, src + 8 + HISCORE_NAME_LENGTH, sizeof(hscore->lvnum));
+        }
+        SYNCMSG("High scores table %s is in the earlier 64-bit layout; converted.", fname);
+    }
+    free(buf);
+    return loaded;
+}
 
 static TbBool load_high_score_table(void)
 {
@@ -40,7 +78,10 @@ static TbBool load_high_score_table(void)
     }
     if (campaign.hiscore_table == NULL)
         campaign.hiscore_table = (struct HighScore *)calloc(arr_size, 1);
-    if (LbFileLengthRnc(fname) != arr_size)
+    long file_len = LbFileLengthRnc(fname);
+    if ((file_len != arr_size) && (file_len == (long)(campaign.hiscore_count * HISCORE_ENTRY_SIZE_LP64)))
+        return load_high_score_table_lp64(fname, file_len);
+    if (file_len != arr_size)
         return false;
     if (campaign.hiscore_table == NULL)
         return false;
