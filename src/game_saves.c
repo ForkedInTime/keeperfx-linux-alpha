@@ -1241,17 +1241,83 @@ static TbBool write_progress_file(const char *progress_fname, const struct Intra
     return result;
 }
 
-static TbFileHandle open_legacy_progress(void)
+/*
+ * fx1contn.sav is a raw dump of struct IntralevelData, so its layout followed
+ * the compiler's `long`. campaign_flags were `long` until upstream made them
+ * int32_t in the change that split progress into per-campaign files: 4 bytes on
+ * upstream's 32-bit Windows build, which LEGACY_PROGRESS_FILE_SIZE describes,
+ * but 8 here. Every fx1contn.sav a 64-bit Linux build wrote -- stable
+ * 1.4.0.5660 included -- is therefore 160 bytes longer, failed that size check,
+ * and the player's campaign position was dropped without a word. That layout is
+ * the v0 one with each flag widened to 8 bytes; it is read here and narrowed.
+ */
+#define LEGACY_LP64_FLAGS_COUNT  (PLAYERS_FOR_CAMPAIGN_FLAGS * CAMPAIGN_FLAGS_PER_PLAYER)
+#define LEGACY_LP64_INTRALEVEL_SIZE (INTRALEVEL_DATA_V0_SIZE + LEGACY_LP64_FLAGS_COUNT * (sizeof(int64_t) - sizeof(int32_t)))
+#define LEGACY_LP64_PROGRESS_FILE_SIZE (CAMPAIGN_FNAME_LEN + sizeof(LevelNumber) + LEGACY_LP64_INTRALEVEL_SIZE)
+_Static_assert(sizeof(((struct IntralevelData *)0)->campaign_flags) == LEGACY_LP64_FLAGS_COUNT * sizeof(int32_t)
+    && offsetof(struct IntralevelData, next_level) == offsetof(struct IntralevelData, campaign_flags) + LEGACY_LP64_FLAGS_COUNT * sizeof(int32_t),
+    "decode_lp64_intralevel_v0() assumes int32_t campaign_flags directly followed by next_level");
+// The size those builds wrote, measured from their headers. The files on disk
+// do not change when a struct inside IntralevelData does: if this fails, such a
+// change needs its own decoding here, or 64-bit players lose their progress.
+_Static_assert(LEGACY_LP64_PROGRESS_FILE_SIZE == 67401,
+    "IntralevelData's v0 prefix changed size; fx1contn.sav files from 64-bit builds no longer match it");
+
+/** Narrows a 64-bit-long IntralevelData v0 dump (LEGACY_LP64_INTRALEVEL_SIZE bytes) into ilvl. */
+static void decode_lp64_intralevel_v0(const unsigned char *raw, struct IntralevelData *ilvl)
+{
+    const size_t flags_at = offsetof(struct IntralevelData, campaign_flags);
+    const size_t rest_at = offsetof(struct IntralevelData, next_level);
+    memcpy(ilvl, raw, flags_at);
+    for (int i = 0; i < PLAYERS_FOR_CAMPAIGN_FLAGS; i++)
+    {
+        for (int k = 0; k < CAMPAIGN_FLAGS_PER_PLAYER; k++)
+        {
+            int64_t val;
+            memcpy(&val, raw + flags_at + (size_t)(i * CAMPAIGN_FLAGS_PER_PLAYER + k) * sizeof(int64_t), sizeof(val));
+            // Clamped rather than wrapped, so a large counter keeps its sign.
+            if (val > INT32_MAX)
+                val = INT32_MAX;
+            if (val < INT32_MIN)
+                val = INT32_MIN;
+            ilvl->campaign_flags[i][k] = (int32_t)val;
+        }
+    }
+    memcpy((unsigned char *)ilvl + rest_at, raw + flags_at + LEGACY_LP64_FLAGS_COUNT * sizeof(int64_t),
+        INTRALEVEL_DATA_V0_SIZE - rest_at);
+}
+
+static TbFileHandle open_legacy_progress(TbBool *lp64)
 {
     char* fname = prepare_file_path(FGrp_Save, legacy_campaign_progress);
-    if (LbFileLength(fname) != (long)LEGACY_PROGRESS_FILE_SIZE)
+    long fsize = LbFileLength(fname);
+    if (fsize == (long)LEGACY_PROGRESS_FILE_SIZE)
+        *lp64 = false;
+    else if (fsize == (long)LEGACY_LP64_PROGRESS_FILE_SIZE)
+        *lp64 = true;
+    else
         return NULL;
     return LbFileOpen(fname, Lb_FILE_MODE_READ_ONLY);
 }
 
+static TbBool read_legacy_intralevel(TbFileHandle fh, TbBool lp64, struct IntralevelData *ilvl)
+{
+    if (!lp64)
+        return (LbFileRead(fh, ilvl, INTRALEVEL_DATA_V0_SIZE) == (int)INTRALEVEL_DATA_V0_SIZE);
+    unsigned char *raw = (unsigned char *)malloc(LEGACY_LP64_INTRALEVEL_SIZE);
+    if (raw == NULL)
+        return false;
+    TbBool result = (LbFileRead(fh, raw, LEGACY_LP64_INTRALEVEL_SIZE) == (int)LEGACY_LP64_INTRALEVEL_SIZE);
+    if (result)
+        decode_lp64_intralevel_v0(raw, ilvl);
+    free(raw);
+    return result;
+}
+
 static TbBool read_legacy_progress_fname(char *cmpgn_fname)
 {
-    TbFileHandle fh = open_legacy_progress();
+    TbBool lp64;
+    TbFileHandle fh = open_legacy_progress(&lp64);
     if (!fh)
         return false;
     TbBool result = (LbFileRead(fh, cmpgn_fname, CAMPAIGN_FNAME_LEN) == CAMPAIGN_FNAME_LEN);
@@ -1268,7 +1334,8 @@ static TbBool legacy_progress_matches(const char *cmpgn_fname)
 
 static TbBool read_legacy_progress(const char *cmpgn_fname, struct IntralevelData *ilvl)
 {
-    TbFileHandle fh = open_legacy_progress();
+    TbBool lp64;
+    TbFileHandle fh = open_legacy_progress(&lp64);
     if (!fh)
         return false;
     char legacy_fname[CAMPAIGN_FNAME_LEN];
@@ -1276,7 +1343,7 @@ static TbBool read_legacy_progress(const char *cmpgn_fname, struct IntralevelDat
     memset(ilvl, 0, sizeof(struct IntralevelData));
     TbBool result = (LbFileRead(fh, legacy_fname, CAMPAIGN_FNAME_LEN) == CAMPAIGN_FNAME_LEN)
         && (LbFileRead(fh, &lvnum, sizeof(lvnum)) == sizeof(lvnum))
-        && (LbFileRead(fh, ilvl, INTRALEVEL_DATA_V0_SIZE) == (int)INTRALEVEL_DATA_V0_SIZE);
+        && read_legacy_intralevel(fh, lp64, ilvl);
     LbFileClose(fh);
     legacy_fname[CAMPAIGN_FNAME_LEN-1] = '\0';
     if (!result || (strcasecmp(legacy_fname, cmpgn_fname) != 0))
