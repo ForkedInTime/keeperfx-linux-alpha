@@ -9,12 +9,12 @@
 #
 # _tag and pkgver are bumped by .github/workflows/publish-aur.yml when a release
 # is published. pkgver is the tag without the leading "v" and the "-alpha" suffix.
-_tag=v1.4.0.5652
+_tag=v1.4.0.5660
 # The launcher is a separate repository with no tags, so it is pinned by commit.
-_launcher_commit=10fb12a66c5f096938600937bd2dfe59182138a5
+_launcher_commit=fc0bdd8f16e3d09fd18c1d97db4dd63f9baf3fa3
 pkgbase=keeperfx-tux
 pkgname=('keeperfx-tux' 'keeperfx-tux-data' 'keeperfx-tux-launcher')
-pkgver=1.4.0.5652
+pkgver=1.4.0.5660
 # rel 4: ship the pacman hook that reports a library break the soname
 # dependencies below cannot catch, and pick up the launcher fix that stops a
 # crash report carrying a log the failing run never wrote.
@@ -27,6 +27,14 @@ pkgver=1.4.0.5652
 # the breaking upgrade does not run for it. It has to already be installed.
 # Hence this: same engine tag, same pkgver, packaging only. Nothing here changes
 # the game; it puts the safety net in place before the fall.
+# 1.4.0.5660 rel 2: the same stable engine with a newer launcher (safe archive
+# extraction, crash and save-backup fixes) and wrappers (opening the launcher
+# first sets up the game directory). Published by running the AUR workflow by
+# hand for v1.4.0.5660; it keeps this rel because the recipe already records
+# 1.4.0.5660, and re-pins _launcher_commit to the launcher's alpha head. The
+# release itself is recorded here by hand: the bump commit after the 1.4.0.5660
+# publish never reached alpha, which left this recipe at 1.4.0.5652.
+#
 # rel 2: pin the launcher to the commit the 1.4.0.5652 AppImage was built from.
 # rel 1 kept the previous stable's launcher pin, so it paired a month-newer
 # engine with a launcher lacking the RAR installer, the updater's engine stash
@@ -72,7 +80,7 @@ source=(
 noextract=("keeperfx-tux-${pkgver}-full.7z")
 sha256sums=(
   'SKIP'
-  'fc88f7e37c2664b2b5e7fe74f03fd4d98dcf181c89330bf8d866540c9402eaa2'
+  '78a76b436ba024fe115f3dade234fbcaa8f611f6c1ec3cf76d655ce0189f2215'
   'SKIP'
   'a90ad879a8281b66c08ec8b116b899e3b2976f77211f7055e5c8ee6d756a439f'
   '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'
