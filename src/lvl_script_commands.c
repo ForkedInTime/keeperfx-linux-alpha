@@ -831,7 +831,7 @@ static void display_objective_check(const struct ScriptLine *scline)
         y = scline->np[2];
     }
     value->shorts[0] = msg_num;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -852,7 +852,7 @@ static void display_objective_process(struct ScriptContext *context)
 {
     set_general_objective_with_icon(context->value->shorts[0],
         context->player_idx,
-        context->value->ulongs[2],
+        context->value->ulongs[1],
         context->value->shorts[4],
         context->value->shorts[5],
         context->value->shorts[6]);
@@ -885,7 +885,7 @@ static void display_player_objective_check(const struct ScriptLine* scline)
         y = scline->np[3];
     }
     value->shorts[0] = msg_num;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -947,7 +947,7 @@ static void quick_objective_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -969,7 +969,7 @@ static void quick_objective_process(struct ScriptContext* context)
     process_objective_with_icon(
         game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT],
         context->player_idx,
-        context->value->ulongs[2],
+        context->value->ulongs[1],
         context->value->shorts[4],
         context->value->shorts[5],
         context->value->shorts[6]);
@@ -1020,7 +1020,7 @@ static void quick_player_objective_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -1105,7 +1105,7 @@ static void quick_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -1123,7 +1123,7 @@ static void quick_information_check(const struct ScriptLine* scline)
 
 static void quick_information_process(struct ScriptContext* context)
 {
-    set_quick_information_with_icon(context->value->shorts[0], context->player_idx, context->value->ulongs[2], context->value->shorts[4], context->value->shorts[5], context->value->shorts[6]);
+    set_quick_information_with_icon(context->value->shorts[0], context->player_idx, context->value->ulongs[1], context->value->shorts[4], context->value->shorts[5], context->value->shorts[6]);
 }
 
 static void quick_player_information_check(const struct ScriptLine* scline)
@@ -1171,7 +1171,7 @@ static void quick_player_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = idx;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -1214,7 +1214,7 @@ static void display_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = msg_num;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -1236,7 +1236,7 @@ static void display_information_check(const struct ScriptLine* scline)
 static void display_information_process(struct ScriptContext* context)
 {
     set_general_information_with_icon(context->value->shorts[0], context->player_idx,
-        context->value->ulongs[2], context->value->shorts[4], context->value->shorts[5], context->value->shorts[6]);
+        context->value->ulongs[1], context->value->shorts[4], context->value->shorts[5], context->value->shorts[6]);
 }
 
 static void display_player_information_check(const struct ScriptLine* scline)
@@ -1275,7 +1275,7 @@ static void display_player_information_check(const struct ScriptLine* scline)
     }
 
     value->shorts[0] = msg_num;
-    value->ulongs[2] = location;   // ulongs[2] (bytes 16-23 with 8-byte long): clear of shorts[4..6] = x/y/icon (bytes 8-13)
+    value->ulongs[1] = location;
     value->shorts[4] = x;
     value->shorts[5] = y;
     value->shorts[6] = -1;
@@ -1738,7 +1738,7 @@ static void move_creature_check(const struct ScriptLine* scline)
         effct_id = -1;
     }
     value->ulongs[0] = location;
-    value->longs[2] = select_id;   // longs[2] (bytes 16-23): clear of effct_id/count/crmodel in bytes 8-11
+    value->longs[1] = select_id;
     value->shorts[4] = effct_id;
     value->bytes[10] = count;
     value->bytes[11] = crmodel;
@@ -1942,7 +1942,7 @@ static void set_hand_rule_process(struct ScriptContext* context)
 static void move_creature_process(struct ScriptContext* context)
 {
     TbMapLocation location = context->value->ulongs[0];
-    long select_id = context->value->longs[2];
+    long select_id = context->value->longs[1];
     long effect_id = context->value->shorts[4];
     long count = context->value->bytes[10];
     long crmodel = context->value->bytes[11];
@@ -2001,7 +2001,7 @@ static void create_effect_process(struct ScriptContext *context)
     struct Coord3d pos;
     if (!get_coords_at_location(&pos, context->value->ulongs[1],true))
     {
-        SCRPTWRNLOG("Could not find location %lu to create effect", context->value->ulongs[1]);
+        SCRPTWRNLOG("Could not find location %u to create effect", context->value->ulongs[1]);
         return;
     }
     script_create_effect(&pos,context->value->shorts[0],context->value->longs[2]);
@@ -6028,18 +6028,14 @@ static void quick_message_check(const struct ScriptLine* scline)
         SCRPTWRNLOG("Quick Message no %ld overwritten by different text", scline->np[0]);
     }
     snprintf(game.quick_messages[scline->np[0]], MESSAGE_TEXT_LEN, "%s", scline->tp[1]);
-    // Store the message index in shorts[0] (bytes 0-1), NOT longs[0] (bytes 0-7): the
-    // chat icon below is written into shorts[2]/chars[6] (bytes 4-6), which alias longs[0]
-    // and would otherwise corrupt the index into a huge out-of-bounds value at process
-    // time (crashes e.g. the Tempest Keeper campaign's QUICK_MESSAGE(... PLAYER1)).
-    value->shorts[0] = scline->np[0];
-    get_chat_icon_from_value(scline->tp[2], &value->shorts[2], &value->chars[6]);
+    value->longs[0]= scline->np[0];
+	get_chat_icon_from_value(scline->tp[2], &value->shorts[4], &value->chars[6]);    
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void quick_message_process(struct ScriptContext* context)
 {
-    message_add_fmt(context->value->chars[6], context->value->shorts[2], "%s", game.quick_messages[context->value->shorts[0] % QUICK_MESSAGES_COUNT]);
+	message_add_fmt(context->value->chars[6], context->value->shorts[4], "%s", game.quick_messages[context->value->ulongs[0]]); 
 }
 
 static void display_message_check(const struct ScriptLine* scline)
@@ -6053,17 +6049,15 @@ static void display_message_check(const struct ScriptLine* scline)
         DEALLOCATE_SCRIPT_VALUE;
         return;
     }
-    // Store the string id in ulongs[1] (bytes 8-15), NOT ulongs[0] (bytes 0-7): the chat
-    // icon below is written into shorts[2]/chars[6] (bytes 4-6), which alias ulongs[0] and
-    // would otherwise corrupt the id into an out-of-bounds value passed to get_string().
-    value->ulongs[1] = msg_num;
-    get_chat_icon_from_value(scline->tp[1], &value->shorts[2], &value->chars[6]);
+    value->ulongs[0] = msg_num;
+    get_chat_icon_from_value(scline->tp[1], &value->shorts[4], &value->chars[7]);
+
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
 static void display_message_process(struct ScriptContext* context)
-{
-    message_add_fmt(context->value->chars[6], context->value->shorts[2], "%s", get_string(context->value->ulongs[1]));
+{    
+    message_add_fmt(context->value->chars[7], context->value->shorts[4], "%s", get_string(context->value->ulongs[0]));   
 }
 
 static void clear_message_check(const struct ScriptLine* scline)
@@ -6348,7 +6342,7 @@ static void add_object_to_level_check(const struct ScriptLine* scline)
     }
 
     value->chars[2] = plyr_idx;
-    value->shorts[2] = angle;   // shorts[2] (bytes 4-5): clear of longs[2]=np[2] (bytes 16-23)
+    value->shorts[8] = angle;
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
@@ -6357,7 +6351,7 @@ static void add_object_to_level_process(struct ScriptContext* context)
     struct Coord3d pos;
     if (get_coords_at_location(&pos,context->value->ulongs[1],true))
     {
-        script_process_new_object(context->value->shorts[0], pos.x.stl.num, pos.y.stl.num, context->value->longs[2], context->value->chars[2], context->value->shorts[2]);
+        script_process_new_object(context->value->shorts[0], pos.x.stl.num, pos.y.stl.num, context->value->longs[2], context->value->chars[2], context->value->shorts[8]);
     }
 }
 

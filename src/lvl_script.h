@@ -125,9 +125,11 @@ struct ScriptValue {
     char chars[32];
     short shorts[16];
     unsigned short ushorts[16];
-    long longs[8];
+    // longs/ulongs are 32-bit, as `long` is on Windows: commands pack shorts and bytes
+    // next to them by index, so they must overlap the other members exactly as upstream's.
+    int32_t longs[8];
     long long longlongs[4];
-    unsigned long ulongs[8];
+    uint32_t ulongs[8];
     unsigned long long ulonglongs[4];
   };
 };
