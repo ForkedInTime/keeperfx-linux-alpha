@@ -133,8 +133,8 @@ struct GameCampaign {
   char soundtrack_fname[DISKPATH_SIZE];
 };
 
-struct HighScore {
-  long score;
+struct HighScore { // written raw to the score file: keep it 72 bytes, as on Windows
+  int32_t score;
   char name[HISCORE_NAME_LENGTH];
   LevelNumber lvnum;
 };
