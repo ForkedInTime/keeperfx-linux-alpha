@@ -139,11 +139,6 @@ enum ReplayTypes {
 extern uint32_t max_replays[ReplTyp_Count];
 extern TbBool FLEE_BUTTON_DEFAULT;
 extern TbBool IMPRISON_BUTTON_DEFAULT;
-/** Fallback-trash retention (save/trash/, used only when the OS-native trash is
- *  unavailable -- see delete_save_game() in game_saves.c). A count of 0 disables
- *  trashing outright: deletes go straight through, no trash of any kind. */
-extern long save_trash_max_count;
-extern long save_trash_max_days;
 /******************************************************************************/
 void load_configuration_for_mod_all(void);
 short load_configuration(void);

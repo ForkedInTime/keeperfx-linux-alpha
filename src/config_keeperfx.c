@@ -16,6 +16,7 @@
 #include "kfx_memory.h"
 #include "pre_inc.h"
 #include "config_keeperfx.h"
+#include "game_saves.h"
 
 #include <stdarg.h>
 #include "globals.h"
@@ -70,8 +71,6 @@ unsigned char viewport_mode = VpMode_Original;
 TbBool exit_on_lua_error = false;
 TbBool FLEE_BUTTON_DEFAULT = false;
 TbBool IMPRISON_BUTTON_DEFAULT = false;
-long save_trash_max_count = 10;
-long save_trash_max_days = 30;
 
 /**
  * Language 3-char abbreviations.
@@ -126,6 +125,12 @@ const struct NamedCommand atmos_freq[] = {
   };
 
 const struct NamedCommand conf_commands[] = {
+  // Fork settings: numbered from 1001 so upstream's own (51-54 so far, growing)
+  // can never collide with them -- they did twice while ours were 51/52 and
+  // 53/54 -- and listed first, away from the end of the list where upstream
+  // appends, so syncing does not conflict here every time it adds one.
+  {"TRASH_MAX_COUNT",   1001},
+  {"TRASH_MAX_DAYS",    1002},
   {"INSTALL_PATH",         1},
   {"INSTALL_TYPE",         2},
   {"LANGUAGE",             3},
@@ -179,10 +184,6 @@ const struct NamedCommand conf_commands[] = {
   {"PARCHMENT_MAP_FADE"            , 51},
   {"REPLAY_MAX_SIZE"               , 52},
   {"MAX_REPLAYS"                   , 53},
-  // Fork settings sit above upstream's numbering; upstream took 53 for
-  // MAX_REPLAYS in September 2026 (and 51/52 before that), so ours moved twice.
-  {"TRASH_MAX_COUNT"               , 55},
-  {"TRASH_MAX_DAYS"                , 56},
   {NULL,                   0},
   };
 
@@ -441,6 +442,34 @@ static void load_file_configuration(const char *fname, const char *sname, const 
       char word_buf[128];
       switch (cmd_num)
       {
+      // Fork settings first, away from the end of this switch where upstream
+      // adds its new ones every few weeks (see conf_commands above).
+      case 1001: // TRASH_MAX_COUNT
+          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          i = atoi(word_buf);
+          if ((i >= 0) && (i <= 32768)) {
+              save_trash_max_count = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 1002: // TRASH_MAX_DAYS
+          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          i = atoi(word_buf);
+          if ((i >= 0) && (i <= 32768)) {
+              save_trash_max_days = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
       case 1: // INSTALL_PATH
           i = get_conf_parameter_whole(buf,&pos,len,install_info.inst_path,sizeof(install_info.inst_path));
           if (i <= 0)
@@ -1111,32 +1140,6 @@ static void load_file_configuration(const char *fname, const char *sname, const 
               packetsave_max_kb = i;
           } else {
               CONFWRNLOG("Invalid \"%s\" value in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-          }
-          break;
-      case 55: // TRASH_MAX_COUNT
-          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
-          {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-            break;
-          }
-          i = atoi(word_buf);
-          if ((i >= 0) && (i <= 32768)) {
-              save_trash_max_count = i;
-          } else {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-          }
-          break;
-      case 56: // TRASH_MAX_DAYS
-          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
-          {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-            break;
-          }
-          i = atoi(word_buf);
-          if ((i >= 0) && (i <= 32768)) {
-              save_trash_max_days = i;
-          } else {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
           }
           break;
       case 53: // MAX_REPLAYS

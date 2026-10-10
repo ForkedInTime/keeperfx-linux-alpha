@@ -750,6 +750,9 @@ static enum SaveFileCheck check_save_file(TbFileHandle fhandle, long file_len)
 
 TbBool save_load_state_disturbed = false;
 
+long save_trash_max_count = 10;
+long save_trash_max_days = 30;
+
 TbBool load_game(long slot_num)
 {
     last_save_load_failure = SaveLoadFail_Unreadable;
