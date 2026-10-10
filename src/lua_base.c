@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "lua_api.h"
+#include "lua_readonly_io.h"
 
 #include "bflib_basics.h"
 #include "bflib_fileio.h"
@@ -446,6 +447,7 @@ TbBool open_lua_script(LevelNumber lvnum)
 
     open_lua_standard_libraries(Lvl_script);
     disable_lua_functions(Lvl_script);
+    lua_make_files_read_only(Lvl_script); // this edition: see lua_readonly_io.c
 
     lua_set_random_seed(game.action_random_seed);
 

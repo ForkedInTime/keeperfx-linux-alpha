@@ -327,7 +327,8 @@ src/vidmode.c \
 src/front_landview_textbox.c \
 src/logging.c \
 src/net_spectator.c \
-src/observer.c
+src/observer.c \
+src/lua_readonly_io.c
 
 KFX_C_SOURCES = $(filter %.c,$(KFX_SOURCES))
 KFX_CXX_SOURCES = $(filter %.cpp,$(KFX_SOURCES))
