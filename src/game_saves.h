@@ -128,6 +128,14 @@ TbBool save_packet_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry);
 /******************************************************************************/
 extern enum SaveLoadFailure last_save_load_failure;
 
+/** Fallback-trash retention (save/trash/, used only when the OS-native trash is
+ *  unavailable -- see delete_save_game()), from keeperfx.cfg TRASH_MAX_COUNT and
+ *  TRASH_MAX_DAYS. A count of 0 disables trashing outright: deletes go straight
+ *  through, no trash of any kind. Kept here, not in config_keeperfx.h, so the
+ *  fork's lines stay out of a file upstream edits every few weeks. */
+extern long save_trash_max_count;
+extern long save_trash_max_days;
+
 /** Set when the last load_game() failed AFTER it had started overwriting the
  *  running session (only a disk read error or an allocation failure can do
  *  that). The session must not be resumed then: callers leave the level, as
