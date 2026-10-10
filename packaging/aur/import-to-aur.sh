@@ -58,11 +58,15 @@ import_pkg() {
 rc=0
 # One repository: the split package serves keeperfx-tux, keeperfx-tux-data and
 # keeperfx-tux-launcher. Every local file named in the PKGBUILD's source=() must
-# be listed here -- the AUR repository is the whole build context, so one missing
-# launcher script means the package fails to build for everyone who installs it.
+# go with it -- the AUR repository is the whole build context, so one missing
+# script means the package fails to build for everyone who installs it. The list
+# is read from source=() itself: a hand-written one here fell behind (it lacked
+# the stash/unstash hooks and keeperfx-tux-previous.sh) when the recipe grew.
+mapfile -t local_sources < <(awk '/^source=\(/,/^\)/' "$HERE/PKGBUILD" \
+    | grep -oE "^[[:space:]]*'[^']+'" | tr -d " '" | grep -v -e '::' -e '/' -e '^\$')
+[ "${#local_sources[@]}" -gt 0 ] || { echo "could not read source=() from $HERE/PKGBUILD" >&2; exit 1; }
 import_pkg keeperfx-tux "$HERE" "KeeperFX Tux Edition" \
-           PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop keeperfx-tux-launcher.sh \
-           keeperfx-tux.hook keeperfx-tux-libcheck.sh || rc=1
+           PKGBUILD .SRCINFO "${local_sources[@]}" || rc=1
 
 if [ "$rc" = 0 ]; then
     echo
