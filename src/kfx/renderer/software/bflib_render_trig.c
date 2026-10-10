@@ -2105,27 +2105,28 @@ static inline unsigned char __CFADDS__(short x, short y)
 
 /**
  * whether the addition (x+y) of two long ints would use carry
+ * (32-bit, as `long` is in the original: the carry is out of bit 31)
  */
-static inline unsigned char __CFADDL__(long x, long y)
+static inline unsigned char __CFADDL__(uint32_t x, uint32_t y)
 {
-    return (ulong)(x) > (ulong)(x+y);
+    return x > (uint32_t)(x+y);
 }
 
 /**
- * rotate left unsigned long
+ * rotate left unsigned long (32-bit, as `long` is in the original)
  */
-static inline ulong __ROL4__(ulong value, int count)
+static inline uint32_t __ROL4__(uint32_t value, int count)
 {
     const uint nbits = 4 * 8;
 
     if (count > 0) {
         count %= nbits;
-        ulong high = value >> (nbits - count);
+        uint32_t high = value >> (nbits - count);
         value <<= count;
         value |= high;
     } else {
         count = -count % nbits;
-        ulong low = value << (nbits - count);
+        uint32_t low = value << (nbits - count);
         value >>= count;
         value |= low;
     }
@@ -2265,7 +2266,7 @@ void trig_render_md02(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     polygon_point = polyscans;
@@ -2351,7 +2352,7 @@ void trig_render_md03(struct TrigLocalRend *tlr)
 {
     struct PolyPoint *polygon_point;
     unsigned char *m;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     polygon_point = polyscans;
@@ -2523,9 +2524,9 @@ void trig_render_md05(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
-    long texture_v_lower_byte;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
+    uint32_t texture_v_lower_byte;
 
     m = vec_map;
     f = pixmap.fade_tables;
@@ -2644,8 +2645,8 @@ void trig_render_md06(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
 
     m = vec_map;
     f = pixmap.fade_tables;
@@ -2756,7 +2757,7 @@ void trig_render_md07(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *f;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     f = pixmap.fade_tables;
@@ -2845,7 +2846,7 @@ void trig_render_md08(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *f;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     f = pixmap.fade_tables;
@@ -2935,7 +2936,7 @@ void trig_render_md09(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *f;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     f = pixmap.fade_tables;
@@ -3037,7 +3038,7 @@ void trig_render_md10(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;  // texture map (256x256 sprite in big_scratch)
     unsigned char *f;  // fade/transparency table
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     f = pixmap.fade_tables;
@@ -3165,7 +3166,7 @@ void trig_render_md12(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *g;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -3254,7 +3255,7 @@ void trig_render_md13(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *g;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -3606,7 +3607,7 @@ void trig_render_md18(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *g;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -3692,7 +3693,7 @@ void trig_render_md19(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *g;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -3776,8 +3777,8 @@ void trig_render_md20(struct TrigLocalRend *tlr)
     unsigned char *m;
     unsigned char *g;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -3872,8 +3873,8 @@ void trig_render_md21(struct TrigLocalRend *tlr)
     unsigned char *m;
     unsigned char *g;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -3967,7 +3968,7 @@ void trig_render_md22(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *g;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -4054,7 +4055,7 @@ void trig_render_md23(struct TrigLocalRend *tlr)
     struct PolyPoint *polygon_point;
     unsigned char *m;
     unsigned char *g;
-    long texture_v_step_fixed;
+    uint32_t texture_v_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -4142,8 +4143,8 @@ void trig_render_md24(struct TrigLocalRend *tlr)
     unsigned char *m;
     unsigned char *g;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -4243,8 +4244,8 @@ void trig_render_md25(struct TrigLocalRend *tlr)
     unsigned char *m;
     unsigned char *g;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
 
     m = vec_map;
     g = pixmap.ghost;
@@ -4344,9 +4345,9 @@ void trig_render_md26(struct TrigLocalRend *tlr)
     unsigned char *m;
     unsigned char *g;
     unsigned char *f;
-    long texture_v_step_fixed;
-    long shade_step_fixed;
-    long texture_v_lower_byte;
+    uint32_t texture_v_step_fixed;
+    uint32_t shade_step_fixed;
+    uint32_t texture_v_lower_byte;
 
     m = vec_map;
     g = pixmap.ghost;
