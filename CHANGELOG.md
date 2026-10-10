@@ -4,6 +4,82 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## Unreleased — alpha
+
+> **Saved games from earlier versions will not load in this build.** A 64-bit fix below changes the
+> size of the saved game state (`sizeof(struct Game)` 53383086 → 53317550). Finish anything in
+> progress on the current version first, or keep it alongside. The release notes repeat this
+> automatically.
+
+**No more Windows in this repository.**
+- **The team's Windows content is gone, and the weekly sync cannot bring it back.** Their Visual Studio
+  project, the MinGW/MSVC CMake build and vcpkg, a Windows `gdb.exe`, CUnit's Visual C++ solutions,
+  the Windows-only platform code, their Windows CI, and every `#ifdef _WIN32` branch in the engine and
+  the vendored libraries — 281 files, about 101,000 lines. The sync no longer merges the team's
+  commits directly: it takes their tree, removes the Windows content (`packaging/linux-only/`), and
+  merges that snapshot, so Windows files are on neither side of a merge and never conflict again.
+  **Proven not to change the game:** every file the Linux build compiles was preprocessed with and
+  without the filter — 311 identical, one with identical machine code — and the sync repeats that
+  proof every week. A guard workflow fails any pull request that reintroduces Windows content.
+- The sync also adds the team's new source files to `linux.mk` by itself (previously a manual edit
+  after every sync that added one), generates the fonts and runs the unit tests, and when it cannot
+  finish it updates the open sync issue instead of opening a new one every Monday. Upstream's
+  `Makefile` stays: the release builds use it to regenerate the artwork.
+
+**64-bit fixes.** KeeperFX was built for 32-bit Windows, where a `long` is 4 bytes; on 64-bit Linux
+it is 8, and these behaved differently from Windows:
+- **Creature shadows and other textured polygons in the software renderer** (the default) sampled the
+  wrong texture rows: the rasteriser's carry helpers worked on 64-bit values. Checked against a
+  32-bit model on 54,000 random triangles in all 27 drawing modes: 14,943 differences before, none after.
+- **Level scripts:** `ADD_EFFECT_GENERATOR_TO_LEVEL` placed nothing, `CREATE_EFFECTS_LINE` aimed at a
+  garbage location, `DISPLAY_VARIABLE_WITH_LABEL` read past the end of an array — script arguments
+  packed for 4-byte slots overlapped in 8-byte ones. The slots are 32-bit now, as on Windows, which
+  also retires the fork's earlier per-command workarounds.
+- **Script timers and bonus time go negative again** after `ADD_TO_TIMER` with a negative value, instead
+  of reading about 4.29 billion and firing `IF(...TIMERn >= X)` at once. **Sight of Evil** recast in the
+  first minute of a level moves the sight instead of closing it. Lua's `unsummon_duration` reads 0 for a
+  creature that is not summoned.
+- **Movie recording (Shift+M)** wrote files nothing could open and crashed on the second frame.
+- **High-score files** are 72 bytes per entry, as on Windows, so scores move between the two; files
+  written by earlier Linux builds are converted, not discarded.
+
+**Mods and maps made on Windows.** Windows does not care about upper/lower case in file names or which
+slash is used; Linux does. Now handled the Windows way:
+- custom sounds, a level's or campaign's Lua scripts (and `require`), map and sprite zips, and map-pack
+  folders (`LEVELS_LOCATION = levels/MyPack` beside a real `levels/mypack`) are found whatever the case;
+- `\` in a path (`creature\maiden\hit1.wav`, `campgns\mycamp`) is read as a separator;
+- a folder name containing `[`, `?` or `*` (an install at `/games/DK [GOG]`) is no longer a wildcard;
+- Korean text is decoded as code page 949, as on Windows (EUC-KR lacks most Hangul), and one bad
+  character no longer empties a whole text file;
+- `MUSIC_FROM_DISK=OFF` or `-cd` play the music folder (there is no CD audio on Linux) instead of nothing.
+
+**Saved games.**
+- A damaged save (truncated by a full disk, a block of the wrong size) is refused before anything is
+  loaded, instead of half-loading into the running game; a read error part-way leaves the level, as
+  upstream always did. The Load menu also restores the pause state it found.
+- Esc closes the delete-save confirmation instead of leaving it over the game with "Yes" still armed.
+- A save named in capitals (`FX1G0003.SAV`, from a DOS or GOG install) can be deleted; the trash never
+  overwrites a file already in it, and an incomplete copy never costs the original.
+
+**Smaller fixes.** In a music folder that mixes `keeperNN` files with other songs, every song plays once
+(one repeated and another never played). A mod's misspelt icon shows the checkerboard placeholder again
+rather than an empty button. A movie in a pixel format the converter cannot handle is skipped instead
+of crashing. The game's API server no longer exits silently when a client disconnects (SIGPIPE).
+`TRASH_MAX_COUNT`/`TRASH_MAX_DAYS` moved out of the spots upstream edits every sync, which removes one
+of the files that conflicted in five of the last seven syncs — the next sync now conflicts in two files
+instead of four.
+
+**Packaging.**
+- **AUR:** what is published is exactly what the checksums were computed from (a script edited after
+  tagging used to ship with a stale hash, failing `makepkg` for everyone); a version pacman would never
+  offer — lower than, or equal to but different from, the live one — now fails loudly instead of
+  "publishing" to nobody. The launcher's self-update is no longer undone on every start.
+- **AppImage:** an unbundled library now fails the build (the check only warned); the current
+  directory is no longer on the library search path.
+- `linux.mk` checks the prebuilt dependencies against pinned SHA-256s and never caches a failed
+  download. The fonts are generated by one script instead of five copies. The monthly Flatpak finds
+  its stable release past 20 alphas.
+
 ## 1.4.0.5762 — 2026-09-28 — alpha
 
 - **The High Score Table names the level and titles its columns.** Bullfrog's table printed a level
