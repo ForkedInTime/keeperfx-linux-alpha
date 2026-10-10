@@ -160,8 +160,9 @@ coming soon"*, and there's an open pull request to build an AppImage on their CI
 it lands. Until then the Linux path ends at a compiler: no build, no installer, no launcher.
 
 **This edition is that missing half, and only that half.** Every week a bot merges the team's latest
-`master` here, compile-checks it and opens a pull request, so the *game* is theirs and stays current —
-never a stale snapshot frozen at whatever built cleanly once. On top of it sits the part nobody else
+`master` here — with its Windows-only parts stripped out, proven not to change the game — builds and
+tests it and opens a pull request, so the *game* is theirs and stays current — never a stale snapshot
+frozen at whatever built cleanly once. On top of it sits the part nobody else
 maintains: a ready-to-run **AppImage, Flatpak and Arch package**, a native Qt launcher that doesn't touch
 Wine, and the Linux-specific fixes, hardening and performance work below.
 
@@ -175,7 +176,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > |---|---|---|
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
 > | 🧹 | **Linux-only source** — every Windows-only file and `#ifdef _WIN32` branch is stripped from the team's code before it is merged (281 files, ~101,000 lines at the switch), [proven](packaging/linux-only/README.md) not to change what Linux compiles; a guard workflow keeps it from coming back | the whole tree |
-> | 🧮 | **64-bit & Windows-assumption fixes** — the game was written for 32-bit Windows: level-script argument slots, the software rasteriser's carries (creature shadows), signed game-turn arithmetic, movie-recorder and high-score file layouts; plus mod files in any letter case, `\` paths, Korean code page 949, an API-server SIGPIPE | ~15 fixes |
+> | 🧮 | **64-bit & Windows-assumption fixes** — the game was written for 32-bit Windows: level-script argument slots, the software rasteriser's carries (creature shadows), signed game-turn arithmetic, movie-recorder and high-score file layouts, campaign progress written by earlier Linux builds, a network timeout; plus mod files in any letter case, `\` paths, Korean code page 949, an API-server SIGPIPE | ~17 fixes |
 > | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008 | ~34 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 8 wins |
@@ -184,7 +185,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges --invert-grep --grep='^Linux-Snapshot-Of:' upstream/master..HEAD`
-> — 318 commits of ours on top of theirs, on top of 27 merges of their work (snapshot commits excluded). The sections below are the line items.</sub>
+> — 320 commits of ours on top of theirs, on top of 27 merges of their work (snapshot commits excluded). The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
@@ -251,7 +252,15 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   (three releases deep, on all three install methods) so those campaigns stay playable; and the
   build **refuses to release** at all if the save format has moved without someone deciding it
   should. Saves are never modified or deleted by any of this — a save always opens in the version
-  that wrote it.
+  that wrote it. A save damaged on disk (cut short by a full drive, say) is refused before anything
+  is loaded, rather than half-loading into the game you are playing.
+- **Your campaign progress survives the October 2026 change to how it is stored.** Progress — the
+  *Continue* button, how far each campaign has got, the creatures you carry between levels — lives in
+  its own file, apart from saved games. The KeeperFX team moved it to one file per campaign and convert
+  the old file once, but their conversion only understood the layout 32-bit Windows writes; every
+  Linux build wrote it 160 bytes longer, so it would have been skipped and the progress silently lost.
+  This edition converts the Linux layout too (checked against a file written by stable 1.4.0.5660),
+  and leaves the old file in place so a stable build that still reads it keeps its own *Continue*.
 
 **Native Linux launcher** *(the KeeperFX team's `keeperfx-launcher-qt`, made to run natively)*
 - The team's Qt settings launcher compiles cross-platform but was written Windows-first (it launched the game
@@ -488,21 +497,13 @@ make -f linux.mk \
   deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
   deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
 rm -f src/ver_defs.h
-make -f linux.mk BUILD_NUMBER="$(git rev-list --count HEAD)" VER_SUFFIX=alpha -j"$(nproc)"
+make -f linux.mk BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" VER_SUFFIX=alpha -j"$(nproc)"
 ```
 This produces **`bin/keeperfx`** (a native ELF).
 
 **3. Generate the UTF-8 fonts** (the makefile doesn't build them):
 ```bash
-( cd tools/fxfontmaker && PY=$(command -v python3 || command -v python)
-  "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
-  "$PY" bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
-  "$PY" merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
-  "$PY" unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
-  "$PY" unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
-  "$PY" unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
-  "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
-  rm -f merged12.hex wenquanyi.hex unifont12.hex )
+packaging/ci/make-fonts.sh    # writes tools/fxfontmaker/*.fxfont, the same script every release uses
 ```
 
 **4. Assemble a playable install.** This repo has engine source + text config only — not the game data. Get a
@@ -538,7 +539,8 @@ and `#ifdef _WIN32` branch removed — and merges that:
 
 - **nothing new, or only Windows-only changes** → exits quietly;
 - **merges cleanly, compiles, passes the tests and the filter proof** → opens a pull request into `alpha`
-  listing every upstream change. Nothing merges itself: I read the diff before clicking **Merge**;
+  listing every upstream change, with a warning at the top if it would stop existing saved games from
+  loading. Nothing merges itself: I read the diff before clicking **Merge**;
 - **merge conflicts, a red build or a failed check** → opens an issue for manual attention instead (or adds
   the week's result to the one already open).
 
@@ -597,7 +599,8 @@ in the version that wrote it**, so they do not travel between channels.
 In practice: a campaign tells you it needs the latest alpha, you switch to alpha, play it, then
 switch back to stable — and your stable saves are exactly where you left them. The reverse is
 equally true: progress you make on alpha stays on alpha, because stable cannot read it either.
-What you cannot do is start a campaign on one channel and continue it on the other.
+What you cannot do is start a campaign on one channel and continue it on the other. Campaign
+progress — the *Continue* button — is stored apart from saved games and carries over when you update.
 
 This is not a policy, it is the save format: a save is a raw copy of the engine's internal state,
 so it only makes sense to an engine laid out the same way. When a save cannot be loaded the game
