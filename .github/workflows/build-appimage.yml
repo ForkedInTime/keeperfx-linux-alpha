@@ -521,8 +521,9 @@ jobs:
 
           # Fail the build if the AppDir still has a dependency it neither bundles
           # nor can assume, rather than shipping it and finding out per-distro.
-          missing=0
-          for f in AppDir/usr/lib/*.so* AppDir/usr/plugins/*/*.so AppDir/usr/bin/keeperfx-launcher-qt; do
+          # (It used to only warn: the loop ran in a pipeline subshell and the
+          # `missing` it was meant to count was never set or checked.)
+          unresolved="$(for f in AppDir/usr/lib/*.so* AppDir/usr/plugins/*/*.so AppDir/usr/bin/keeperfx-launcher-qt; do
             [ -f "$f" ] || continue
             objdump -p "$f" 2>/dev/null | awk '/NEEDED/{print $2}'
           done | sort -u | while read -r dep; do
@@ -537,8 +538,15 @@ jobs:
               # excludelist intends -- bundling fontconfig fights the host's fonts.
               libfontconfig.so.1|libfreetype.so.6|libharfbuzz.so.0|libfribidi.so.0|libasound.so.2) continue ;;
             esac
-            echo "::warning::AppDir depends on $dep but neither bundles nor can assume it"
-          done
+            echo "$dep"
+          done)"
+          if [ -n "$unresolved" ]; then
+            for dep in $unresolved; do
+              echo "::error::AppDir depends on $dep but neither bundles nor can assume it"
+            done
+            exit 1
+          fi
+          echo "every library the AppDir needs is bundled or provided by the host"
 
       - name: Install the custom AppRun (deploy payload to a writable install dir)
         working-directory: launcher
@@ -549,7 +557,10 @@ jobs:
           cat > AppDir/AppRun <<'EOF'
           #!/bin/bash
           HERE="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
-          export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
+          # ${VAR:+...}: an unset LD_LIBRARY_PATH must not leave a trailing ":",
+          # which the loader reads as "the current directory" -- and this script
+          # cd's into the user-writable game directory before exec.
+          export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           export QT_PLUGIN_PATH="$HERE/usr/plugins"
           export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/plugins/platforms"
           # We only bundle the xcb platform plugin; use it (via XWayland on Wayland) to
