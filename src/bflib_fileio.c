@@ -49,7 +49,7 @@
  *  @param buflen Size of the actual_fname buffer.
  *  @return Returns 1 if found, 0 otherwise.
  */
-static int find_case_insensitive_file(const char *fname, char *actual_fname, size_t buflen)
+static int find_case_insensitive_file_as_spelt(const char *fname, char *actual_fname, size_t buflen)
 {
     // Resolve EACH path component case-insensitively (not just the leaf), so a path whose
     // directory segments differ in case from disk (e.g. "mods/MyMod/sound/Foo.wav" vs a real
@@ -142,6 +142,35 @@ static int find_case_insensitive_file(const char *fname, char *actual_fname, siz
     }
     snprintf(actual_fname, buflen, "%s", resolved);
     return (access(actual_fname, F_OK) == 0) ? 1 : 0;
+}
+
+/** @internal
+ *  find_case_insensitive_file_as_spelt(), also reading '\' as a path separator.
+ *  Windows does, so configs and scripts written there use it: a creature sound
+ *  "creature\maiden\hit1.wav" (config_crtrmodel.c accepts the form explicitly),
+ *  LEVELS_LOCATION = campgns\mycamp. Nothing converted it, so on Linux each such
+ *  path was one file name that never existed. A Linux file name can contain a
+ *  literal '\' -- the game's data never does -- so the path is first tried as
+ *  spelt, and only a path that finds nothing that way has its '\'s read as the
+ *  separators Windows would have read them as.
+ */
+static int find_case_insensitive_file(const char *fname, char *actual_fname, size_t buflen)
+{
+    if (find_case_insensitive_file_as_spelt(fname, actual_fname, buflen)) {
+        return 1;
+    }
+    if (strchr(fname, '\\') == NULL) {
+        return 0;
+    }
+    char slashed[PATH_MAX];
+    size_t len = strlen(fname);
+    if (len >= sizeof(slashed)) {
+        return 0;
+    }
+    for (size_t i = 0; i <= len; i++) {
+        slashed[i] = (fname[i] == '\\') ? '/' : fname[i];
+    }
+    return find_case_insensitive_file_as_spelt(slashed, actual_fname, buflen);
 }
 
 short LbFileExists(const char *fname)
