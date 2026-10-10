@@ -62,6 +62,11 @@ const struct TbSprite *get_button_sprite(short sprite_idx);
 const struct TbSprite *get_frontend_sprite(short sprite_idx);
 const struct TbSprite *get_new_icon_sprite(short sprite_idx);
 const struct TbSprite *get_panel_sprite(short sprite_idx);
+/** True for an index the engine reserves (below GUI_PANEL_SPRITES_COUNT) that
+ *  the loaded panel sheet does not contain -- art an engine update added before
+ *  the data package caught up. get_panel_sprite() returns &bad_icon for these
+ *  and logs once; the draw helpers skip them rather than show the checkerboard. */
+TbBool panel_sprite_is_unshipped(short sprite_idx);
 struct TbSpriteSheet *load_custom_sheet_from_zip(const char *path, const unsigned char *palette);
 int is_custom_icon(short icon_idx);
 int get_custom_icon_frame_count(short icon_idx);
@@ -87,8 +92,9 @@ const struct LensMistData* get_lens_mist_data(const char *name);
 
 extern short bad_icon_id;
 // The sentinel sprite returned by get_panel_sprite()/get_button_sprite() when the
-// requested index is not present in the loaded spritesheet. Draw helpers compare a
-// looked-up sprite against this by address to skip drawing it (see gui_draw.c).
+// requested index is not present in the loaded spritesheet. It draws as a
+// checkerboard, which is how a mod's misspelt icon name shows up; the panel draw
+// helpers in gui_draw.c skip it only for panel_sprite_is_unshipped() indices.
 extern const struct TbSprite bad_icon;
 #ifdef __cplusplus
 }

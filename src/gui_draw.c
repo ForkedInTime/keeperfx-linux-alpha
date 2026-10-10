@@ -781,7 +781,7 @@ void draw_gui_panel_sprite_left_player(long x, long y, int units_per_px, long sp
 {
     spridx = get_player_colored_icon_idx(spridx,plyr_idx);
     const struct TbSprite* spr = get_panel_sprite(spridx);
-    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+    if ((spr == &bad_icon) && panel_sprite_is_unshipped(spridx)) // reserved, not in the shipped sheet; already logged
         return;
     LbSpriteDrawResized(x, y, units_per_px, spr);
 }
@@ -790,7 +790,7 @@ void draw_gui_panel_sprite_rmleft_player(long x, long y, int units_per_px, long 
 {
     spridx = get_player_colored_icon_idx(spridx, plyr_idx);
     const struct TbSprite* spr = get_panel_sprite(spridx);
-    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+    if ((spr == &bad_icon) && panel_sprite_is_unshipped(spridx)) // reserved, not in the shipped sheet; already logged
         return;
     LbSpriteDrawResizedRemap(x, y, units_per_px, spr, &pixmap.fade_tables[remap*256]);
 }
@@ -799,7 +799,7 @@ void draw_gui_panel_sprite_centered(long x, long y, int units_per_px, long sprid
 {
     spridx = get_player_colored_icon_idx(spridx,my_player_number);
     const struct TbSprite* spr = get_panel_sprite(spridx);
-    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+    if ((spr == &bad_icon) && panel_sprite_is_unshipped(spridx)) // reserved, not in the shipped sheet; already logged
         return;
     x -= ((spr->SWidth*units_per_px/16) >> 1);
     y -= ((spr->SHeight*units_per_px/16) >> 1);
@@ -810,7 +810,7 @@ void draw_gui_panel_sprite_occentered(long x, long y, int units_per_px, long spr
 {
     spridx = get_player_colored_icon_idx(spridx,my_player_number);
     const struct TbSprite* spr = get_panel_sprite(spridx);
-    if (spr == &bad_icon) // requested sprite is not in the loaded sheet; get_panel_sprite already logged it
+    if ((spr == &bad_icon) && panel_sprite_is_unshipped(spridx)) // reserved, not in the shipped sheet; already logged
         return;
     x -= ((spr->SWidth*units_per_px/16) >> 1);
     y -= ((spr->SHeight*units_per_px/16) >> 1);
