@@ -323,7 +323,11 @@ src/timer.c \
 src/value_util.c \
 src/vidfade.c \
 src/vidmode_data.cpp \
-src/vidmode.c
+src/vidmode.c \
+src/front_landview_textbox.c \
+src/logging.c \
+src/net_spectator.c \
+src/observer.c
 
 KFX_C_SOURCES = $(filter %.c,$(KFX_SOURCES))
 KFX_CXX_SOURCES = $(filter %.cpp,$(KFX_SOURCES))

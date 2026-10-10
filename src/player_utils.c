@@ -59,6 +59,8 @@
 #include "keeperfx.hpp"
 #include "kjm_input.h"
 #include "timer.h"
+#include "packets.h"
+#include "net_game.h"
 #include "post_inc.h"
 
 /******************************************************************************/
@@ -171,7 +173,7 @@ void set_player_as_won_level(struct PlayerInfo *player)
   // Computing player score
   dungeon->lvstats.player_score = compute_player_final_score(player, dungeon->max_gameplay_score);
   dungeon->lvstats.allow_save_score = 1;
-  if (!network_is_active())
+  if (game.game_kind != GKind_MultiGame)
     player->display_objective_turn = get_gameturn() + 300;
   if (my_player)
   {
@@ -189,7 +191,7 @@ void set_player_as_lost_level(struct PlayerInfo *player)
     if (player->victory_state != VicS_Undecided)
     {
         // Suppress redundant warnings
-        if ((game.system_flags & GSF_RunAfterVictory) == 0)
+        if (!game.run_after_victory)
         {
             WARNLOG("Victory state already set to %d",(int)player->victory_state);
         }
@@ -226,12 +228,12 @@ void set_player_as_lost_level(struct PlayerInfo *player)
     }
     if (is_my_player(player))
         gui_set_button_flashing(0, 0);
-    if (player->view_type == PVT_CreatureContrl)
+    if (get_player_view_type(player) == PVT_CreatureContrl)
     {
         struct Thing *thing = thing_get(player->controlled_thing_idx);
         leave_creature_as_controller(player, thing);
     }
-    else if (player->view_type == PVT_CreaturePasngr)
+    else if (get_player_view_type(player) == PVT_CreaturePasngr)
     {
         struct Thing *thing = thing_get(player->controlled_thing_idx);
         leave_creature_as_passenger(player, thing);
@@ -244,9 +246,9 @@ void set_player_as_lost_level(struct PlayerInfo *player)
         }
     }
     set_player_state(player, PSt_CtrlDungeon, 0);
-    if (!network_is_active())
+    if (game.game_kind != GKind_MultiGame)
         player->display_objective_turn = get_gameturn() + 300;
-    if (network_is_active())
+    if (game.game_kind == GKind_MultiGame)
         reveal_whole_map(player);
     if ((dungeon->computer_enabled & 0x01) != 0)
         toggle_computer_player(player->id_number);
@@ -255,7 +257,7 @@ void set_player_as_lost_level(struct PlayerInfo *player)
 long compute_player_final_score(struct PlayerInfo *player, long gameplay_score)
 {
     long i;
-    if (network_is_active()
+    if ((game.game_kind == GKind_MultiGame)
       || !is_singleplayer_level(game.loaded_level_number)) {
         i = 2 * gameplay_score;
     } else {
@@ -839,30 +841,35 @@ void init_user_state(NetUserId user)
     }
 }
 
+void init_local_player_state(void)
+{
+    local_state.minimap_pos_x = 11;
+    local_state.minimap_pos_y = 11;
+    local_state.roomspace_size = DEFAULT_USER_ROOMSPACE_WIDTH;
+}
+
 void init_player(struct PlayerInfo *player, short no_explore)
 {
     SYNCDBG(5,"Starting");
-    if (is_my_player(player))
-    {
-        local_state.minimap_pos_x = 11;
-        local_state.minimap_pos_y = 11;
-        local_state.minimap_zoom = settings.minimap_zoom;
-        local_state.roomspace_size = DEFAULT_USER_ROOMSPACE_WIDTH;
+    if (is_my_player(player)) {
+        init_local_player_state();
         setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
         local_state.main_palette = engine_palette;
     }
     player->continue_work_state = PSt_CtrlDungeon;
     player->work_state = PSt_CtrlDungeon;
-    player->isometric_view_zoom_level = settings.isometric_view_zoom_level;
-    player->frontview_zoom_level = settings.frontview_zoom_level;
+    struct UserState *ustate = get_player_user_state(player);
+    if (!user_state_invalid(ustate))
+    {
+        player->roomspace_highlight_mode = ustate->prefs[UPref_StartingHighlightMode];
+        player->roomspace_mode = ustate->prefs[UPref_StartingHighlightMode];
+    }
     if (is_my_player(player))
     {
         if (default_tag_mode != 3)
         {
             settings.highlight_mode = default_tag_mode - 1;
         }
-        player->roomspace_highlight_mode = settings.highlight_mode;
-        player->roomspace_mode = settings.highlight_mode;
         set_flag(game.operation_flags, GOF_ShowPanel);
         set_gui_visible(true);
         init_gui();
@@ -883,17 +890,6 @@ void init_player(struct PlayerInfo *player, short no_explore)
         }
         break;
     case GKind_MultiGame:
-        //workaround until settings are synced through multiplayer
-        if (is_my_player(player))
-            local_state.minimap_zoom = 256;
-        if (game.packet_save_head.isometric_view_zoom_level == 0)
-        {
-            player->isometric_view_zoom_level = CAMERA_ZOOM_MAX;
-        }
-        if (game.packet_save_head.frontview_zoom_level == 0)
-        {
-            player->frontview_zoom_level = FRONTVIEW_CAMERA_ZOOM_MAX;
-        }
         if (!is_active_keeper(player))
         {
           ERRORLOG("Non Keeper in Keeper game");
@@ -923,26 +919,68 @@ void init_player(struct PlayerInfo *player, short no_explore)
     }
 }
 
+// What the user can (canonically) see
+int32_t user_get_visibility_bounds(NetUserId user, MapCoord *x, MapCoord *y)
+{
+    const int32_t default_radius = 24 * COORD_PER_STL;
+    struct PlayerInfo *player = get_player(get_net_user_player_number(user));
+    const struct UserState *ustate = get_user_state(user);
+    if (!player_exists(player) || user_state_invalid(ustate))
+        return -1;
+    // TODO: interpolate during an instance?
+    const struct DungeonCamera dcam = ustate->dungeon_camera;
+    *x = dcam.x;
+    *y = dcam.y;
+    switch (get_player_view_type(player))
+    {
+    case PVT_CreatureContrl:
+    case PVT_CreaturePasngr:
+    {
+        struct Thing *thing = thing_get(player->controlled_thing_idx);
+        if (thing_exists(thing))
+        {
+            *x = thing->mappos.x.val;
+            *y = thing->mappos.y.val;
+        }
+        return default_radius;
+    }
+    case PVT_MapScreen:
+    case PVT_MapFadeOut:
+    {
+        const struct Packet *pckt = get_packet(user);
+        if (packet_camera_context(pckt) == CamIV_Parchment)
+        {
+            *x = pckt->pos_x;
+            *y = pckt->pos_y;
+        }
+        return default_radius;
+    }
+    default:
+        if (ustate->prefs[UPref_FrontView] != 0)
+            return SHRT_MAX - (clamp(dcam.zoom[true], FRONTVIEW_CAMERA_ZOOM_MIN, FRONTVIEW_CAMERA_ZOOM_MAX) / 3);
+        return SHRT_MAX - (2 * clamp(dcam.zoom[false], CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX));
+    }
+}
+
 void init_players(void)
 {
     for (int i = 0; i < PLAYERS_COUNT; i++)
     {
         struct PlayerInfo* player = get_player(i);
-        if (flag_is_set(game.packet_save_head.players_exist, to_flag(i)))
+        if (flag_is_set(replay.head.players_exist, to_flag(i)))
             player->allocflags |= PlaF_Allocated;
         else
             player->allocflags &= ~PlaF_Allocated;
         if (player_exists(player))
         {
             player->id_number = i;
-            if (flag_is_set(game.packet_save_head.players_comp, to_flag(i)))
+            if (flag_is_set(replay.head.players_comp, to_flag(i)))
                 player->allocflags |= PlaF_CompCtrl;
             else
                 player->allocflags &= ~PlaF_CompCtrl;
             if ((player->allocflags & PlaF_CompCtrl) == 0)
             {
               game.human_players_count++;
-              game.game_kind = GKind_MultiGame;
               init_player(player, 0);
             }
         }
@@ -1164,6 +1202,13 @@ void post_init_players(void)
     }
 }
 
+TbBool get_starting_highlight_mode(void)
+{
+    if (default_tag_mode != 3)
+        return (default_tag_mode - 1) != 0;
+    return settings.highlight_mode;
+}
+
 void init_players_local_game(void)
 {
     SYNCDBG(4,"Starting");
@@ -1178,18 +1223,12 @@ void init_players_local_game(void)
         player->player_type = PT_Keeper;
     }
 
-    switch (settings.video_rotate_mode) {
-        case 0: player->view_mode_restore = PVM_IsoWibbleView; break;
-        case 1: player->view_mode_restore = PVM_IsoStraightView; break;
-        case 2: player->view_mode_restore = PVM_FrontView; break;
-        default: player->view_mode_restore = PVM_IsoWibbleView; break;
-    }
-    init_player(player, 0);
     init_user_state(player->user_id);
-    set_creature_tendencies(player, CrTend_Imprison, IMPRISON_BUTTON_DEFAULT);
-    set_creature_tendencies(player, CrTend_Flee, FLEE_BUTTON_DEFAULT);
-    game.creatures_tend_imprison = IMPRISON_BUTTON_DEFAULT;
-    game.creatures_tend_flee = FLEE_BUTTON_DEFAULT;
+    UserPreferences prefs;
+    build_local_user_preferences(prefs);
+    apply_user_preferences(player->user_id, prefs, UPF_NewGame);
+    init_player(player, 0);
+    apply_user_start_tendencies(player);
 }
 
 void process_player_states(void)
@@ -1203,10 +1242,9 @@ void process_player_states(void)
             if ( (player->work_state == PSt_CreatrInfo) || (player->work_state == PSt_CreatrInfoAll) )
             {
                 struct Thing* thing = thing_get(player->controlled_thing_idx);
-                struct Camera* cam = get_player_active_camera(player);
-                if ((cam != NULL) && thing_exists(thing)) {
-                    cam->mappos.x.val = thing->mappos.x.val;
-                    cam->mappos.y.val = thing->mappos.y.val;
+                if (thing_exists(thing)) {
+                    get_player_user_state(player)->dungeon_camera.x = thing->mappos.x.val;
+                    get_player_user_state(player)->dungeon_camera.y = thing->mappos.y.val;
                     set_local_camera_destination(player);
                 }
             }
@@ -1392,18 +1430,8 @@ void set_player_colour(PlayerNumber plyr_idx, unsigned char colour_idx)
                     break;
                 }
             }
-            // Refresh GUI panel button sprites for local player. Workaround for multiplayer.
             if (plyr_idx == my_player_number) {
-                for (int btn_idx = 0; btn_idx < ACTIVE_BUTTONS_COUNT; btn_idx++) {
-                    struct GuiButton *gbtn = &active_buttons[btn_idx];
-                    if ((gbtn->flags & LbBtnF_Active) == 0) {continue;}
-                    struct GuiMenu *gmnu = get_active_menu(gbtn->gmenu_idx);
-                    if (gmnu == NULL) {continue;}
-                    struct GuiButtonInit *gbinit = get_gui_button_init(gmnu, gbtn->id_num);
-                    if (gbinit != NULL && gbinit->sprite_idx != 0) {
-                        gbtn->sprite_idx = get_player_colored_icon_idx(gbinit->sprite_idx, my_player_number);
-                    }
-                }
+                update_gui_button_player_colors();
             }
         }
     }

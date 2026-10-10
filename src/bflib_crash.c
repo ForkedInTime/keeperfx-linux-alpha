@@ -24,6 +24,7 @@
 #include "pre_inc.h"
 #include "kfx/renderer/RendererManager.h"
 #include "bflib_crash.h"
+#include "replay.h"
 #include <signal.h>
 #include <stdarg.h>
 #define BF_POSIX_CRASH 1
@@ -94,6 +95,18 @@ static const char* sigstr(int s)
   return "unknown signal";
 }
 
+static void log_replay_crashlog(void)
+{
+    const uint8_t state = replay_crashlog_state;
+    if (state == 0)
+        return;
+    const char *playback = (state == 2) ? "true" : "false";
+    if (replay_crashlog_fname[0] == '\0')
+        LbErrorLog("packetfile:{\"turn\":%u, \"playback\":%s}\n", (unsigned)replay_crashlog_turn, playback);
+    else
+        LbErrorLog("packetfile:{\"turn\":%u, \"playback\":%s, \"path\":\"%s\"}\n", (unsigned)replay_crashlog_turn, playback, replay_crashlog_fname);
+}
+
 void exit_handler(void)
 {
     LbErrorLog("Application exit called.\n");
@@ -103,6 +116,7 @@ void ctrl_handler(int sig_id)
 {
     signal(sig_id, SIG_DFL);
     LbErrorLog("Failure signal: %s.\n",sigstr(sig_id));
+    log_replay_crashlog();
     RendererResetScreen(true);
     LbErrorLogClose();
     raise(sig_id);
@@ -286,6 +300,7 @@ static void ctrl_handler_posix(int sig_id, siginfo_t *info, void *context)
         LbErrorLog("Signal code: %d (%s).\n", info->si_code, posix_sigcode_str(sig_id, info->si_code));
     }
     LbErrorLog("Fault address: %p.\n", fault_addr);
+    log_replay_crashlog();
     log_posix_context(context);
     _backtrace_posix(16);
 

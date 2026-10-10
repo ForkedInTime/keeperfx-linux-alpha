@@ -108,6 +108,7 @@ struct RendererOpenGL::Impl {
     GLPaletteIndexLookup palette_index_lookup;
 
     bool fade_tables_refreshed = false;
+    unsigned int world_atlas_generation = 0;
 
     RenderThreadManager thread_mgr;
     GLFrameData frames[2];
@@ -272,6 +273,7 @@ bool RendererOpenGL::Init()
     m_impl->thread_mgr.Start(
         [this]{ render_thread_init(); },
         [this]{ render_thread_work(); },
+        [this]{ render_thread_present(); },
         [this]{ render_thread_cleanup(); });
 
     if (!m_impl->init_ok)
@@ -479,6 +481,9 @@ void RendererOpenGL::render_thread_work()
 
         if (!m_impl->world_atlas.IsInitialized() && block_ptrs[0] != nullptr)
             m_impl->world_atlas.Init();
+        else if (m_impl->world_atlas_generation != level_textures_generation)
+            m_impl->world_atlas.Rebuild();
+        m_impl->world_atlas_generation = level_textures_generation;
 
         if (!m_impl->fade_tables_refreshed && fade_tables_ready)
         {
@@ -495,7 +500,10 @@ void RendererOpenGL::render_thread_work()
         KFX_ZONE_COLOR("RendererOpenGL::PresentScreenTarget", KFX_COLOR_RENDER_GPU);
         m_impl->PresentScreenTarget(fd);
     }
+}
 
+void RendererOpenGL::render_thread_present()
+{
     const int want_interval = vsync_enabled ? 1 : 0;
     if (want_interval != m_impl->swap_interval)
     {
@@ -800,6 +808,11 @@ bool RendererOpenGL::BeginFrame()
     return m_impl != nullptr && m_impl->init_ok;
 }
 
+bool RendererOpenGL::CanPresent() const
+{
+    return m_impl != nullptr && m_impl->thread_mgr.IsWorkDone();
+}
+
 void RendererOpenGL::EndFrame()
 {
     // No-op: the real flip/signal work is PresentFrame() below, called
@@ -878,11 +891,11 @@ class IUIRenderer* RendererOpenGL::GetUIRenderer()
     return m_impl ? &m_impl->ui : nullptr;
 }
 
-void RendererOpenGL::SubmitMapFadeStep(int tick_step, float display_step, bool fading_in,
+void RendererOpenGL::SubmitMapFadeStep(int tick_step, float display_step, float warp_scale, bool fading_in,
                                        const unsigned char* ghost_table)
 {
     if (m_impl == nullptr) return;
-    m_impl->mapfade.SubmitStep(tick_step, display_step, fading_in, ghost_table);
+    m_impl->mapfade.SubmitStep(tick_step, display_step, warp_scale, fading_in, ghost_table);
 }
 
 void RendererOpenGL::BeginOverlayCapture(OverlayCaptureKind kind)

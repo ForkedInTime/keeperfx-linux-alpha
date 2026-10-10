@@ -57,6 +57,7 @@
 #include "thing_physics.h"
 #include "thing_stats.h"
 
+#include "net_game.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -148,8 +149,8 @@ struct Thing *create_object(const struct Coord3d *pos, ThingModel model, unsigne
     thing->solid_size_z = objst->size_z;
     thing->health = saturate_set_signed(objst->health,32);
     thing->fall_acceleration = objst->fall_acceleration;
-    thing->inertia_floor = 204;
-    thing->inertia_air = 51;
+    thing->inertia_floor = objst->inertia_floor;
+    thing->inertia_air = objst->inertia_air;
     thing->bounce_angle = 0;
     thing->movement_flags |= TMvF_ZeroVerticalVelocity;
 
@@ -782,7 +783,7 @@ static long food_moves(struct Thing *objtng)
             dangle = 62;
         objtng->move_angle_xy = (objtng->move_angle_xy + dangle * sangle) & ANGLE_MASK;
         struct PlayerInfo* my_player = get_my_player();
-        if (my_player->controlled_thing_idx == objtng->index && my_player->view_mode == PVM_CreatureView) {
+        if (my_player->controlled_thing_idx == objtng->index && ((get_player_view_type(my_player) == PVT_CreatureContrl) || (get_player_view_type(my_player) == PVT_CreaturePasngr))) {
             set_local_camera_destination(my_player);
         }
         if (get_angle_difference(objtng->move_angle_xy, objtng->food.angle) < DEGREES_50)
@@ -982,7 +983,7 @@ long process_temple_special(struct Thing *thing, long sacowner)
     if (object_is_mature_food(thing))
     {
         dungeon->chickens_sacrificed++;
-        if (temple_check_for_arachnid_join_dungeon(dungeon) && (game.easter_eggs_enabled == true))
+        if (user_cheats_allowed(get_player(sacowner)->user_id) && temple_check_for_arachnid_join_dungeon(dungeon))
             return true;
     } else
     {

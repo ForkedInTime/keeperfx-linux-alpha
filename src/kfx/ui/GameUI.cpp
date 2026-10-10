@@ -16,8 +16,11 @@
 #include "power_hand.h"            /* draw_power_hand */
 #include "gui_boxmenu.h"           /* gui_draw_all_boxes */
 #include "player_data.h"           /* struct PlayerInfo, PVT_MapScreen/MapFadeIn/MapFadeOut */
+#include "player_instances.h"      /* PI_MapFadeTo, PI_MapFadeFrom */
 #include "game_legacy.h"           /* game, GOF_ShowGui */
 #include "bflib_basics.h"          /* flag_is_set, TbBool */
+#include "local_camera.h"
+#include "observer.h"
 
 #include "post_inc.h"
 
@@ -31,32 +34,33 @@ GameUI& GameUI::Get()
 
 bool GameUI::IsActiveForCurrentView(const struct PlayerInfo* player) const
 {
-    if (!player)
+    if (!player) {
         return false;
-    if (player->view_type == PVT_MapScreen
-        || player->view_type == PVT_MapFadeIn
-        || player->view_type == PVT_MapFadeOut)
+    }
+    unsigned char view_type = get_local_view_type(player);
+    if (view_type == PVT_MapScreen || view_type == PVT_MapFadeIn || view_type == PVT_MapFadeOut) {
         return false;
-
-    if (player->view_mode == PVM_ParchFadeIn || player->view_mode == PVM_ParchFadeOut)
+    }
+    if (!is_observer_camera_active() && (player->instance_num == PI_MapFadeTo || player->instance_num == PI_MapFadeFrom)) {
         return false;
+    }
     return true;
 }
 
 void GameUI::DrawFrame(struct PlayerInfo* player)
 {
-    if (!IsActiveForCurrentView(player))
+    observer_update_cursor();
+    if (!IsActiveForCurrentView(player)) {
         return;
+    }
 
     TbBool show_sidebar = flag_is_set(game.operation_flags, GOF_ShowGui);
 
-    if (show_sidebar)
-    {
+    if (show_sidebar) {
         draw_whole_status_panel();
     }
     draw_gui();
-    if (show_sidebar)
-    {
+    if (show_sidebar) {
         draw_overlay_compass(local_state.minimap_pos_x, local_state.minimap_pos_y);
     }
     

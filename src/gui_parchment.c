@@ -61,6 +61,8 @@
 #include "vidfade.h"
 #include "sprites.h"
 #include "player_instances.h"
+#include "local_camera.h"
+#include "observer.h"
 
 #include "keeperfx.hpp"
 #include "post_inc.h"
@@ -1041,27 +1043,28 @@ void draw_zoom_box(void)
 
     long draw_tiles = 13;
     long subtile_unscaled = 8;
-    if (local_state.minimap_zoom == 128)
+    const uint32_t minimap_zoom = get_local_minimap_zoom();
+    if (minimap_zoom == 128)
     {
         draw_tiles = 6;
         subtile_unscaled = 18;
     } else
-    if (local_state.minimap_zoom == 256)
+    if (minimap_zoom == 256)
     {
         draw_tiles = 9;
         subtile_unscaled = 12;
     } else
-    if (local_state.minimap_zoom == 512)
+    if (minimap_zoom == 512)
     {
         draw_tiles = 12;
         subtile_unscaled = 9;
     } else
-    if (local_state.minimap_zoom == 1024)
+    if (minimap_zoom == 1024)
     {
         draw_tiles = 18;
         subtile_unscaled = 6;
     } else
-    if (local_state.minimap_zoom == 2048)
+    if (minimap_zoom == 2048)
     {
         draw_tiles = 36;
         subtile_unscaled = 3;
@@ -1135,7 +1138,8 @@ void redraw_parchment_view(void)
   draw_gui();
   gui_draw_all_boxes();
   // Put zoom box, map name and tooltips
-  draw_zoom_box();
+  if (!a_menu_window_is_active())
+      draw_zoom_box();
   draw_map_level_name();
   draw_tooltip();
 }
@@ -1148,46 +1152,48 @@ void redraw_minimal_overhead_view(void)
     draw_tooltip();
 }
 
-/** Whether entering or leaving the parchment map plays the fade instead of cutting. */
+/** Whether the local user fades into and out of the parchment map instead of cutting. */
 TbBool parchment_map_fade_enabled(void)
 {
-    if (network_is_active())
-        return false;
-    // The software renderer fades through a per-pixel lookup that only pays off
-    // at the original 320-wide mode; above that it used to cut instantly, and
-    // the setting alone must not re-enable the slow path there.
-    if (!MapFadePass_SupportsNativeResolution() && (RendererPhysicalWidth() > 320))
-        return false;
-    return use_parchment_fade();
+    const struct UserState *ustate = get_local_user_state();
+    return !user_state_invalid(ustate) && (ustate->prefs[UPref_MapFade] > 0);
 }
 
 void zoom_to_parchment_map(void)
 {
     turn_off_all_window_menus();
-    if ((game.operation_flags & GOF_ShowGui) == 0)
-      clear_flag(game.operation_flags, GOF_ShowPanel);
-    else
-      set_flag(game.operation_flags, GOF_ShowPanel);
-    struct PlayerInfo* player = get_my_player();
-    if (parchment_map_fade_enabled())
-    {
-      set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0, 0, 0);
-      turn_off_roaming_menus();
-    } else
-    {
-      set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0, 0, 0);
-      turn_off_roaming_menus();
+    if ((game.operation_flags & GOF_ShowGui) == 0) {
+        clear_flag(game.operation_flags, GOF_ShowPanel);
+    } else {
+        set_flag(game.operation_flags, GOF_ShowPanel);
     }
+    if (observer_is_active()) {
+        enter_observer_camera();
+    }
+    if (is_observer_camera_active()) {
+        turn_off_roaming_menus();
+        set_observer_camera_view(PVT_MapScreen);
+        return;
+    }
+    struct PlayerInfo* player = get_my_player();
+    if (parchment_map_fade_enabled()) {
+        set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0, 0, 0);
+    } else {
+        set_players_packet_action(player, PckA_SaveViewType, PVT_MapScreen, 0, 0, 0);
+    }
+    turn_off_roaming_menus();
 }
 
 void zoom_from_parchment_map(void)
 {
+    if (is_observer_camera_active()) {
+        set_observer_camera_view(PVT_DungeonTop);
+        return;
+    }
     struct PlayerInfo* player = get_my_player();
-    if (parchment_map_fade_enabled())
-    {
-        set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeOut, 0,0,0);
-    } else
-    {
+    if (parchment_map_fade_enabled()) {
+        set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeOut, 0, 0, 0);
+    } else {
         set_players_packet_action(player, PckA_LoadViewType, PVT_DungeonTop, 0,0,0);
     }
 }

@@ -153,6 +153,7 @@ TbBool RendererCompositesMinimapBackground(void);
 /** True when draws made now reach the current frame: the software framebuffer
  *  is locked, or the backend records draws to render later. */
 TbBool RendererCanDraw(void);
+TbBool RendererCanPresent(void);
 
 /** Tell the GPU renderer to preserve the last real frame's content across
  *  PresentFrame() (world/UI/image-present buffers not flipped, only the
@@ -234,8 +235,8 @@ void RendererClearKeeperSpriteAtlas(void);
 void RendererPreloadKeeperSpriteAtlas(void);
 
 /** Re-upload the tile atlas's animated rows (lava, water, dig-tag
- *  cross-hatch). Call once per game tick, right after
- *  update_animating_texture_maps(). No-op when no renderer is active. */
+ *  cross-hatch). Call before drawing, after update_animating_texture_maps()
+ *  reports changes. No-op when no renderer is active. */
 void RendererUpdateAnimatedTiles(void);
 
 void RendererSetWorldOverlay(float ndc_z);
@@ -249,7 +250,7 @@ void RendererUpdateSlabTexture(const unsigned char* data, int dim);
 void RendererSubmitPossessionLens(long viewport_x, long viewport_y, long viewport_w, long viewport_h);
 
 /** @param ghost_table the 256x256 map-fade ghost table used for this transition. */
-void RendererSubmitMapFadeStep(int tick_step, float display_step, TbBool fading_in,
+void RendererSubmitMapFadeStep(int tick_step, float display_step, float warp_scale, TbBool fading_in,
                                const unsigned char *ghost_table);
 TbBool MapFadePass_SupportsNativeResolution(void);
 
