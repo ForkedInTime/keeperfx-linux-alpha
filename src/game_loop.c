@@ -1033,6 +1033,7 @@ static TbBool wait_at_frontend(void)
     display_loading_screen();
 
     short flgmem;
+    TbBool loaded;
     switch (prev_state)
     {
     case FeSt_START_KPRLEVEL:
@@ -1053,9 +1054,18 @@ static TbBool wait_at_frontend(void)
           RendererClearScreen(0);
           RendererPresentFrame();
           level_load_time_phase(LevelLoadTime_Data);
-          if (!load_game(game.save_game_slot))
+          loaded = load_game(game.save_game_slot);
+          if (!loaded && save_load_state_disturbed)
           {
-              // load_game() refuses a save it cannot read before touching any
+              // Failed after it had begun overwriting game state (a disk read
+              // error; everything else is refused up front): nothing consistent
+              // to return to, so stop as upstream does on any failed load.
+              ERRORLOG("Loading game %d failed part-way; quitting.",(int)game.save_game_slot);
+              quit_game = 1;
+          }
+          else if (!loaded)
+          {
+              // load_game() refused a save it cannot read before touching any
               // global state, so there is nothing to unwind: go back to the
               // load list with an error box saying why, rather than closing the
               // game on a player who only clicked an old save.
