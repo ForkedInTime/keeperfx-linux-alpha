@@ -32,10 +32,17 @@ WindowSystemSDL* GetSDLWindowSystem() { return nullptr; }
 // PlatformLinux::GetUserPrefDir() falls back to the game directory; config.c is not linked here.
 extern "C" { char keeper_runtime_directory[152] = ""; }
 
-// PlatformLinux::TrashFile timestamps the freedesktop .trashinfo it writes.
-// The file-find tests never delete anything, so this only has to resolve.
+// PlatformLinux::TrashFile timestamps the freedesktop .trashinfo it writes; the
+// trash tests below only look at its Path= line, so a fixed date will do.
 #include "../src/bflib_datetm.h"
-extern "C" TbResult LbDateTime(struct TbDate *, struct TbTime *) { return Lb_SUCCESS; }
+extern "C" TbResult LbDateTime(struct TbDate * date, struct TbTime * tm)
+{
+	std::memset(date, 0, sizeof(*date));
+	std::memset(tm, 0, sizeof(*tm));
+	date->Year = 2026; date->Month = 1; date->Day = 1;
+	return Lb_SUCCESS;
+}
+extern "C" int PlatformManager_TrashFile(const char * abs_path);
 
 static int g_failures = 0;
 
@@ -85,7 +92,7 @@ static void remove_tree(const std::string & path)
 	nftw(path.c_str(), remove_entry, 16, FTW_DEPTH | FTW_PHYS);
 }
 
-static void touch(const std::string & path)
+static void write_file(const std::string & path, const std::string & content)
 {
 	std::FILE * f = std::fopen(path.c_str(), "wb");
 	if (f == NULL) {
@@ -93,8 +100,30 @@ static void touch(const std::string & path)
 		++g_failures;
 		return;
 	}
-	std::fputc('x', f);
+	std::fwrite(content.data(), 1, content.size(), f);
 	std::fclose(f);
+}
+
+static void touch(const std::string & path)
+{
+	write_file(path, "x");
+}
+
+// Whole file, or "<missing>".
+static std::string read_file(const std::string & path)
+{
+	std::FILE * f = std::fopen(path.c_str(), "rb");
+	if (f == NULL) {
+		return "<missing>";
+	}
+	std::string content;
+	char buf[256];
+	std::size_t n;
+	while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) {
+		content.append(buf, n);
+	}
+	std::fclose(f);
+	return content;
 }
 
 int main()
@@ -241,6 +270,43 @@ int main()
 		expect(got.size() == 1 && got[0] == "odd\\name.cfg", "a literal '\\' name is enumerated");
 		unlink(literal.c_str());
 		remove_tree(root + "/creature");
+	}
+
+	{
+		// TrashFile, the freedesktop trash behind delete_save_game(). Saves
+		// copied from a DOS/GOG install are upper-case (FX1G0003.SAV); the game
+		// lists and loads them case-insensitively but asks to trash the
+		// lower-case name it builds from "fx1g%04d.sav".
+		unsetenv("FLATPAK_ID");
+		setenv("XDG_DATA_HOME", (root + "/xdg").c_str(), 1);
+		const std::string trash = root + "/xdg/Trash";
+		mkdir((root + "/save").c_str(), 0755);
+		char real_root[4096];
+		const bool have_real_root = (realpath(root.c_str(), real_root) != NULL);
+
+		write_file(root + "/save/FX1G0003.SAV", "slot 3");
+		expect(PlatformManager_TrashFile((root + "/save/fx1g0003.sav").c_str()) == 1,
+			"an upper-case save is trashed by its lower-case name");
+		expect(read_file(root + "/save/FX1G0003.SAV") == "<missing>", "the upper-case save left save/");
+		expect(read_file(trash + "/files/FX1G0003.SAV") == "slot 3", "the trash holds it under its real name");
+		const std::string info = read_file(trash + "/info/FX1G0003.SAV.trashinfo");
+		expect(have_real_root && info.find(std::string("\nPath=") + real_root + "/save/FX1G0003.SAV\n") != std::string::npos,
+			"its .trashinfo Path= is the real file, so a file manager can restore it");
+
+		// A file already in Trash/files without a .trashinfo -- left by a
+		// trasher that died between its two steps, or copied in by hand -- is
+		// never replaced: both halves move on to the next free name.
+		write_file(trash + "/files/fx1g0004.sav", "someone else's");
+		write_file(root + "/save/fx1g0004.sav", "slot 4");
+		expect(PlatformManager_TrashFile((root + "/save/fx1g0004.sav").c_str()) == 1,
+			"a save is trashed when its name is taken in files/ only");
+		expect(read_file(trash + "/files/fx1g0004.sav") == "someone else's", "the file already in the trash is untouched");
+		expect(read_file(trash + "/info/fx1g0004.sav.trashinfo") == "<missing>", "no .trashinfo is written for the taken name");
+		expect(read_file(trash + "/files/fx1g0004.2.sav") == "slot 4", "the save goes to the next free name");
+		expect(read_file(trash + "/info/fx1g0004.2.sav.trashinfo") != "<missing>", "its .trashinfo uses that same name");
+
+		remove_tree(root + "/save");
+		remove_tree(root + "/xdg");
 	}
 
 	remove_tree(root + "/levels");

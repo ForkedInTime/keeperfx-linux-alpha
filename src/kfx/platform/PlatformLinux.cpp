@@ -215,6 +215,20 @@ static std::string trash_to_absolute(const char* path)
     return std::string(cwd) + "/" + path;
 }
 
+// rename() that fails with EEXIST rather than replace a file already at `to`.
+// Where the kernel or filesystem lacks RENAME_NOREPLACE, a plain rename(): the
+// caller has already picked a name that was free a moment ago.
+static int trash_rename_noreplace(const char* from, const char* to)
+{
+#ifdef RENAME_NOREPLACE
+    if (renameat2(AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) == 0)
+        return 0;
+    if ((errno != EINVAL) && (errno != ENOSYS))
+        return -1;
+#endif
+    return rename(from, to);
+}
+
 TbBool PlatformLinux::TrashFile(const char* abs_path)
 {
     // Under Flatpak, HOME is sandbox-redirected: a "Trash" written there is not the
@@ -231,6 +245,12 @@ TbBool PlatformLinux::TrashFile(const char* abs_path)
     std::string info_dir  = home + "/info";
     if (!trash_make_dir_recursive(files_dir) || !trash_make_dir_recursive(info_dir))
         return false;
+
+    // The game finds files case-insensitively (LbFileOpen); a save listed as
+    // fx1g0003.sav may be FX1G0003.SAV on disk. Move -- and record in Path= --
+    // the file that is really there, or realpath() and rename() both miss it.
+    char disk_path[PATH_MAX];
+    abs_path = LbFileCaseInsensitivePath(abs_path, disk_path, sizeof(disk_path));
 
     std::string full_path = trash_to_absolute(abs_path);
     const char* slash = strrchr(full_path.c_str(), '/');
@@ -252,6 +272,14 @@ TbBool PlatformLinux::TrashFile(const char* abs_path)
     for (int suffix = 0; suffix < 10000; suffix++) {
         trash_name = (suffix == 0) ? basename
             : (stem + "." + std::to_string(suffix + 1) + ext);
+        // The name must be free in files/ too, not just in info/: a file can sit
+        // there without its .trashinfo (a trasher that died between the two
+        // steps, or one copied in by hand), and rename() would replace it.
+        struct stat sb;
+        if (lstat((files_dir + "/" + trash_name).c_str(), &sb) == 0)
+            continue;
+        if (errno != ENOENT)
+            return false;
         info_path = info_dir + "/" + trash_name + ".trashinfo";
         info_fd = open(info_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
         if (info_fd >= 0)
@@ -280,14 +308,16 @@ TbBool PlatformLinux::TrashFile(const char* abs_path)
     }
 
     std::string dest = files_dir + "/" + trash_name;
-    if (rename(abs_path, dest.c_str()) == 0)
+    if (trash_rename_noreplace(abs_path, dest.c_str()) == 0)
         return true;
 
     if (errno == EXDEV) {
         // Trash lives on a different filesystem than the save -- rename() can't
         // cross that, so copy the bytes across and remove the original by hand.
+        // "x": create dest exclusively, never truncate a file already there.
         FILE* src = fopen(abs_path, "rb");
-        FILE* dst = (src != nullptr) ? fopen(dest.c_str(), "wb") : nullptr;
+        FILE* dst = (src != nullptr) ? fopen(dest.c_str(), "wbx") : nullptr;
+        const bool created_dst = (dst != nullptr);
         bool copy_ok = false;
         if ((src != nullptr) && (dst != nullptr)) {
             char buf[65536];
@@ -302,10 +332,12 @@ TbBool PlatformLinux::TrashFile(const char* abs_path)
             copy_ok = copy_ok && (ferror(src) == 0);
         }
         if (src != nullptr) fclose(src);
-        if (dst != nullptr) fclose(dst);
+        if ((dst != nullptr) && (fclose(dst) != 0))
+            copy_ok = false; // the final flush failed: the copy is incomplete
         if (copy_ok && (unlink(abs_path) == 0))
             return true;
-        unlink(dest.c_str()); // partial copy -- don't leave debris in the trash
+        if (created_dst)
+            unlink(dest.c_str()); // partial copy -- don't leave debris in the trash
     }
     unlink(info_path.c_str());
     return false;
