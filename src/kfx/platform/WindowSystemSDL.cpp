@@ -16,14 +16,11 @@
 #include <SDL3_image/SDL_image.h>
 #include "post_inc.h"
 
-#ifndef _WIN32
 extern "C" const unsigned char kfx_window_icon_png[];
 extern "C" const unsigned int kfx_window_icon_png_size;
-#endif
 
 static void ApplyWindowIcon(SDL_Window *window)
 {
-#ifndef _WIN32
     SDL_Surface *icon = IMG_Load_IO(SDL_IOFromConstMem(kfx_window_icon_png, kfx_window_icon_png_size), true);
     if (icon == nullptr) {
         WARNLOG("Failed to load window icon: %s", SDL_GetError());
@@ -33,9 +30,6 @@ static void ApplyWindowIcon(SDL_Window *window)
         WARNLOG("Failed to window icon: %s", SDL_GetError());
     }
     SDL_DestroySurface(icon);
-#else
-    // MS Windows executable gets icon from .rc resource
-#endif
 }
 
 /******************************************************************************/

@@ -26,11 +26,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#ifdef _WIN32
-#include <winsock.h>
-#else
 #include <arpa/inet.h>
-#endif
 
 #include "bflib_basics.h"
 #include "bflib_fileio.h"

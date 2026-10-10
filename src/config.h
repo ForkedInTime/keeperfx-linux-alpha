@@ -196,10 +196,8 @@ enum dataTypes
 
 // field: GCC/Clang-only convenience alias that infers the type from an expression
 // using the typeof extension. Do not use in new code — prefer field_t()/field_a().
-#ifndef _MSC_VER
 #define field(elem0_expr, member_path) \
     field_t(typeof(elem0_expr), member_path)
-#endif
 
 /******************************************************************************/
 struct CommandWord {

@@ -1460,13 +1460,8 @@ extern "C" TbBool custom_sound_load_wav(const char* filepath, int sample_id)
 	// Resolve to absolute path so the decoders can find the file regardless of
 	// process CWD (keeperfx changes directories at startup).
 	char abs_buf[4096];
-#ifdef _WIN32
-	if (_fullpath(abs_buf, filepath, sizeof(abs_buf)) == nullptr)
-		snprintf(abs_buf, sizeof(abs_buf), "%s", filepath);
-#else
 	if (realpath(filepath, abs_buf) == nullptr)
 		snprintf(abs_buf, sizeof(abs_buf), "%s", filepath);
-#endif
 
 	// Read the whole file once so we can inspect the magic bytes and route to
 	// the right decoder without reopening.

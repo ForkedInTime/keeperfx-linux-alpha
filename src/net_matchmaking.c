@@ -23,9 +23,7 @@
 #include "ver_defs.h"
 
 #include <SDL3/SDL.h>
-#ifndef _WIN32
 #include <sys/select.h>
-#endif
 #include <curl/curl.h>
 #include <curl/websockets.h>
 #include <string.h>
