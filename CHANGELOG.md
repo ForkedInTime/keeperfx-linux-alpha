@@ -40,7 +40,8 @@ hatcheries, the abyss, possession and camera stutter with VSync. Two of these ne
   build wrote it 160 bytes longer (its campaign flags were 8-byte `long`s), so the import would have
   skipped it and the Continue button would have vanished with every player's campaign position. The
   64-bit layout is now imported too, checked field by field against a file written by stable
-  1.4.0.5660 itself.
+  1.4.0.5660 itself. The old file is also left in place instead of deleted, so going back to a
+  stable build that predates the change keeps that build's own *Continue*.
 - The new multiplayer matchmaking passed curl a 4-byte timeout where curl reads 8 bytes on 64-bit
   Linux, leaving half of it undefined.
 
