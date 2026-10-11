@@ -321,7 +321,7 @@ static int thing_set_field(lua_State *L) {
         struct PlayerInfo* player = get_my_player();
         if (!player_invalid(player)
             && player->controlled_thing_idx == thing->index
-            && player->view_mode == PVM_CreatureView)
+            && ((get_player_view_type(player) == PVT_CreatureContrl) || (get_player_view_type(player) == PVT_CreaturePasngr)))
         {
             set_local_camera_destination(player);
         }        
@@ -728,7 +728,7 @@ static int thing_get_field(lua_State *L) {
         } else if (strcmp(key, "conscious_back_turns") == 0) {
             lua_pushinteger(L, cctrl->conscious_back_turns);
         } else if (strcmp(key, "unsummon_duration") == 0) {
-            lua_pushinteger(L, (max((cctrl->unsummon_turn - get_gameturn()),0)));
+            lua_pushinteger(L, (max((GameTurnDelta)(cctrl->unsummon_turn - get_gameturn()),0)));
         } else if (strcmp(key, "familiars") == 0) {
             lua_pushFamiliarTable(L, thing);
         } else {

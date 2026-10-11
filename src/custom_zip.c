@@ -115,7 +115,9 @@ TbBool read_map_zip_entry(LevelNumber lvnum, const char *entry_name, unsigned ch
         return false;
     }
 
-    unzFile zip = unzOpen(fname);
+    // LbFileExists() matches case-insensitively; minizip's fopen() does not.
+    char zip_fname[PATH_MAX];
+    unzFile zip = unzOpen(LbFileCaseInsensitivePath(fname, zip_fname, sizeof(zip_fname)));
     if (zip == NULL)
     {
         return false;

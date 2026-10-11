@@ -278,7 +278,7 @@ long get_condition_value(PlayerNumber plyr_idx, unsigned char valtype, short val
     case SVar_TIMER:
         dungeon = get_dungeon(plyr_idx);
         if (dungeon->turn_timers[validx].state)
-          return get_gameturn() - dungeon->turn_timers[validx].count;
+          return (GameTurnDelta)(get_gameturn() - dungeon->turn_timers[validx].count);
         else
           return 0;
     case SVar_DUNGEON_DESTROYED:
@@ -400,7 +400,7 @@ long get_condition_value(PlayerNumber plyr_idx, unsigned char valtype, short val
         dungeon = get_dungeon(plyr_idx);
         return dungeon->total_score;
     case SVar_BONUS_TIME:
-        return (game.bonus_time - get_gameturn());
+        return (GameTurnDelta)(game.bonus_time - get_gameturn());
     case SVar_CREATURES_TRANSFERRED:
         dungeon = get_dungeon(plyr_idx);
         return dungeon->creatures_transferred;
@@ -413,7 +413,7 @@ long get_condition_value(PlayerNumber plyr_idx, unsigned char valtype, short val
         return count_active_battles(plyr_idx);
     case SVar_VIEW_TYPE:
         player = get_player(plyr_idx);
-        return player->view_type;
+        return get_player_view_type(player);
     case SVar_CONTROLLED_THING:
         player = get_player(plyr_idx);
         return player->controlled_thing_idx;

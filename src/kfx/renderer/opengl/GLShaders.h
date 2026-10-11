@@ -68,6 +68,26 @@ void main()
 }
 )glsl";
 
+// Unit 0 = sprite atlas. Unit 1 = CLUT (256xN RGBA8).
+// The CLUT row already contains the final current-palette colour for each
+// source palette index, so this supports arbitrary 256-byte cmap tables.
+constexpr const char* UI_CLUT_FRAGMENT_SHADER = R"glsl(
+#version 330 core
+in vec2 v_uv;
+in vec4 v_color;
+uniform sampler2D u_sprite_atlas;
+uniform sampler2D u_clut;
+uniform float u_clut_v;
+out vec4 fragColor;
+void main()
+{
+    float idx = texture(u_sprite_atlas, v_uv).r;
+    if (idx < (0.5 / 255.0)) discard;
+    vec4 color = texture(u_clut, vec2(idx, u_clut_v));
+    fragColor = vec4(color.rgb * v_color.rgb, color.a * v_color.a);
+}
+)glsl";
+
 // Unit 0 = sprite atlas. Unit 1 = palette. Unit 2 = fade table.
 // pixmap.fade_tables is 64 rows x 256 columns (not 256 rows, unlike develop's
 // table) -- u_remap_row indexes one of those 64 rows.
@@ -998,6 +1018,7 @@ uniform sampler2D u_parchment;
 uniform sampler2D u_world;
 uniform sampler2D u_ghost;
 uniform float u_step;        // 0.0..32.0
+uniform float u_warp_scale;  // pinch strength, 1.0 for the original 8-turn fade
 out vec4 fragColor;
 
 vec3 fetch_nearest(sampler2D tex, vec2 uv)
@@ -1012,10 +1033,10 @@ void main()
     float fx = v_uv.x;
     float fy = 1.0 - v_uv.y;
     const float xmax = 320.0;
-    float wp = 32.0 - a6;
+    float wp = (32.0 - a6) * u_warp_scale;
     float uv_px = clamp(fx + wp * (4.0 - 8.0 * fx) / xmax, 0.0, 1.0);
     float uv_py = clamp(fy + wp * 4.0 * (1.0 - 2.0 * fy) / xmax, 0.0, 1.0);
-    float ww = a6;
+    float ww = a6 * u_warp_scale;
     float uv_wx = clamp(fx + ww * (4.0 - 8.0 * fx) / xmax, 0.0, 1.0);
     float uv_wy = clamp(fy + ww * 4.0 * (1.0 - 2.0 * fy) / xmax, 0.0, 1.0);
 

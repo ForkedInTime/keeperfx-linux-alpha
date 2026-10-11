@@ -213,6 +213,57 @@ jobs:
           done
           echo "split package at ${{ steps.tag.outputs.tag }} declares both outputs"
 
+      # Everything the AUR receives is fixed here, from the tag's files plus the
+      # bump above, and checked: the checksums were computed from these exact
+      # files, so this is the one copy that matches them. The steps after this
+      # (recording the bump on the default branch, which rebases onto whatever
+      # landed there since the tag) must not be able to change what is
+      # published -- they used to: the AUR got the default branch's files after
+      # that rebase, with the tag's checksums, so a wrapper edited on alpha after
+      # tagging shipped with a stale hash and `makepkg` failed for everyone.
+      - name: Stage the AUR build context
+        if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1'
+        run: |
+          STAGE=/tmp/aur-stage
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          # Every local file named in the PKGBUILD's source=() has to land in the
+          # AUR repository -- that repository IS the build context, so one file
+          # missing means the package fails to build for everyone who installs it.
+          for f in PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop \
+                   keeperfx-tux-launcher.sh keeperfx-tux.hook keeperfx-tux-libcheck.sh \
+                   keeperfx-tux-stash.sh keeperfx-tux-stash.hook \
+                   keeperfx-tux-unstash.hook keeperfx-tux-previous.sh; do
+            [ -f "packaging/aur/$f" ] \
+              || { echo "::error::packaging/aur/$f is missing; the AUR build context would be incomplete"; exit 1; }
+            cp "packaging/aur/$f" "$STAGE/"
+          done
+          # The list above is maintained by hand and has already been wrong once,
+          # so check it against the PKGBUILD itself -- and check every local
+          # file's checksum against sha256sums=(), here, where a mismatch can be
+          # reported, instead of in every user's failing build.
+          python3 - "$STAGE" <<'EOF'
+          import hashlib, os, sys
+          stage = sys.argv[1]
+          s = open(os.path.join(stage, 'PKGBUILD')).read()
+          names = [l.strip().strip("'\"") for l in s.split("source=(\n", 1)[1].split(")\n", 1)[0].strip().split("\n")]
+          sums = [l.strip().strip("'\"") for l in s.split("sha256sums=(\n", 1)[1].split(")\n", 1)[0].strip().split("\n")]
+          bad = 0
+          for name, want in zip(names, sums):
+              if "::" in name or "/" in name or name.startswith("$"):
+                  continue
+              path = os.path.join(stage, name)
+              if not os.path.isfile(path):
+                  print(f"::error::{name} is in the PKGBUILD's source=() but not staged; add it to the list in this step")
+                  bad = 1
+                  continue
+              got = hashlib.sha256(open(path, 'rb').read()).hexdigest()
+              if want != "SKIP" and got != want:
+                  print(f"::error::{name}: checksum {got} does not match the PKGBUILD's {want}")
+                  bad = 1
+          sys.exit(bad)
+          EOF
+          ls -la "$STAGE"
+
       - name: Commit the bump back to this repo
         if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1' && !inputs.dry_run
         run: |
@@ -230,9 +281,16 @@ jobs:
             # which failed the step, and the AUR push is gated on it, so the
             # package silently never went out. Rebase once; if it still will not
             # go, say so and carry on to the AUR.
-            git pull --rebase --autostash origin "${{ github.event.repository.default_branch }}" || true
-            git push origin HEAD:${{ github.event.repository.default_branch }} \
-              || echo "::warning::could not record the AUR bump on ${{ github.event.repository.default_branch }}; commit packaging/aur by hand"
+            # Rebase failures are handled, not hidden: `|| true` here used to leave a
+            # conflicted rebase behind, after which the push was a silent no-op.
+            # What reaches the AUR is already staged, so nothing below can change it.
+            if git pull --rebase --autostash origin "${{ github.event.repository.default_branch }}"; then
+              git push origin HEAD:${{ github.event.repository.default_branch }} \
+                || echo "::warning::could not record the AUR bump on ${{ github.event.repository.default_branch }}; commit packaging/aur by hand"
+            else
+              git rebase --abort || true
+              echo "::warning::the AUR bump conflicts with ${{ github.event.repository.default_branch }}; commit packaging/aur by hand (the AUR itself is unaffected)"
+            fi
           fi
 
       - name: Push to the AUR
@@ -316,36 +374,27 @@ jobs:
             echo "::error::could not reach the AUR repository; nothing was published. See the git error above."
             exit 1
           fi
-          # Every local file named in the PKGBUILD's source=() has to land in the
-          # AUR repository -- that repository IS the build context, so one file
-          # missing means the package fails to build for everyone who installs
-          # it. keeperfx-tux-launcher.sh was already in source=() and was never
-          # copied here; it survived only because the initial manual import had
-          # put it there and `git add -A` leaves untouched files alone, so it
-          # would have silently gone stale the moment it changed.
-          for f in PKGBUILD .SRCINFO keeperfx-tux.sh keeperfx-tux.desktop \
-                   keeperfx-tux-launcher.sh keeperfx-tux.hook keeperfx-tux-libcheck.sh \
-                   keeperfx-tux-stash.sh keeperfx-tux-stash.hook \
-                   keeperfx-tux-unstash.hook keeperfx-tux-previous.sh; do
-            [ -f "packaging/aur/$f" ] \
-              || { echo "::error::packaging/aur/$f is missing; the AUR build context would be incomplete"; exit 1; }
-            cp "packaging/aur/$f" /tmp/aur/
-          done
-          # The list above is maintained by hand and has already been wrong once.
-          # Rather than trust the next person to remember, check it against the
-          # PKGBUILD itself: every plain (non-URL) entry in source=() is a local
-          # file that must have been copied. Catches the omission here, where the
-          # message can say so, instead of in every user's failing build.
-          awk '/^source=\(/,/^\)/' packaging/aur/PKGBUILD \
-            | grep -oE "^[[:space:]]*'[^']+'" | tr -d " '" \
-            | while read -r want; do
-                [ -f "/tmp/aur/$want" ] \
-                  || { echo "::error::packaging/aur/$want is in the PKGBUILD's source=() but is not copied to the AUR repository; add it to the list above"; exit 1; }
-              done || exit 1
+          # What the live AUR package is, before it is replaced: pacman and the
+          # AUR helpers compare pkgver-pkgrel only, so a lower one is never
+          # offered, and changed files under the SAME one are never offered
+          # either -- both used to publish "successfully" and reach nobody.
+          live="$(sed -n 's/^[[:space:]]*pkgver = //p' /tmp/aur/.SRCINFO | head -n1)-$(sed -n 's/^[[:space:]]*pkgrel = //p' /tmp/aur/.SRCINFO | head -n1)"
+          new="$(sed -n 's/^[[:space:]]*pkgver = //p' /tmp/aur-stage/.SRCINFO | head -n1)-$(sed -n 's/^[[:space:]]*pkgrel = //p' /tmp/aur-stage/.SRCINFO | head -n1)"
+          echo "live on the AUR: $live; this publish: $new"
+          # The staged copy from the step above: exactly the files the
+          # checksums were computed from.
+          cp -a /tmp/aur-stage/. /tmp/aur/
           cd /tmp/aur
           git add -A
           if git diff --cached --quiet; then
             echo "AUR already up to date"
+          elif [ "$live" != "-" ] && [ "$(vercmp "$new" "$live")" -lt 0 ]; then
+            echo "::error::$new is older than the live $live -- pacman would never offer it. The PKGBUILD's pkgrel has drifted behind the AUR; set it above the live one and re-run."
+            exit 1
+          elif [ "$live" != "-" ] && [ "$(vercmp "$new" "$live")" -eq 0 ]; then
+            git diff --cached --stat
+            echo "::error::the package changed but its version did not ($new) -- nobody would be offered it. Bump pkgrel in packaging/aur/PKGBUILD and re-run."
+            exit 1
           else
             # Read the rel back rather than assuming 1: a same-version republish
             # keeps the rel the recipe carries (see the bump step above).

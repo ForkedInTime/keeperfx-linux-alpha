@@ -74,9 +74,9 @@ sha256sums=(
   'SKIP'
   'fc88f7e37c2664b2b5e7fe74f03fd4d98dcf181c89330bf8d866540c9402eaa2'
   'SKIP'
-  '31a4488a90ea45828d4a4704c99b5b77e3295d519b6c0fee23c6654a2f8dcc3a'
+  'a90ad879a8281b66c08ec8b116b899e3b2976f77211f7055e5c8ee6d756a439f'
   '72d72a8e7c1221208eed0622a6e323399ba8cb139ab8840d620ef2697623a1b4'
-  '5ed02b357aee4712e5684f29c44642ddbf581280fb60ef01560da2feb5e66bba'
+  '504b74bdcd4fe3085bcd9f74e43e4cf67c562325d8f7c37fc1e5a04da745f960'
   'ee2fc0f5b3d81dd55efe7d2aef6c4d67d18baff794114e3d6e334171842601eb'
   '37e0fcb5b46aa0b178380ea8f36aa62485b75b5425c1932c7ada7f4101efc870'
   '8ec4213ccaf290f309ac6a4a0c9036531256b1db6239cb0f571062a1a2cf51e6'
@@ -135,25 +135,40 @@ build() {
   # warning. Given through the environment so linux.mk's own += flags survive.
   export KFX_CFLAGS="-ffile-prefix-map=${srcdir}=/usr/src/${pkgbase}"
   export KFX_CXXFLAGS="-ffile-prefix-map=${srcdir}=/usr/src/${pkgbase}"
+  # build-number.sh keeps counting the team's commits now that the sync merges
+  # filtered snapshots (packaging/linux-only/README.md); tags from before it
+  # was added fall back to the plain count, which is what they were built with.
+  local _build_number
+  if [ -x packaging/linux-only/build-number.sh ]; then
+    _build_number="$(packaging/linux-only/build-number.sh)"
+  else
+    _build_number="$(git rev-list --count HEAD)"
+  fi
   make -f linux.mk \
-    BUILD_NUMBER="$(git rev-list --count HEAD)" \
+    BUILD_NUMBER="${_build_number}" \
     VER_SUFFIX="${_ver_suffix}" \
     -j"$(nproc)"
 
   # The UTF-8 fonts are required since upstream #4920 but linux.mk does not build
-  # them; the project's CI generates them from tools/fxfontmaker.
-  (
-    cd tools/fxfontmaker
-    local PY; PY=$(command -v python3 || command -v python)
-    "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
-    "$PY" bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
-    "$PY" merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
-    "$PY" unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
-    "$PY" unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
-    "$PY" unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
-    "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
-    rm -f merged12.hex wenquanyi.hex unifont12.hex
-  )
+  # them; the project's CI generates them from tools/fxfontmaker. The recipe can
+  # point at a tag cut before make-fonts.sh existed (_tag here only moves when a
+  # stable is published), so fall back to the commands the script replaced,
+  # exactly as they were -- the same fallback build-flatpak.yml carries.
+  if [ -x packaging/ci/make-fonts.sh ]; then
+    packaging/ci/make-fonts.sh
+  else
+    ( cd tools/fxfontmaker
+      local PY
+      PY="$(command -v python3 || command -v python)"
+      "$PY" rescale_unifont_hex.py unifont-17.0.04.hex unifont12.hex
+      "$PY" bdf_to_hex.py wenquanyi_9pt.bdf wenquanyi.hex
+      "$PY" merge_hex.py unifont12.hex wenquanyi.hex merged12.hex
+      "$PY" unifont_hex_to_binary.py unifont-17.0.04.hex    font16.fxfont     16
+      "$PY" unifont_hex_to_binary.py unifont_jp-17.0.04.hex font16_JPN.fxfont 16
+      "$PY" unifont_hex_to_binary.py unifont_t-17.0.04.hex  font16_CHT.fxfont 16
+      "$PY" unifont_hex_to_binary.py merged12.hex           font12.fxfont     12
+      rm -f merged12.hex wenquanyi.hex unifont12.hex )
+  fi
 
   # The Qt launcher. CMake pulls bit7z and LIEF from GitHub via CPM at configure
   # time and builds them in-tree. Neither can come from the system:

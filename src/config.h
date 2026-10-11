@@ -196,10 +196,8 @@ enum dataTypes
 
 // field: GCC/Clang-only convenience alias that infers the type from an expression
 // using the typeof extension. Do not use in new code — prefer field_t()/field_a().
-#ifndef _MSC_VER
 #define field(elem0_expr, member_path) \
     field_t(typeof(elem0_expr), member_path)
-#endif
 
 /******************************************************************************/
 struct CommandWord {
@@ -290,6 +288,10 @@ TbBool is_level_in_current_campaign(LevelNumber lvnum);
 TbBool set_level_ensign(LevelNumber lvnum, short ensign_id);
 int array_index_for_singleplayer_level(LevelNumber sp_lvnum);
 int storage_index_for_bonus_level(LevelNumber bn_lvnum);
+struct GameCampaign;
+int campaign_singleplayer_level_index(const struct GameCampaign *campgn, LevelNumber lvnum);
+int campaign_bonus_level_index(const struct GameCampaign *campgn, LevelNumber lvnum);
+int campaign_extra_level_index(const struct GameCampaign *campgn, LevelNumber lvnum);
 LevelNumber first_singleplayer_level(void);
 LevelNumber last_singleplayer_level(void);
 LevelNumber next_singleplayer_level(LevelNumber sp_lvnum, TbBool ignore);

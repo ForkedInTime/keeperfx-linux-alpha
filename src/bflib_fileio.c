@@ -30,11 +30,9 @@
 #include <sys/stat.h>
 #include <limits.h>
 #include <time.h>
-#if !defined(_WIN32)
 #include <dirent.h>
 #include <strings.h>
 #include <unistd.h>
-#endif
 
 #include "bflib_basics.h"
 #include "bflib_datetm.h"
@@ -43,7 +41,6 @@
 
 /******************************************************************************/
 
-#if !defined(_WIN32)
 /** @internal
  *  Finds a file with case-insensitive matching on Unix-like systems.
  *  Searches the directory for a file matching the given name case-insensitively.
@@ -52,7 +49,7 @@
  *  @param buflen Size of the actual_fname buffer.
  *  @return Returns 1 if found, 0 otherwise.
  */
-static int find_case_insensitive_file(const char *fname, char *actual_fname, size_t buflen)
+static int find_case_insensitive_file_as_spelt(const char *fname, char *actual_fname, size_t buflen)
 {
     // Resolve EACH path component case-insensitively (not just the leaf), so a path whose
     // directory segments differ in case from disk (e.g. "mods/MyMod/sound/Foo.wav" vs a real
@@ -146,19 +143,45 @@ static int find_case_insensitive_file(const char *fname, char *actual_fname, siz
     snprintf(actual_fname, buflen, "%s", resolved);
     return (access(actual_fname, F_OK) == 0) ? 1 : 0;
 }
-#endif
+
+/** @internal
+ *  find_case_insensitive_file_as_spelt(), also reading '\' as a path separator.
+ *  Windows does, so configs and scripts written there use it: a creature sound
+ *  "creature\maiden\hit1.wav" (config_crtrmodel.c accepts the form explicitly),
+ *  LEVELS_LOCATION = campgns\mycamp. Nothing converted it, so on Linux each such
+ *  path was one file name that never existed. A Linux file name can contain a
+ *  literal '\' -- the game's data never does -- so the path is first tried as
+ *  spelt, and only a path that finds nothing that way has its '\'s read as the
+ *  separators Windows would have read them as.
+ */
+static int find_case_insensitive_file(const char *fname, char *actual_fname, size_t buflen)
+{
+    if (find_case_insensitive_file_as_spelt(fname, actual_fname, buflen)) {
+        return 1;
+    }
+    if (strchr(fname, '\\') == NULL) {
+        return 0;
+    }
+    char slashed[PATH_MAX];
+    size_t len = strlen(fname);
+    if (len >= sizeof(slashed)) {
+        return 0;
+    }
+    for (size_t i = 0; i <= len; i++) {
+        slashed[i] = (fname[i] == '\\') ? '/' : fname[i];
+    }
+    return find_case_insensitive_file_as_spelt(slashed, actual_fname, buflen);
+}
 
 short LbFileExists(const char *fname)
 {
   if (access(fname, F_OK) == 0) {
     return 1;
   }
-#if !defined(_WIN32)
   char actual_fname[PATH_MAX];
   if (find_case_insensitive_file(fname, actual_fname, sizeof(actual_fname))) {
     return 1;
   }
-#endif
   return 0;
 }
 
@@ -170,7 +193,6 @@ short LbFileExists(const char *fname)
 // std::ifstream) and so bypasses LbFileOpen's case-insensitive fallback.
 const char *LbFileCaseInsensitivePath(const char *fname, char *buf, unsigned long buflen)
 {
-#if !defined(_WIN32)
   if (access(fname, F_OK) != 0) {
     char actual_fname[PATH_MAX];
     if (find_case_insensitive_file(fname, actual_fname, sizeof(actual_fname))) {
@@ -178,7 +200,6 @@ const char *LbFileCaseInsensitivePath(const char *fname, char *buf, unsigned lon
       return buf;
     }
   }
-#endif
   snprintf(buf, buflen, "%s", fname);
   return buf;
 }
@@ -193,16 +214,12 @@ int create_directory_for_file(const char * fname)
 {
   const int size = strlen(fname) + 1;
   char * tmp = (char *) malloc(size);
-  const char * separator = strchr(fname, '/');
+  const char * separator = strchr(fname[0] == '/' ? fname + 1 : fname, '/');
 
   while (separator != NULL) {
     memcpy(tmp, fname, separator - fname);
     tmp[separator - fname] = 0;
-#if defined(_WIN32)
-    if (mkdir(tmp) != 0) {
-#else
     if (mkdir(tmp, 0755) != 0) {
-#endif
       if (errno != EEXIST) {
         free(tmp);
         return 0;
@@ -218,20 +235,14 @@ TbFileHandle LbFileOpen(const char *fname, const unsigned char accmode)
 {
   unsigned char mode = accmode;
   const char *open_fname = fname;
-#if !defined(_WIN32)
   char actual_fname[PATH_MAX];
   int access_rc = access(fname, F_OK);
   // Try to find the file case-insensitively on Unix-like systems
   if (access_rc != 0 && find_case_insensitive_file(fname, actual_fname, sizeof(actual_fname))) {
     open_fname = actual_fname;
   }
-#endif
 
-#if !defined(_WIN32)
   int file_exists = (access_rc == 0) || (open_fname != fname);
-#else
-  int file_exists = LbFileExists(fname);
-#endif
 
   if ( !file_exists )
   {
@@ -381,13 +392,11 @@ long LbFileLengthHandle(TbFileHandle handle)
 long LbFileLength(const char *fname)
 {
   const char *open_fname = fname;
-#if !defined(_WIN32)
   char actual_fname[PATH_MAX];
   // Try to find the file case-insensitively on Unix-like systems
   if (access(fname, F_OK) != 0 && find_case_insensitive_file(fname, actual_fname, sizeof(actual_fname))) {
     open_fname = actual_fname;
   }
-#endif
   TbFileHandle handle = fopen(open_fname, "rb");
   long result = -1;
   if (handle)
@@ -403,13 +412,11 @@ long LbFileLength(const char *fname)
 int LbFileDelete(const char *filename)
 {
   const char *del_fname = filename;
-#if !defined(_WIN32)
   char actual_fname[PATH_MAX];
   // Try to find the file case-insensitively on Unix-like systems
   if (access(filename, F_OK) != 0 && find_case_insensitive_file(filename, actual_fname, sizeof(actual_fname))) {
     del_fname = actual_fname;
   }
-#endif
   int result;
   if ( remove(del_fname) )
     result = -1;

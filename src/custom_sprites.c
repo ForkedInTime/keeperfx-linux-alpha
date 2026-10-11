@@ -234,6 +234,11 @@ struct TbSpriteSheet *load_custom_sheet_from_zip(const char *path, const unsigne
 static int load_file_sprites(const char *path, const char *file_desc, unsigned int load_flags)
 {
     SYNCDBG(8, "Starting");
+    // Every caller found this zip with LbFileExists() or LbFileFindFirst(), which
+    // match case-insensitively; minizip's unzOpen() fopen()s the name as spelt.
+    // Resolve it once here, which also makes the path kept for ensigns the real one.
+    char zip_path[PATH_MAX];
+    path = LbFileCaseInsensitivePath(path, zip_path, sizeof(zip_path));
     int add_flag = 0;
     if (load_flags & CLF_Sprites && add_custom_sprite(path))
     {
@@ -2966,6 +2971,11 @@ const struct TbSprite *get_panel_sprite(short sprite_idx)
         return get_sprite(custom_sprites, sprite_idx);
     }
     return &bad_icon;
+}
+
+TbBool panel_sprite_is_unshipped(short sprite_idx)
+{
+    return (sprite_idx >= num_sprites(gui_panel_sprites)) && (sprite_idx < GUI_PANEL_SPRITES_COUNT);
 }
 
 int is_custom_icon(short icon_idx)

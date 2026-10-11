@@ -18,6 +18,7 @@
 /******************************************************************************/
 #include "pre_inc.h"
 #include "gui_frontmenu.h"
+#include "frontmenu_saves.h"
 
 #include "globals.h"
 #include "bflib_basics.h"
@@ -50,13 +51,17 @@ struct GuiMenu *get_active_menu(MenuNumber num)
 
 int first_monopoly_menu(void)
 {
-    for (int idx = 0; idx < ACTIVE_MENUS_COUNT; idx++)
-    {
+    int error_menu = menu_id_to_number(GMnu_FEERROR_BOX);
+    if (error_menu >= 0) {
+        return error_menu;
+    }
+    for (int idx = 0; idx < ACTIVE_MENUS_COUNT; idx++) {
         struct GuiMenu* gmnu = &active_menus[idx];
-        if ((gmnu->visual_state != 0) && (gmnu->is_monopoly_menu != 0))
+        if ((gmnu->visual_state != 0) && (gmnu->is_monopoly_menu != 0)) {
             return idx;
-  }
-  return -1;
+        }
+    }
+    return -1;
 }
 
 MenuNumber menu_id_to_number(MenuID menu_id)
@@ -231,6 +236,15 @@ void set_menu_mode(long mnu_idx)
 short turn_off_all_window_menus(void)
 {
     short result = false;
+    // The delete-save confirmation sits on top of the Load/Save menu. Closing
+    // the windows (Esc) must close it too -- as "No" -- or it stays on screen
+    // over live gameplay with its "Yes" still armed.
+    if (menu_is_active(GMnu_DELETE_SAVE))
+    {
+        result = true;
+        gui_delete_save_cancelled(NULL);
+        turn_off_menu(GMnu_DELETE_SAVE);
+    }
     if (menu_is_active(GMnu_QUIT))
     {
         result = true;
@@ -384,7 +398,7 @@ void update_query_menu()
 {
     if(!(menu_is_active(GMnu_CREATURE_QUERY1) || menu_is_active(GMnu_CREATURE_QUERY2) || menu_is_active(GMnu_CREATURE_QUERY3) || menu_is_active(GMnu_CREATURE_QUERY4)))
         return;
-    struct Thing* thing = thing_get(get_my_player()->influenced_thing_idx);
+    struct Thing* thing = thing_get(get_displayed_player()->influenced_thing_idx);
 
     if (menu_is_active(GMnu_CREATURE_QUERY1))
     {

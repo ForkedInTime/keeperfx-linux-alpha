@@ -18,11 +18,8 @@
 #include "pre_inc.h"
 #include "bflib_text.h"
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-#include <windows.h>
-#else
 #include <iconv.h>
-#endif
+#include <errno.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -143,48 +140,6 @@ size_t convert_codepage_to_utf8_buffer(const char *src, size_t src_size, char *d
         return out_pos;
     }
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-    UINT codepage = 0;
-    if (lang_id == Lang_Japanese)
-        codepage = 932; // SHIFT_JIS
-    else if (lang_id == Lang_ChineseInt || lang_id == Lang_ChineseTra)
-        codepage = 936; // GBK
-    else if (lang_id == Lang_Korean)
-        codepage = 949; // EUC-KR
-    else
-        return 0;
-
-    int wlen = MultiByteToWideChar(codepage, 0, src, (int)src_size, NULL, 0);
-    if (wlen <= 0)
-        return 0;
-
-    WCHAR *wbuf = (WCHAR *)malloc((size_t)wlen * sizeof(WCHAR));
-    if (wbuf == NULL)
-        return 0;
-
-    if (MultiByteToWideChar(codepage, 0, src, (int)src_size, wbuf, wlen) == 0)
-    {
-        free(wbuf);
-        return 0;
-    }
-
-    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, wbuf, wlen, dst, (int)dst_size, NULL, NULL);
-    free(wbuf);
-    if (utf8_len <= 0)
-    {
-        if (dst_size > 0)
-            dst[0] = '\0';
-        return 0;
-    }
-
-    if ((size_t)utf8_len >= dst_size)
-    {
-        dst[dst_size - 1] = '\0';
-        return dst_size - 1;
-    }
-    dst[utf8_len] = '\0';
-    return (size_t)utf8_len;
-#else
 
     iconv_t cd;
     if (lang_id == Lang_Japanese)
@@ -192,16 +147,34 @@ size_t convert_codepage_to_utf8_buffer(const char *src, size_t src_size, char *d
     else if (lang_id == Lang_ChineseInt || lang_id == Lang_ChineseTra)
         cd = iconv_open("UTF-8", "CP936");
     else if (lang_id == Lang_Korean)
-        cd = iconv_open("UTF-8", "EUC-KR");
+        cd = iconv_open("UTF-8", "CP949"); // codepage 949, as Windows decodes it; EUC-KR has only 2350 of the 11172 Hangul syllables
     else
         return 0;
+    if (cd == (iconv_t)(-1))
+    {
+        dst[0] = '\0';
+        return 0;
+    }
 
     char *inbuf = (char *)src;
     size_t inbytes = src_size;
     char *outbuf = dst;
     size_t outbytes = dst_size;
 
-    size_t res = iconv(cd, &inbuf, &inbytes, &outbuf, &outbytes);
+    // Windows' MultiByteToWideChar() substitutes a character it cannot decode
+    // and carries on, where iconv() stops -- and a failure here empties the whole
+    // strings file. Substitute '?' for the offending byte and continue instead;
+    // skipping one byte at a time also keeps the NUL that ends each string, so
+    // the strings after a bad one keep their numbers.
+    size_t res;
+    while (((res = iconv(cd, &inbuf, &inbytes, &outbuf, &outbytes)) == (size_t)(-1)) &&
+           ((errno == EILSEQ) || (errno == EINVAL)) && (outbytes > 0))
+    {
+        *outbuf++ = '?';
+        outbytes--;
+        inbuf++;
+        inbytes--;
+    }
     iconv_close(cd);
     if (res == (size_t)(-1))
     {
@@ -221,7 +194,6 @@ size_t convert_codepage_to_utf8_buffer(const char *src, size_t src_size, char *d
         written = dst_size - 1;
     dst[written] = '\0';
     return written;
-#endif
 }
 
 uint32_t read_utf_8_codepoint_f(const char *text, size_t *out_seq_len, const char *func_name)
