@@ -69,6 +69,7 @@
 #include "engine_textures.h"
 
 #define BOOKMARKS_COUNT               5
+#define GAME_FAST_FORWARD_MAX           512
 
 #ifdef __cplusplus
 extern "C" {
@@ -220,13 +221,12 @@ struct LogDetailedSnapshot {
 
 struct Game {
     LevelNumber continue_level_number;
-    unsigned char system_flags;
+    TbBool run_after_victory;
     /** Flags which control how the game operates, mostly defined by command line. */
     unsigned char operation_flags;
     unsigned char view_mode_flags; //flags in enum GameNumfieldDFlags
     unsigned char flags_gui;
     unsigned char mode_flags;
-    TbBool easter_eggs_enabled;
     unsigned char eastegg01_cntr;
     unsigned char eastegg02_cntr;
     char music_track; // cdrom / default music track to resume after load
@@ -256,20 +256,6 @@ struct Game {
     struct Dungeon dungeon[DUNGEONS_COUNT];
     struct StructureList thing_lists[13];
     ColumnIndex unrevealed_column_idx;
-    unsigned char packet_save_enable;
-    unsigned char packet_load_enable;
-    char packet_fname[150];
-    char packet_fopened;
-    TbFileHandle packet_save_fp;
-    unsigned int packet_file_pos;
-    struct PacketSaveHead packet_save_head;
-    uint32_t turns_stored;
-    uint32_t turns_fastforward;
-    unsigned char packet_loading_in_progress;
-    unsigned char packet_checksum_verify;
-    uint32_t log_things_start_turn;
-    uint32_t log_things_end_turn;
-    uint32_t turns_packetoff;
     PlayerNumber local_plyr_idx;
     // Originally, save_catalogue was here.
     char campaign_fname[CAMPAIGN_FNAME_LEN];
@@ -291,9 +277,11 @@ struct Game {
     /** Number of available thing indices stored in unsynced_free_things array. When count is 0, no free things available. */
     ThingIndex unsynced_free_things_count;
     GameTurn play_gameturn;
-    GameTurn pckt_gameturn;
     /** Synchronized random seed. used for game actions, as it's always identical for clients of network game. */
     uint32_t action_random_seed;
+    int64_t timestamp; // posix time of most recent timestamp (host's), 0 if unknown. Allows peers and replays to agree about current time.
+    int32_t timestamp_tz; // seconds east of UTC (host)
+    GameTurn timestamp_turn; // the game turn the timestamp was taken on
     uint32_t ai_random_seed;
     uint32_t player_random_seed;
     /** Local (unsynced) random seed for visual effects that don't affect game state */
@@ -321,7 +309,7 @@ struct Game {
     struct PerExpLevelValues creature_scores[CREATURE_TYPES_MAX];
     struct Bookmark bookmark[BOOKMARKS_COUNT];
     struct CreaturePool pool;
-    int32_t frame_skip;
+    int32_t fast_forward;
     TbBool frame_step;
     TbBool paused_at_gameturn;
     GameTurnDelta pay_day_progress[PLAYERS_COUNT];
@@ -420,7 +408,14 @@ void fps_adaptive_stop(void);
 void fps_adaptive_sample(float frame_ms);
 extern int32_t fps_limit_secondary;
 
+extern unsigned char local_system_flags;
+
+// True if this is an active multiplayer session.
+// Note that this is always false when watching a replay.
+// To determine canonical multiplayer game status in a way compatible with replay playback,
+// check game.game_kind instead.
 TbBool network_is_active(void);
+void take_game_timestamp(void);
 
 /******************************************************************************/
 #ifdef __cplusplus

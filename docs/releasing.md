@@ -126,6 +126,25 @@ If you ever need the old manual escape: flag the new stable as prerelease, re-ru
 the failed build so `latest` falls back to the previous stable, then clear the
 flag.
 
+## A newer launcher for the current stable, without a new engine
+
+Every stable ships `alpha`'s launcher with a stable engine. When the launcher gains
+fixes between stables, the AUR can carry them to stable users as a packaging-only
+release — same engine tag, next `pkgrel` — without cutting a new stable:
+
+1. Merge the launcher work into the launcher's `alpha` (and fast-forward `master`).
+2. On the **stable's own branch** (for 1.4.0.5660, `hotfix/1.4.0.5660`), bump
+   `pkgrel` in `packaging/aur/PKGBUILD` past the live one and set `_launcher_commit`
+   to the launcher's new `alpha` head; update `.SRCINFO` to match.
+3. Run **Publish to AUR** by hand on that branch (`workflow_dispatch`, ref
+   `hotfix/1.4.0.5660`, tag `v1.4.0.5660`) — a dry run first.
+
+Not from `alpha`: a stable's recipe belongs with its engine. `alpha`'s recipe has
+moved on (it no longer lists `libepoxy`, which 1.4.0.5660 links), and the workflow
+checks out the branch it is dispatched on. The workflow keeps the recipe's `pkgrel`
+only when the recipe already records the version being published, which the
+stable's branch does.
+
 ## The AUR bookkeeping step used to gate the AUR push
 
 `publish-aur.yml` commits the version/checksum bump back to this repo and *then*
@@ -169,14 +188,25 @@ cannot be loaded" warning, written by the release build off that file's history.
 
 ## Build system
 
-This fork builds with `linux.mk`, not upstream's CMake. The reasons — their
-pkg-config module names for SDL3 are wrong so it silently vendors SDL from
-source, its Linux dependency set omits `libswscale`, and its
-`WIN32` source filter is Windows-first — are set out in the README under
-"Why this fork builds with `linux.mk`".
+This fork builds with `linux.mk` only; upstream's CMake build is removed by the
+Linux-only filter (README, "Why this fork builds with `linux.mk` only").
 
-The practical consequence when syncing upstream: **new source files must be
-added to `linux.mk` by hand.** Upstream updates their `Makefile` and CMake and
-has no reason to touch ours, so a merge that compiles for them can fail to link
-for us. #5099 added four files under `src/kfx/platform/` and also needed `-Isrc`,
-which upstream's Makefile has always carried.
+Syncing upstream no longer means adding their new source files to `linux.mk`
+by hand: the weekly sync runs `packaging/linux-only/sync-linux-mk-sources.sh`,
+which appends sources the team added and drops ones they deleted, and the
+Linux-only guard fails a pull request whose list is out of date. Flags are
+still ours to carry: #5099 also needed `-Isrc`, which upstream's Makefile has
+always had -- a change like that still shows up as a red compile check.
+
+## Upstream sync
+
+The sync merges Linux-only snapshots of the team's tree, never their commits
+(`packaging/linux-only/README.md`). Two rules follow:
+
+- merge sync pull requests with a **merge commit** -- the next sync builds on
+  the snapshot commit inside it, which a squash would drop;
+- to sync by hand, `git merge "$(packaging/linux-only/make-snapshot.sh
+  upstream/master)"`, never `git merge upstream/master`.
+
+The build number (`packaging/linux-only/build-number.sh`) keeps the team's
+numbering across snapshots; use it rather than `git rev-list --count HEAD`.

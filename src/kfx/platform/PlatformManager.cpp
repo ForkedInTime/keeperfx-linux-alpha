@@ -10,7 +10,6 @@
 #include "kfx/platform/PlatformManager.h"
 #include "kfx/platform/WindowSystemSDL.h"
 #include "kfx/platform/IPlatform.h"
-#include "kfx/platform/PlatformWindows.h"
 #include "kfx/platform/PlatformLinux.h"
 #include "kfx/platform/FileFind.h"
 #include "platform.h"
@@ -25,11 +24,7 @@ IWindowSystem* IPlatform::GetWindowSystem() { return GetSDLWindowSystem(); }
 
 IPlatform* GetPlatform()
 {
-#if defined(_WIN32)
-    static PlatformWindows s_platform;
-#else
     static PlatformLinux s_platform;
-#endif
     return &s_platform;
 }
 

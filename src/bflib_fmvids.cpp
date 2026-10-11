@@ -396,6 +396,7 @@ struct movie_t {
 
 	// Convert m_frame (any pixel format) into a pal8 view in `out`.
 	// `out` borrows our member buffers; valid until the next call.
+	// Throws when the frame cannot be converted: play_smk() logs it and skips the movie.
 	void convert_frame_to_pal8(AVFrame & out) {
 		static const uint8_t bayer8[64] = {
 			 0,32, 8,40, 2,34,10,42,  48,16,56,24,50,18,58,26,
@@ -407,11 +408,28 @@ struct movie_t {
 		const int h = m_frame->height;
 		m_sws = sws_getCachedContext(m_sws, w, h, (AVPixelFormat)m_frame->format,
 			w, h, AV_PIX_FMT_RGB24, SWS_BILINEAR, nullptr, nullptr, nullptr);
-		if (!m_rgb) { m_rgb = av_frame_alloc(); }
+		if (!m_sws) {
+			const char * fmt_name = av_get_pix_fmt_name((AVPixelFormat)m_frame->format);
+			throw std::runtime_error(std::string("Cannot convert video frames from pixel format ")
+				+ (fmt_name ? fmt_name : std::to_string(m_frame->format)) + " at "
+				+ std::to_string(w) + "x" + std::to_string(h));
+		}
+		if (!m_rgb) {
+			m_rgb = av_frame_alloc();
+			if (!m_rgb) {
+				throw std::runtime_error("Could not allocate conversion frame");
+			}
+		}
 		if (m_rgb->width != w || m_rgb->height != h || m_rgb->format != AV_PIX_FMT_RGB24) {
 			av_frame_unref(m_rgb);
 			m_rgb->format = AV_PIX_FMT_RGB24; m_rgb->width = w; m_rgb->height = h;
-			av_frame_get_buffer(m_rgb, 32);
+			if (av_frame_get_buffer(m_rgb, 32) < 0) {
+				// Back to an empty 0x0 frame: left at w x h, the next call would take
+				// the missing buffer for allocated and convert into it.
+				av_frame_unref(m_rgb);
+				throw std::runtime_error("Could not allocate conversion buffer for "
+					+ std::to_string(w) + "x" + std::to_string(h) + " video");
+			}
 		}
 		sws_scale(m_sws, m_frame->data, m_frame->linesize, 0, h, m_rgb->data, m_rgb->linesize);
 		if (!m_pal8_palette_built) { build_pal8_palette(); }
@@ -602,43 +620,49 @@ enum {
 
 #pragma pack(1)
 struct AnimFLIHeader { // sizeof=0x80
-	unsigned long dsize;
+	uint32_t dsize;
 	unsigned short magic;
 	unsigned short frames;
 	short width;
 	short height;
 	unsigned short depth;
 	unsigned short flags;
-	unsigned long speed;
+	uint32_t speed;
 	short reserved2;
-	unsigned long created;
-	unsigned long creator;
-	unsigned long updated;
-	unsigned long updater;
+	uint32_t created;
+	uint32_t creator;
+	uint32_t updated;
+	uint32_t updater;
 	short aspectx;
 	short aspecty;
 	char reserved3[38];
-	unsigned long oframe1;
-	unsigned long oframe2;
+	uint32_t oframe1;
+	uint32_t oframe2;
 	char reserved4[40];
 };
 #pragma pack()
 
 #pragma pack(1)
 struct AnimFLIChunk { //sizeof=0x6
-	long csize;
+	int32_t csize;
 	unsigned short ctype;
 };
 #pragma pack()
 
 #pragma pack(1)
-struct AnimFLIPrefix { //sizeof=0x6
-	long csize;
+struct AnimFLIPrefix { //sizeof=0x10
+	int32_t csize;
 	unsigned short ctype;
 	short nchunks;
 	char reserved[8];
 };
 #pragma pack()
+
+// The FLC file format: a 128-byte file header, 16-byte frame chunk headers and
+// 6-byte sub-chunk headers, written to disk as they are in memory.
+static_assert(sizeof(AnimFLIHeader) == 128, "FLC file header must be 128 bytes");
+static_assert(sizeof(AnimFLIChunk) == 6, "FLC chunk header must be 6 bytes");
+static_assert(sizeof(AnimFLIPrefix) == 16, "FLC frame chunk header must be 16 bytes");
 
 struct Animation {
 	long state_flags;
@@ -952,7 +976,7 @@ long anim_make_FLI_SS2(unsigned char *curdat, unsigned char *prvdat)
 		(*lines_count)--;
 	}
 	// Make the data size even
-	animation.buffer_write_pointer = (unsigned char *)(((size_t)animation.buffer_write_pointer + 1) & 0xFFFFFFFE);
+	animation.buffer_write_pointer = (unsigned char *)(((uintptr_t)animation.buffer_write_pointer + 1) & ~(uintptr_t)1);
 	return animation.buffer_write_pointer - blk_begin;
 }
 
@@ -1105,7 +1129,7 @@ long anim_make_FLI_LC(unsigned char *curdat, unsigned char *prvdat)
 		animation.buffer_write_pointer++;
 	}
 	// Make the data size even
-	animation.buffer_write_pointer = (unsigned char *)(((size_t)animation.buffer_write_pointer + 1) & 0xFFFFFFFE);
+	animation.buffer_write_pointer = (unsigned char *)(((uintptr_t)animation.buffer_write_pointer + 1) & ~(uintptr_t)1);
 	return animation.buffer_write_pointer - blk_begin;
 }
 

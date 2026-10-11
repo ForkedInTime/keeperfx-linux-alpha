@@ -16,6 +16,7 @@
 #include "kfx_memory.h"
 #include "pre_inc.h"
 #include "config_keeperfx.h"
+#include "game_saves.h"
 
 #include <stdarg.h>
 #include "globals.h"
@@ -63,15 +64,15 @@ struct InstallInfo install_info;
 char keeper_runtime_directory[152];
 short api_enabled = false;
 uint16_t api_port = 5599;
-uint32_t packetsave_max_kb = 0;
+uint32_t packetsave_max_kb = 32768;
+TbBool replays_enabled = true;
 uint32_t max_replays[ReplTyp_Count] = {5, 5, 10};
 unsigned long features_enabled = 0;
+static unsigned char parchment_map_fade_turns = 0;
 unsigned char viewport_mode = VpMode_Original;
 TbBool exit_on_lua_error = false;
 TbBool FLEE_BUTTON_DEFAULT = false;
 TbBool IMPRISON_BUTTON_DEFAULT = false;
-long save_trash_max_count = 10;
-long save_trash_max_days = 30;
 
 /**
  * Language 3-char abbreviations.
@@ -126,6 +127,12 @@ const struct NamedCommand atmos_freq[] = {
   };
 
 const struct NamedCommand conf_commands[] = {
+  // Fork settings: numbered from 1001 so upstream's own (51-54 so far, growing)
+  // can never collide with them -- they did twice while ours were 51/52 and
+  // 53/54 -- and listed first, away from the end of the list where upstream
+  // appends, so syncing does not conflict here every time it adds one.
+  {"TRASH_MAX_COUNT",   1001},
+  {"TRASH_MAX_DAYS",    1002},
   {"INSTALL_PATH",         1},
   {"INSTALL_TYPE",         2},
   {"LANGUAGE",             3},
@@ -177,12 +184,9 @@ const struct NamedCommand conf_commands[] = {
   {"RENDERER"                      , 49},
   {"VIEWPORT_MODE"                 , 50},
   {"PARCHMENT_MAP_FADE"            , 51},
-  {"REPLAY_MAX_SIZE"               , 52},
+  {"AUTOMATIC_REPLAYS"             , 52},
   {"MAX_REPLAYS"                   , 53},
-  // Fork settings sit above upstream's numbering; upstream took 53 for
-  // MAX_REPLAYS in September 2026 (and 51/52 before that), so ours moved twice.
-  {"TRASH_MAX_COUNT"               , 55},
-  {"TRASH_MAX_DAYS"                , 56},
+  {"REPLAY_MAX_SIZE"               , 54},
   {NULL,                   0},
   };
 
@@ -260,7 +264,7 @@ unsigned int vid_scale_flags = SMK_FullscreenFit;
  * Returns if the censorship is on. This mostly affects blood.
  * Originally, censorship was on for german language.
  */
-TbBool censorship_enabled(void)
+TbBool local_censorship_enabled(void)
 {
   return ((features_enabled & Ft_Censorship) != 0);
 }
@@ -318,12 +322,10 @@ TbBool use_relative_mouse_mode(void)
   return ((features_enabled & Ft_RelativeMouseMode) != 0);
 }
 
-/**
- * Returns if the mouse should use SDL relative ("raw") mode instead of the grab-and-warp scheme.
- */
-TbBool use_parchment_fade(void)
+/** This machine's map fade length in turns, from keeperfx.cfg; 0 means no fade. */
+unsigned char get_parchment_map_fade_turns(void)
 {
-    return ((features_enabled & Ft_ParchmentFade) != 0);
+    return parchment_map_fade_turns;
 }
 /**
  * Returns if we should pause the music, if the user pauses the game.
@@ -441,6 +443,34 @@ static void load_file_configuration(const char *fname, const char *sname, const 
       char word_buf[128];
       switch (cmd_num)
       {
+      // Fork settings first, away from the end of this switch where upstream
+      // adds its new ones every few weeks (see conf_commands above).
+      case 1001: // TRASH_MAX_COUNT
+          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          i = atoi(word_buf);
+          if ((i >= 0) && (i <= 32768)) {
+              save_trash_max_count = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
+      case 1002: // TRASH_MAX_DAYS
+          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
+          {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+            break;
+          }
+          i = atoi(word_buf);
+          if ((i >= 0) && (i <= 32768)) {
+              save_trash_max_days = i;
+          } else {
+              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
+          }
+          break;
       case 1: // INSTALL_PATH
           i = get_conf_parameter_whole(buf,&pos,len,install_info.inst_path,sizeof(install_info.inst_path));
           if (i <= 0)
@@ -1090,54 +1120,40 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           break;
       case 51: // PARCHMENT_MAP_FADE
           i = recognize_conf_parameter(buf, &pos, len, logicval_type);
+          if (i == 1)
+          {
+              parchment_map_fade_turns = PARCHMENT_MAP_FADE_FAST_TURNS;
+              break;
+          }
+          else if (i == 2)
+          {
+              parchment_map_fade_turns = 0;
+              break;
+          }
+          else
+          {
+              if (get_conf_parameter_single(buf, &pos, len, word_buf, sizeof(word_buf)) <= 0)
+              {
+                  CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
+                      COMMAND_TEXT(cmd_num), config_textname);
+                  break;
+              }
+              if (strcasecmp(word_buf, "ORIGINAL") == 0)
+                  parchment_map_fade_turns = PARCHMENT_MAP_FADE_ORIGINAL_TURNS;
+              else
+                  CONFWRNLOG("Incorrect value of \"%s\" parameter in %s file; expected OFF or ON.",
+                      COMMAND_TEXT(cmd_num), config_textname);
+          }
+          break;
+      case 52: // AUTOMATIC_REPLAYS
+          i = recognize_conf_parameter(buf, &pos, len, logicval_type);
           if (i <= 0)
           {
               CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",
                   COMMAND_TEXT(cmd_num), config_textname);
               break;
           }
-          if (i == 1)
-              features_enabled |= Ft_ParchmentFade;
-          else
-              features_enabled &= ~Ft_ParchmentFade;
-          break;
-      case 52: // REPLAY_MAX_SIZE
-          i = -1;
-          if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
-          {
-            i = atoi(word_buf);
-          }
-          if (i >= 0) {
-              packetsave_max_kb = i;
-          } else {
-              CONFWRNLOG("Invalid \"%s\" value in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-          }
-          break;
-      case 55: // TRASH_MAX_COUNT
-          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
-          {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-            break;
-          }
-          i = atoi(word_buf);
-          if ((i >= 0) && (i <= 32768)) {
-              save_trash_max_count = i;
-          } else {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-          }
-          break;
-      case 56: // TRASH_MAX_DAYS
-          if ((get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) <= 0) || !parameter_is_number(word_buf))
-          {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-            break;
-          }
-          i = atoi(word_buf);
-          if ((i >= 0) && (i <= 32768)) {
-              save_trash_max_days = i;
-          } else {
-              CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.",COMMAND_TEXT(cmd_num),config_textname);
-          }
+          replays_enabled = (i == 1);
           break;
       case 53: // MAX_REPLAYS
           i = 0;
@@ -1152,6 +1168,19 @@ static void load_file_configuration(const char *fname, const char *sname, const 
                   }
               }
               max_replays[typ] = i;
+          }
+          break;
+      case 54: // REPLAY_MAX_SIZE
+          i = -1;
+          if (get_conf_parameter_single(buf, &pos, len, word_buf, sizeof(word_buf)) > 0)
+          {
+              i = atoi(word_buf);
+          }
+          if (i >= 0) {
+              packetsave_max_kb = i;
+          }
+          else {
+              CONFWRNLOG("Invalid \"%s\" value in %s file.", COMMAND_TEXT(cmd_num), config_textname);
           }
           break;
       case ccr_comment:

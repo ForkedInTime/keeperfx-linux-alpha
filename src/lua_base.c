@@ -3,8 +3,11 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <limits.h>
+#include <string.h>
 
 #include "lua_api.h"
+#include "lua_readonly_io.h"
 
 #include "bflib_basics.h"
 #include "bflib_fileio.h"
@@ -29,18 +32,139 @@ extern "C" {
 
 struct lua_State *Lvl_script = NULL;
 
+/* Lua opens script files itself, with a plain fopen() of the name as spelt.
+ * Everything below decides whether a script exists with LbFileExists(), which
+ * matches case-insensitively (as LbFileOpen does), so a campaign whose
+ * LEVELS_LOCATION says campgns/MyCamp while the folder on disk is
+ * campgns/mycamp passes the check and then its map's .lua silently fails to
+ * load. Windows' filesystem matches case itself, so the same campaign works
+ * there. Hand Lua the name that is really on disk instead -- for every
+ * luaL_dofile() in this file, so script loading added upstream later is
+ * covered without touching each call. */
+static int lua_dofile_on_disk(lua_State *L, const char *fname)
+{
+    char disk_fname[PATH_MAX];
+    return luaL_dofile(L, LbFileCaseInsensitivePath(fname, disk_fname, sizeof(disk_fname)));
+}
+#undef luaL_dofile
+#define luaL_dofile(L, fname) lua_dofile_on_disk(L, fname)
+
+/* The same mismatch for require(): Lua's own searcher fopen()s each
+ * package.path candidate exactly as spelt, so a module under that campaign's
+ * folder -- or require "Utils" beside a real utils.lua -- is not found. This
+ * searcher runs after Lua's own ones, so it only ever sees names they could
+ * not find, and resolves each candidate the way LbFileOpen does. */
+static int lua_searcher_on_disk(lua_State *L)
+{
+    const char *name = luaL_checkstring(L, 1);
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "path");
+    const char *path = lua_tostring(L, -1);
+    if (path == NULL)
+        return 0;
+    const char *modname = luaL_gsub(L, name, ".", "/");
+    while (*path != '\0')
+    {
+        const char *sep = strchr(path, ';');
+        size_t len = (sep != NULL) ? (size_t)(sep - path) : strlen(path);
+        if (len > 0)
+        {
+            lua_pushlstring(L, path, len);
+            const char *candidate = luaL_gsub(L, lua_tostring(L, -1), "?", modname);
+            if (LbFileExists(candidate))
+            {
+                char disk_fname[PATH_MAX];
+                LbFileCaseInsensitivePath(candidate, disk_fname, sizeof(disk_fname));
+                if (luaL_loadfile(L, disk_fname) != LUA_OK)
+                    return luaL_error(L, "error loading module '%s' from file '%s':\n\t%s", name, disk_fname, lua_tostring(L, -1));
+                return 1;
+            }
+            lua_pop(L, 2);
+        }
+        if (sep == NULL)
+            break;
+        path = sep + 1;
+    }
+    return 0;
+}
+
+static void add_lua_searcher_on_disk(lua_State *L)
+{
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "searchers"); // Lua 5.2+
+    if (!lua_istable(L, -1))
+    {
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "loaders"); // Lua 5.1 / LuaJIT
+    }
+    if (lua_istable(L, -1))
+    {
+#if LUA_VERSION_NUM >= 502
+        int count = (int)lua_rawlen(L, -1);
+#else
+        int count = (int)lua_objlen(L, -1);
+#endif
+        lua_pushcfunction(L, lua_searcher_on_disk);
+        lua_rawseti(L, -2, count + 1);
+    }
+    lua_pop(L, 2);
+}
+
 
 static int lua_disabled_os_function(lua_State *L)
 {
     const char *func_name = lua_tostring(L, lua_upvalueindex(1));
-    WARNLOG("os.%s is disabled because it is not synchronized in multiplayer", func_name);
-    return luaL_error(L, "os.%s is disabled because it is not synchronized in multiplayer", func_name);
+    WARNLOG("os.%s is disabled because it is not synchronized in multiplayer; use GetGameTimestamp", func_name);
+    return luaL_error(L, "os.%s is disabled because it is not synchronized in multiplayer; use GetGameTimestamp", func_name);
 }
 
 
+static void lua_blacklist(lua_State *L, const char *libname, const char *name)
+{
+    lua_getglobal(L, libname);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return;
+    }
+    lua_pushnil(L);
+    lua_setfield(L, -2, name);
+    lua_pop(L, 1);
+}
+
+static void lua_whitelist(lua_State *L, const char *libname, const char *keep)
+{
+    lua_getglobal(L, libname);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return;
+    }
+    int t = lua_gettop(L);
+    lua_pushnil(L);
+    while (lua_next(L, t) != 0) {
+        if (lua_type(L, -2) == LUA_TSTRING) {
+            const char *key = lua_tostring(L, -2);
+            if (strcmp(key, keep) != 0) {
+                lua_pushnil(L);
+                lua_setfield(L, t, key);
+            }
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+}
+
+// Remove Lua functions which can break the sandbox/determinism
 static void disable_lua_functions(lua_State *L)
 {
-    if (!network_is_active()) {
+    // TODO - remove/replace these
+    lua_whitelist(L, "io", "open");
+
+    // TODO - remove/replace these
+    lua_whitelist(L, "os", "remove");
+
+    lua_blacklist(L, "package", "loadlib");
+
+    if (game.game_kind != GKind_MultiGame) {
         return;
     }
     const char *disabled_os_functions[] = {"time", "date", "clock"};
@@ -110,6 +234,7 @@ int setLuaPath( lua_State* L)
     lua_pushstring(L, new_path); // push the new one
     lua_setfield(L, -2, "path"); // set the field "path" in table at -2 with value at top of stack
     lua_pop(L, 1); // get rid of package table from top of stack
+    add_lua_searcher_on_disk(L);
     return 0; // all done!
 }
 
@@ -293,12 +418,36 @@ static void open_lua_script_for_mod_all(lua_State* L, LevelNumber lvnum)
 /* @comment
  *     The loading items of open_lua_script and open_lua_script_for_mod need to be consistent.
  */
+static void open_lua_standard_libraries(lua_State *L)
+{
+    static const luaL_Reg stdlib[] = {
+        {"",               luaopen_base},
+        {LUA_TABLIBNAME,   luaopen_table},
+        {LUA_IOLIBNAME,    luaopen_io},
+        {LUA_OSLIBNAME,    luaopen_os},
+        {LUA_STRLIBNAME,   luaopen_string},
+        {LUA_MATHLIBNAME,  luaopen_math},
+        {LUA_DBLIBNAME,    luaopen_debug},
+        {LUA_LOADLIBNAME,  luaopen_package},
+        {LUA_BITLIBNAME,   luaopen_bit},
+        // {LUA_JITLIBNAME,   luaopen_jit},
+        // {LUA_FFILIBNAME,   luaopen_ffi},
+        {NULL, NULL}
+    };
+    for (const luaL_Reg *lib = stdlib; lib->func != NULL; lib++) {
+        lua_pushcfunction(L, lib->func);
+        lua_pushstring(L, lib->name);
+        lua_call(L, 1, 0);
+    }
+}
+
 TbBool open_lua_script(LevelNumber lvnum)
 {
     Lvl_script = luaL_newstate();
 
-    luaL_openlibs(Lvl_script);
+    open_lua_standard_libraries(Lvl_script);
     disable_lua_functions(Lvl_script);
+    lua_make_files_read_only(Lvl_script); // this edition: see lua_readonly_io.c
 
     lua_set_random_seed(game.action_random_seed);
 

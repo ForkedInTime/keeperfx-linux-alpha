@@ -18,6 +18,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <ftw.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -31,10 +32,17 @@ WindowSystemSDL* GetSDLWindowSystem() { return nullptr; }
 // PlatformLinux::GetUserPrefDir() falls back to the game directory; config.c is not linked here.
 extern "C" { char keeper_runtime_directory[152] = ""; }
 
-// PlatformLinux::TrashFile timestamps the freedesktop .trashinfo it writes.
-// The file-find tests never delete anything, so this only has to resolve.
+// PlatformLinux::TrashFile timestamps the freedesktop .trashinfo it writes; the
+// trash tests below only look at its Path= line, so a fixed date will do.
 #include "../src/bflib_datetm.h"
-extern "C" TbResult LbDateTime(struct TbDate *, struct TbTime *) { return Lb_SUCCESS; }
+extern "C" TbResult LbDateTime(struct TbDate * date, struct TbTime * tm)
+{
+	std::memset(date, 0, sizeof(*date));
+	std::memset(tm, 0, sizeof(*tm));
+	date->Year = 2026; date->Month = 1; date->Day = 1;
+	return Lb_SUCCESS;
+}
+extern "C" int PlatformManager_TrashFile(const char * abs_path);
 
 static int g_failures = 0;
 
@@ -73,7 +81,18 @@ static std::vector<std::string> enumerate(const std::string & filespec)
 	return names;
 }
 
-static void touch(const std::string & path)
+static int remove_entry(const char * path, const struct stat *, int, struct FTW *)
+{
+	return std::remove(path);
+}
+
+// rm -r, for the nested fixtures.
+static void remove_tree(const std::string & path)
+{
+	nftw(path.c_str(), remove_entry, 16, FTW_DEPTH | FTW_PHYS);
+}
+
+static void write_file(const std::string & path, const std::string & content)
 {
 	std::FILE * f = std::fopen(path.c_str(), "wb");
 	if (f == NULL) {
@@ -81,8 +100,30 @@ static void touch(const std::string & path)
 		++g_failures;
 		return;
 	}
-	std::fputc('x', f);
+	std::fwrite(content.data(), 1, content.size(), f);
 	std::fclose(f);
+}
+
+static void touch(const std::string & path)
+{
+	write_file(path, "x");
+}
+
+// Whole file, or "<missing>".
+static std::string read_file(const std::string & path)
+{
+	std::FILE * f = std::fopen(path.c_str(), "rb");
+	if (f == NULL) {
+		return "<missing>";
+	}
+	std::string content;
+	char buf[256];
+	std::size_t n;
+	while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) {
+		content.append(buf, n);
+	}
+	std::fclose(f);
+	return content;
 }
 
 int main()
@@ -151,6 +192,126 @@ int main()
 		unlink((hidden_only + "/._only.ogg").c_str());
 		rmdir(hidden_only.c_str());
 	}
+
+	{
+		// A folder named in a config written on Windows, in whatever case:
+		// LEVELS_LOCATION = levels/MyPack beside a real levels/mypack. Every
+		// file in it opens through LbFileOpen's case-insensitive fallback, so
+		// the listing has to find the folder the same way -- before, it found
+		// nothing and the map pack was rejected for having no .LIF files.
+		mkdir((root + "/levels").c_str(), 0755);
+		mkdir((root + "/levels/mypack").c_str(), 0755);
+		touch(root + "/levels/mypack/map00001.lif");
+		touch(root + "/levels/mypack/MAP00002.LIF");
+		touch(root + "/levels/mypack/readme.txt");
+		std::vector<std::string> got = enumerate(root + "/levels/MyPack/*.lif");
+		expect(got.size() == 2 && got[0] == "map00001.lif" && got[1] == "MAP00002.LIF",
+			"a directory whose case differs from disk is still listed");
+		got = enumerate(root + "/LEVELS/MYPACK/*.lif");
+		expect(got.size() == 2, "every directory segment is matched case-insensitively");
+		got = enumerate(root + "/levels/mypack/*.lif");
+		expect(got.size() == 2, "an exactly-spelt directory is listed as before");
+		got = enumerate(root + "/levels/OtherPack/*.lif");
+		expect(got.empty(), "a directory that does not exist in any case lists nothing");
+	}
+
+	{
+		// Only the file-name part is a pattern; the directory is a literal
+		// name. fnmatch() used to run over the whole path, so the brackets in
+		// an INSTALL_PATH such as "/games/DK [GOG]" were a character class
+		// that never matches the literal "[GOG]" -- every listing under such
+		// an install came back empty.
+		const std::string gog = root + "/DK [GOG]";
+		mkdir(gog.c_str(), 0755);
+		touch(gog + "/campaign.cfg");
+		touch(gog + "/other.txt");
+		std::vector<std::string> got = enumerate(gog + "/*.cfg");
+		expect(got.size() == 1 && got[0] == "campaign.cfg", "a directory named \"DK [GOG]\" is listed");
+		got = enumerate(root + "/dk [gog]/*.cfg");
+		expect(got.size() == 1, "a bracketed directory name also matches case-insensitively");
+
+		// '?' and '*' in a folder name are literal too.
+		const std::string odd = root + "/What? Keeper*";
+		mkdir(odd.c_str(), 0755);
+		touch(odd + "/odd.cfg");
+		got = enumerate(odd + "/*.cfg");
+		expect(got.size() == 1 && got[0] == "odd.cfg", "a directory named with '?' and '*' is listed");
+	}
+
+	{
+		// '\' written on Windows as a separator: LEVELS_LOCATION = levels\MyPack,
+		// a creature sound "creature\maiden\HIT1.wav". Read as one file name,
+		// neither ever existed on Linux.
+		std::vector<std::string> got = enumerate(root + "/levels\\MyPack/*.lif");
+		expect(got.size() == 2, "a directory written with '\\' separators is listed");
+		mkdir((root + "/creature").c_str(), 0755);
+		mkdir((root + "/creature/maiden").c_str(), 0755);
+		touch(root + "/creature/maiden/hit1.wav");
+		const std::string win_path = root + "/creature\\maiden\\HIT1.wav";
+		char buf[4096];
+		expect(LbFileExists(win_path.c_str()) == 1, "LbFileExists reads '\\' as a separator");
+		expect(std::string(LbFileCaseInsensitivePath(win_path.c_str(), buf, sizeof(buf))) == root + "/creature/maiden/hit1.wav",
+			"LbFileCaseInsensitivePath gives the real path for a '\\'-separated name");
+		TbFileHandle fh = LbFileOpen(win_path.c_str(), Lb_FILE_MODE_READ_ONLY);
+		expect(fh != NULL, "LbFileOpen opens a '\\'-separated name");
+		if (fh != NULL) {
+			LbFileClose(fh);
+		}
+
+		// A Linux file name may contain a literal '\'. It is still found as
+		// it is spelt -- also case-insensitively -- and never re-read as a path.
+		touch(root + "/odd\\name.cfg");
+		const std::string literal = root + "/odd\\name.cfg";
+		expect(std::string(LbFileCaseInsensitivePath(literal.c_str(), buf, sizeof(buf))) == literal,
+			"a file name containing a literal '\\' resolves to itself");
+		expect(std::string(LbFileCaseInsensitivePath((root + "/ODD\\NAME.CFG").c_str(), buf, sizeof(buf))) == literal,
+			"a literal '\\' name still matches case-insensitively");
+		got = enumerate(root + "/*.cfg");
+		expect(got.size() == 1 && got[0] == "odd\\name.cfg", "a literal '\\' name is enumerated");
+		unlink(literal.c_str());
+		remove_tree(root + "/creature");
+	}
+
+	{
+		// TrashFile, the freedesktop trash behind delete_save_game(). Saves
+		// copied from a DOS/GOG install are upper-case (FX1G0003.SAV); the game
+		// lists and loads them case-insensitively but asks to trash the
+		// lower-case name it builds from "fx1g%04d.sav".
+		unsetenv("FLATPAK_ID");
+		setenv("XDG_DATA_HOME", (root + "/xdg").c_str(), 1);
+		const std::string trash = root + "/xdg/Trash";
+		mkdir((root + "/save").c_str(), 0755);
+		char real_root[4096];
+		const bool have_real_root = (realpath(root.c_str(), real_root) != NULL);
+
+		write_file(root + "/save/FX1G0003.SAV", "slot 3");
+		expect(PlatformManager_TrashFile((root + "/save/fx1g0003.sav").c_str()) == 1,
+			"an upper-case save is trashed by its lower-case name");
+		expect(read_file(root + "/save/FX1G0003.SAV") == "<missing>", "the upper-case save left save/");
+		expect(read_file(trash + "/files/FX1G0003.SAV") == "slot 3", "the trash holds it under its real name");
+		const std::string info = read_file(trash + "/info/FX1G0003.SAV.trashinfo");
+		expect(have_real_root && info.find(std::string("\nPath=") + real_root + "/save/FX1G0003.SAV\n") != std::string::npos,
+			"its .trashinfo Path= is the real file, so a file manager can restore it");
+
+		// A file already in Trash/files without a .trashinfo -- left by a
+		// trasher that died between its two steps, or copied in by hand -- is
+		// never replaced: both halves move on to the next free name.
+		write_file(trash + "/files/fx1g0004.sav", "someone else's");
+		write_file(root + "/save/fx1g0004.sav", "slot 4");
+		expect(PlatformManager_TrashFile((root + "/save/fx1g0004.sav").c_str()) == 1,
+			"a save is trashed when its name is taken in files/ only");
+		expect(read_file(trash + "/files/fx1g0004.sav") == "someone else's", "the file already in the trash is untouched");
+		expect(read_file(trash + "/info/fx1g0004.sav.trashinfo") == "<missing>", "no .trashinfo is written for the taken name");
+		expect(read_file(trash + "/files/fx1g0004.2.sav") == "slot 4", "the save goes to the next free name");
+		expect(read_file(trash + "/info/fx1g0004.2.sav.trashinfo") != "<missing>", "its .trashinfo uses that same name");
+
+		remove_tree(root + "/save");
+		remove_tree(root + "/xdg");
+	}
+
+	remove_tree(root + "/levels");
+	remove_tree(root + "/DK [GOG]");
+	remove_tree(root + "/What? Keeper*");
 
 	unlink((root + "/keeper02.ogg").c_str());
 	unlink((root + "/KEEPER03.OGG").c_str());

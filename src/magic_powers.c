@@ -1541,7 +1541,7 @@ static TbResult magic_use_power_sight(PowerKind power_kind, PlayerNumber plyr_id
             cdt = cdlimit;
         }
         cit = power_sight_close_instance_time[dungeon->sight_casted_power_level];
-        cgt = get_gameturn() - powerst->strength[dungeon->sight_casted_power_level];
+        cgt = (GameTurnDelta)(get_gameturn() - powerst->strength[dungeon->sight_casted_power_level]);
         i = cdlimit / cit;
         if (i > 0) {
             dungeon->sight_casted_gameturn = cgt + cdt/i - cit;
@@ -2288,7 +2288,7 @@ TbResult script_use_power_on_creature(struct Thing* thing, short pwkind, KeepPwr
     return magic_use_power_direct(caster,pwkind,power_level,stl_x,stl_y,thing,mod_flags);
 }
 
-int get_power_overcharge_level(struct PlayerInfo *player)
+int get_power_overcharge_level(const struct PlayerInfo *player)
 {
     int i;
     i = (player->cast_expand_level >> 2);

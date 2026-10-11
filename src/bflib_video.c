@@ -426,7 +426,6 @@ TbResult LbScreenInitialize(void)
         LbRegisterStandardVideoModes();
         LbRegisterModernVideoModes(); // register modern and flexible custom modes
     }
-#ifndef _WIN32
     // Tell the desktop which application this window belongs to, so taskbars and
     // docks can show KeeperFX rather than a generic placeholder.
     //
@@ -444,7 +443,6 @@ TbResult LbScreenInitialize(void)
 #endif
 #ifdef SDL_HINT_VIDEO_X11_WMCLASS
     SDL_SetHint(SDL_HINT_VIDEO_X11_WMCLASS, "keeperfx-linux-alpha");
-#endif
 #endif
     // Initialize SDL library (SDL_Init + atexit owned by the window system)
     if (!PlatformManager_InitVideo()) {

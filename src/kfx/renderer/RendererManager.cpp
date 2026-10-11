@@ -4,6 +4,7 @@
 #include "kfx/renderer/RendererSoftware.h"
 #include "kfx/renderer/RendererOpenGL.h"
 #include "bflib_basics.h"
+#include "bflib_mouse.h"
 #include "bflib_video.h"
 #include "kfx/renderer/ITextRenderer.h"
 #include "kfx/renderer/IUIRenderer.h"
@@ -139,8 +140,10 @@ void RendererClearScreen(unsigned char colour)
 
 void RendererPresentFrame(void)
 {
-    if (s_active_renderer != nullptr)
+    if (s_active_renderer != nullptr) {
         s_active_renderer->PresentFrame();
+    }
+    LbMouseSetDrawPosition(nullptr);
 }
 
 TbBool RendererBeginFrame(void)
@@ -206,6 +209,11 @@ TbBool RendererCompositesMinimapBackground(void)
 TbBool RendererCanDraw(void)
 {
     return (s_active_renderer != nullptr && s_active_renderer->CanDraw()) ? 1 : 0;
+}
+
+TbBool RendererCanPresent(void)
+{
+    return s_active_renderer != nullptr && s_active_renderer->CanPresent();
 }
 
 TbBool RendererScheduleScreenshot(const char* path, int fmt)
@@ -491,11 +499,11 @@ void RendererUpdateAnimatedTiles(void)
         world->UpdateAnimatedTiles();
 }
 
-void RendererSubmitMapFadeStep(int tick_step, float display_step, TbBool fading_in,
+void RendererSubmitMapFadeStep(int tick_step, float display_step, float warp_scale, TbBool fading_in,
                                const unsigned char *ghost_table)
 {
     if (s_active_renderer != nullptr)
-        s_active_renderer->SubmitMapFadeStep(tick_step, display_step, fading_in != 0, ghost_table);
+        s_active_renderer->SubmitMapFadeStep(tick_step, display_step, warp_scale, fading_in != 0, ghost_table);
 }
 
 void RendererBeginOverlayCapture(OverlayCaptureKind kind)
