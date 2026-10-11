@@ -126,6 +126,25 @@ If you ever need the old manual escape: flag the new stable as prerelease, re-ru
 the failed build so `latest` falls back to the previous stable, then clear the
 flag.
 
+## A newer launcher for the current stable, without a new engine
+
+Every stable ships `alpha`'s launcher with a stable engine. When the launcher gains
+fixes between stables, the AUR can carry them to stable users as a packaging-only
+release — same engine tag, next `pkgrel` — without cutting a new stable:
+
+1. Merge the launcher work into the launcher's `alpha` (and fast-forward `master`).
+2. On the **stable's own branch** (for 1.4.0.5660, `hotfix/1.4.0.5660`), bump
+   `pkgrel` in `packaging/aur/PKGBUILD` past the live one and set `_launcher_commit`
+   to the launcher's new `alpha` head; update `.SRCINFO` to match.
+3. Run **Publish to AUR** by hand on that branch (`workflow_dispatch`, ref
+   `hotfix/1.4.0.5660`, tag `v1.4.0.5660`) — a dry run first.
+
+Not from `alpha`: a stable's recipe belongs with its engine. `alpha`'s recipe has
+moved on (it no longer lists `libepoxy`, which 1.4.0.5660 links), and the workflow
+checks out the branch it is dispatched on. The workflow keeps the recipe's `pkgrel`
+only when the recipe already records the version being published, which the
+stable's branch does.
+
 ## The AUR bookkeeping step used to gate the AUR push
 
 `publish-aur.yml` commits the version/checksum bump back to this repo and *then*
