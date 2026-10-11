@@ -150,11 +150,10 @@ build() {
     -j"$(nproc)"
 
   # The UTF-8 fonts are required since upstream #4920 but linux.mk does not build
-  # them; the project's CI generates them from tools/fxfontmaker. This recipe is
-  # also published for tags cut before make-fonts.sh existed -- re-running the
-  # AUR publish by hand for an existing stable, to ship it a newer launcher, uses
-  # the recipe from alpha with that older tree -- so fall back to the commands
-  # the script replaced, exactly as they were.
+  # them; the project's CI generates them from tools/fxfontmaker. The recipe can
+  # point at a tag cut before make-fonts.sh existed (_tag here only moves when a
+  # stable is published), so fall back to the commands the script replaced,
+  # exactly as they were -- the same fallback build-flatpak.yml carries.
   if [ -x packaging/ci/make-fonts.sh ]; then
     packaging/ci/make-fonts.sh
   else
