@@ -104,6 +104,9 @@ instead of four.
   "publishing" to nobody. The launcher's self-update is no longer undone on every start. On a fresh
   install, opening the launcher first (the "KeeperFX" menu entry) now sets up the game directory, so it
   offers to copy in your Dungeon Keeper files instead of offering to download all of KeeperFX again.
+  Publishing now waits until the AUR actually lists the new version (it can lag its own git repository
+  by minutes, so a green run used to be followed by `yay -Syu` finding nothing), and records the version
+  bump on the branch the release came from rather than always on `alpha`.
 - **AppImage:** an unbundled library now fails the build (the check only warned); the current
   directory is no longer on the library search path.
 - `linux.mk` checks the prebuilt dependencies against pinned SHA-256s and never caches a failed

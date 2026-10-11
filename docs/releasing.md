@@ -137,7 +137,13 @@ release — same engine tag, next `pkgrel` — without cutting a new stable:
    `pkgrel` in `packaging/aur/PKGBUILD` past the live one and set `_launcher_commit`
    to the launcher's new `alpha` head; update `.SRCINFO` to match.
 3. Run **Publish to AUR** by hand on that branch (`workflow_dispatch`, ref
-   `hotfix/1.4.0.5660`, tag `v1.4.0.5660`) — a dry run first.
+   `hotfix/1.4.0.5660`, tag `v1.4.0.5660`) — a dry run first:
+   ```bash
+   gh workflow run publish-aur.yml --repo ForkedInTime/keeperfx-linux-alpha \
+     --ref hotfix/1.4.0.5660 -f tag=v1.4.0.5660 -f dry_run=true
+   ```
+   then again with `dry_run=false`. Before `yay -Syu`, check that the AUR lists the
+   new version (below); a branch that predates the wait step does not wait for it.
 
 Not from `alpha`: a stable's recipe belongs with its engine. `alpha`'s recipe has
 moved on (it no longer lists `libepoxy`, which 1.4.0.5660 links), and the workflow
@@ -152,6 +158,29 @@ pushes to the AUR. That commit pushed straight at the default branch, so any
 commit landing there in between made it fail — and because the AUR push is gated
 on that step, the package silently never went out. The push is now rebased and
 non-fatal; a failure warns and the AUR push still runs.
+
+It also always went to the default branch, so a stable cut from its own branch
+had its bump rebased onto `alpha`, which conflicted, warned, and recorded it
+nowhere: `alpha`'s recipe went on saying 1.4.0.5652 after 1.4.0.5660 shipped. The
+bump now goes to the branch the release belongs to — the branch a hand-run
+publish was started from, or for a release the branch whose head is the tagged
+commit (the default branch when both match) — and only falls back to the default
+branch, with a warning, when no single branch fits.
+
+## A green publish means users are offered it
+
+The AUR's git repository has the new recipe the moment the push is accepted,
+but the package information AUR helpers read can lag behind it by several
+minutes. 1.4.0.5660-2 was accepted at 00:12 UTC on 2026-10-11 and `yay -Syu`
+still reported "nothing to do" minutes later, which looked like a failed publish.
+The workflow's last step now polls the AUR's API (every 30 s, up to 15 minutes)
+until all three packages report the published version, and fails with a message
+saying so if they do not. Re-running the workflow re-checks without pushing
+again. By hand:
+
+```bash
+curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=keeperfx-tux' | grep -o '"Version":"[^"]*"'
+```
 
 ## Ordering trap
 

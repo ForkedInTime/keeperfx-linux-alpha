@@ -79,7 +79,7 @@ jobs:
 
       - name: Install tooling
         if: steps.tag.outputs.skip_channel != '1'
-        run: pacman -Syu --noconfirm --needed git openssh
+        run: pacman -Syu --noconfirm --needed git openssh curl
 
       - uses: actions/checkout@v4
 
@@ -270,6 +270,31 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
+          # Record the bump on the branch this release belongs to, not always
+          # on the default branch. A stable is cut from its own branch
+          # (hotfix/1.4.0.5660, stable): rebasing its bump onto alpha
+          # conflicted, warned, and the bump was never recorded anywhere --
+          # which is why alpha's recipe went on saying 1.4.0.5652 after
+          # 1.4.0.5660 shipped. A run started by hand from a branch records it
+          # there. A release (or a run on a tag) is checked out at the tag, so
+          # take the branch whose head is that commit -- a release is tagged at
+          # the head of its branch -- preferring the default branch when both
+          # match, and fall back to the default branch with a warning.
+          DEFAULT="${{ github.event.repository.default_branch }}"
+          if [ "${{ github.ref_type }}" = "branch" ]; then
+            TARGET="${{ github.ref_name }}"
+          else
+            HEADS="$(git ls-remote --heads origin | awk -v sha="$(git rev-parse HEAD)" '$1 == sha { sub("^refs/heads/", "", $2); print $2 }')"
+            if printf '%s\n' "$HEADS" | grep -qx "$DEFAULT"; then
+              TARGET="$DEFAULT"
+            elif [ -n "$HEADS" ] && [ "$(printf '%s\n' "$HEADS" | wc -l)" -eq 1 ]; then
+              TARGET="$HEADS"
+            else
+              TARGET="$DEFAULT"
+              echo "::warning::no single branch has ${{ steps.tag.outputs.tag }} at its head (${HEADS:-none}); recording the bump on $DEFAULT"
+            fi
+          fi
+          echo "recording the bump on $TARGET"
           git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
           if git diff --cached --quiet; then
             echo "PKGBUILDs already at this version; nothing to commit"
@@ -284,16 +309,17 @@ jobs:
             # Rebase failures are handled, not hidden: `|| true` here used to leave a
             # conflicted rebase behind, after which the push was a silent no-op.
             # What reaches the AUR is already staged, so nothing below can change it.
-            if git pull --rebase --autostash origin "${{ github.event.repository.default_branch }}"; then
-              git push origin HEAD:${{ github.event.repository.default_branch }} \
-                || echo "::warning::could not record the AUR bump on ${{ github.event.repository.default_branch }}; commit packaging/aur by hand"
+            if git pull --rebase --autostash origin "$TARGET"; then
+              git push origin "HEAD:refs/heads/$TARGET" \
+                || echo "::warning::could not record the AUR bump on $TARGET; commit packaging/aur by hand"
             else
               git rebase --abort || true
-              echo "::warning::the AUR bump conflicts with ${{ github.event.repository.default_branch }}; commit packaging/aur by hand (the AUR itself is unaffected)"
+              echo "::warning::the AUR bump conflicts with $TARGET; commit packaging/aur by hand (the AUR itself is unaffected)"
             fi
           fi
 
       - name: Push to the AUR
+        id: aur
         if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1' && !inputs.dry_run
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
@@ -388,6 +414,7 @@ jobs:
           git add -A
           if git diff --cached --quiet; then
             echo "AUR already up to date"
+            echo "expect=$new" >> "$GITHUB_OUTPUT"
           elif [ "$live" != "-" ] && [ "$(vercmp "$new" "$live")" -lt 0 ]; then
             echo "::error::$new is older than the live $live -- pacman would never offer it. The PKGBUILD's pkgrel has drifted behind the AUR; set it above the live one and re-run."
             exit 1
@@ -400,7 +427,36 @@ jobs:
             # keeps the rel the recipe carries (see the bump step above).
             git commit -m "Update to ${{ steps.tag.outputs.pkgver }}-$(sed -n 's|^pkgrel=||p' PKGBUILD)"
             git push
+            echo "expect=$new" >> "$GITHUB_OUTPUT"
           fi
+
+      # The AUR's git repository has the new recipe the moment the push is
+      # accepted, but the package information AUR helpers read -- what
+      # `yay -Syu` asks -- can lag behind it by several minutes: 1.4.0.5660-2
+      # was accepted at 00:12 UTC on 2026-10-11 and yay still saw -1 after
+      # that. A green run should mean users are offered the update, so wait
+      # for that, and fail loudly if it does not come. Skipped when nothing
+      # was published (dry run, AUR in maintenance, package not imported).
+      - name: Wait until the AUR offers it
+        if: steps.aur.outputs.expect != ''
+        env:
+          WANT: ${{ steps.aur.outputs.expect }}
+        run: |
+          url='https://aur.archlinux.org/rpc/v5/info?arg[]=keeperfx-tux&arg[]=keeperfx-tux-data&arg[]=keeperfx-tux-launcher'
+          got=
+          for attempt in $(seq 1 30); do
+            reply="$(curl -fsS --max-time 20 "$url" || true)"
+            got="$(printf '%s' "$reply" | grep -o '"Version":"[^"]*"' | sort | uniq -c | tr -s ' \n' ' ')"
+            # All three packages, each at the published version.
+            if [ "$(printf '%s' "$reply" | grep -o "\"Version\":\"$WANT\"" | wc -l)" -eq 3 ]; then
+              echo "the AUR offers $WANT for keeperfx-tux, -data and -launcher (attempt $attempt)"
+              exit 0
+            fi
+            echo "attempt $attempt: the AUR reports ${got:-no answer}; waiting for $WANT"
+            sleep 30
+          done
+          echo "::error::$WANT is in the AUR's git repository, but after 15 minutes its package information still reports ${got:-nothing}, so yay -Syu does not offer it yet. Check https://aur.archlinux.org/packages/keeperfx-tux; re-running this workflow re-checks without pushing again."
+          exit 1
 
       - name: Dry-run summary
         if: steps.tag.outputs.skip_channel != '1' && steps.sums.outputs.skip != '1' && inputs.dry_run
