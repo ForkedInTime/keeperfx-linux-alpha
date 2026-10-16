@@ -931,6 +931,8 @@ TbBool rearm_trap(struct Thing *traptng)
 {
     struct TrapConfigStats *trapst = get_trap_model_stats(traptng->model);
     traptng->trap.num_shots = trapst->shots;
+    // Armed after all, so a failed delivery no longer says anything about this trap.
+    traptng->trap.rearm_route_failed_turn = 0;
 
     clear_flag(traptng->rendering_flags, TRF_Transpar_Flags);
     set_flag(traptng->rendering_flags, trapst->transparency_flag);
