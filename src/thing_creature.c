@@ -8018,6 +8018,10 @@ void script_move_creature(struct Thing* thing, TbMapLocation location, EffectOrE
     struct CreatureControl *cctrl;
     cctrl = creature_control_get_from_thing(thing);
 
+    if (effect_id == SCRIPT_MOVE_OWNER_PUFF)
+    {
+        effect_id = ball_puff_effects[get_player_color_idx(thing->owner)];
+    }
     if (effect_id != 0)
     {
         create_used_effect_or_element(&thing->mappos, effect_id, game.neutral_player_num,0);

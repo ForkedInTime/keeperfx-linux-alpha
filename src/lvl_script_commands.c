@@ -1735,7 +1735,7 @@ static void move_creature_check(const struct ScriptLine* scline)
     }
     else
     {
-        effct_id = ball_puff_effects[scline->np[0]];
+        effct_id = SCRIPT_MOVE_OWNER_PUFF;
     }
 
     value->ulongs[0] = location;
