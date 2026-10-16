@@ -722,6 +722,9 @@ static TbBool read_long_turn_records(TbBool apply)
         {
             apply_recorded_network_stop();
         }
+        // applying a record may have ended the replay and closed its file
+        if (apply && !replay.fopened)
+            return false;
         if ((len > used) && !skip_packet_bytes(len - used))
             return false;
     }
@@ -752,6 +755,8 @@ static TbBool apply_long_turn_records(const struct PacketDecoderState *records_s
     struct PacketDecoderState resume;
     save_packet_decoder_state(&resume);
     TbBool ok = restore_packet_decoder_state(records_state) && read_long_turn_records(true);
+    if (!replay.fopened)
+        return false;
     if (!restore_packet_decoder_state(&resume))
         ok = false;
     return ok;
@@ -1489,6 +1494,8 @@ void load_packets_for_turn(GameTurn nturn)
         memcpy(&game.packets[users[i]], &pckt_buf[i * sizeof(struct Packet)], sizeof(struct Packet));
     if (has_records && !apply_long_turn_records(&records_state))
     {
+        if (!replay.fopened) // a record ended the replay; nothing left to read
+            return;
         ERRORLOG("Cannot read long turn records from Packet File; replay aborted at turn %u", (unsigned)get_gameturn());
         erstat_inc(ESE_CantReadPackets);
         disable_packet_mode();
