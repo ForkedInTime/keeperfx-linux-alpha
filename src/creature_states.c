@@ -659,8 +659,12 @@ long get_creature_state_type_f(const struct Thing *thing, const char *func_name)
   } else
   {
       state_type = game.conf.crtr_conf.states[0].state_type;
-      WARNLOG("%s: The %s index %d active state %lu (%s) is out of range",
-        func_name,thing_model_name(thing),(int)thing->index,state,creature_state_code_name(state));
+      // What set the state is gone by now; the states around it are the best lead.
+      struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
+      WARNLOG("%s: The %s index %d active state %lu (%s) is out of range; continue state %s, backed up %s/%s",
+        func_name,thing_model_name(thing),(int)thing->index,state,creature_state_code_name(state),
+        creature_state_code_name(thing->continue_state),
+        creature_state_code_name(cctrl->active_state_bkp),creature_state_code_name(cctrl->continue_state_bkp));
   }
   if (state_type == CrStTyp_Move)
   {
