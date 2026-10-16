@@ -4890,6 +4890,10 @@ short state_cleanup_dragging_object(struct Thing *creatng)
         struct Thing* objctng = thing_get(cctrl->dragtng_idx);
         creature_drop_dragged_object(creatng, objctng);
         objctng->owner = game.neutral_player_num;
+        // A trap crate dropped on its way to a trap no longer answers that trap's claim.
+        if (thing_is_trap_crate(objctng)) {
+            recount_trap_amount_placeable(creatng->owner, crate_thing_to_workshop_item_model(objctng));
+        }
     }
     return 1;
 }

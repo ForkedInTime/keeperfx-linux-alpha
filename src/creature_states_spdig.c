@@ -1907,6 +1907,8 @@ short creature_picks_up_trap_object(struct Thing *thing)
     }
     creature_drag_object(thing, cratetng);
     thing->continue_state = CrSt_CreatureArmsTrap;
+    // Now that the imp carries it, the crate answers the trap's claim.
+    recount_trap_amount_placeable(thing->owner, traptng->model);
     return 1;
 }
 
@@ -2140,10 +2142,9 @@ short creature_arms_trap(struct Thing *thing)
     thing_play_sample(traptng, 1000, NORMAL_PITCH, 0, 3, 0, 2, FULL_LOUDNESS);
     // The action of moving object is now finished
     set_start_state(thing);
-    if (imp_will_soon_be_arming_trap(traptng)) //Another crate is still earmarked for this trap, refund it.
-    {
-        readd_workshop_item_to_amount_placeable(traptng->owner, traptng->class_id, traptng->model);
-    }
+    // The trap is armed and its crate used. Also covers a second crate already on its
+    // way to this trap, which used to be refunded here by hand.
+    recount_trap_amount_placeable(traptng->owner, traptng->model);
     if (game.conf.rules[thing->owner].workers.digger_work_experience != 0)
     {
         cctrl->exp_points += digger_work_experience(thing);

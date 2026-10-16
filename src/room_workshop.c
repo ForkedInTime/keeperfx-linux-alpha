@@ -213,6 +213,91 @@ struct Thing *get_workshop_box_thing(PlayerNumber owner, ThingModel objmodel)
 }
 
 /**
+ * Recounts how many crates of a trap model a player can still place as new traps:
+ * the crates stored in workshops or held off map, less the player's empty traps
+ * (blueprints, and traps that fired their last shot) which no imp is carrying a
+ * crate to yet.
+ *
+ * trap_amount_placeable used to be kept by adding and subtracting at each event,
+ * and some events were missed. An imp that dropped a crate on its way to a trap
+ * left the trap's claim on a crate in place, and the dropped crate counted again
+ * once brought back; a trap sold while its crate was on the way did the same; and
+ * a crate taken from the floor rather than a workshop released nothing. The count
+ * crept above what the workshops held, until the next crate in clamped it
+ * ("Placeable ... traps amount ... was too large; fixed"). Counted from the things
+ * themselves, it cannot drift.
+ * @param plyr_idx The player whose count is redone.
+ * @param tngmodel The trap model.
+ */
+void recount_trap_amount_placeable(PlayerNumber plyr_idx, ThingModel tngmodel)
+{
+    struct Dungeon* dungeon = get_players_num_dungeon(plyr_idx);
+    if (dungeon_invalid(dungeon) || (tngmodel <= 0) || (tngmodel >= game.conf.trapdoor_conf.trap_types_count)) {
+        return;
+    }
+    // Empty traps that an imp is already carrying a crate to; listed so that two
+    // imps bringing crates to the same trap count it once.
+    ThingIndex served[64];
+    int served_count = 0;
+    unsigned long k = 0;
+    long i = dungeon->digger_list_start;
+    while (i > 0)
+    {
+        struct Thing* thing = thing_get(i);
+        if (!creature_list_index_valid(i, __func__) || thing_is_invalid(thing))
+            break;
+        struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
+        i = cctrl->players_next_creature_idx;
+        if (get_creature_state_besides_interruptions(thing) == CrSt_CreatureArmsTrap)
+        {
+            struct Thing* cratetng = thing_get(cctrl->dragtng_idx);
+            struct Thing* traptng = thing_get(cctrl->arming_thing_id);
+            if (thing_exists(cratetng) && thing_is_trap_crate(cratetng) && (crate_thing_to_workshop_item_model(cratetng) == tngmodel)
+              && thing_exists(traptng) && (traptng->class_id == TCls_Trap) && (traptng->model == tngmodel)
+              && (traptng->owner == plyr_idx) && (traptng->trap.num_shots == 0))
+            {
+                int n;
+                for (n = 0; n < served_count; n++) {
+                    if (served[n] == traptng->index)
+                        break;
+                }
+                if ((n == served_count) && (served_count < (int)(sizeof(served)/sizeof(served[0])))) {
+                    served[served_count++] = traptng->index;
+                }
+            }
+        }
+        k++;
+        if (k > THINGS_COUNT)
+        {
+            ERRORLOG("Infinite loop detected when sweeping creatures list");
+            break;
+        }
+    }
+    long empty = 0;
+    k = 0;
+    i = game.thing_lists[TngList_Traps].index;
+    while (i > 0)
+    {
+        struct Thing* traptng = thing_get(i);
+        if (thing_is_invalid(traptng))
+            break;
+        i = traptng->next_of_class;
+        if ((traptng->owner == plyr_idx) && (traptng->model == tngmodel) && (traptng->trap.num_shots == 0)) {
+            empty++;
+        }
+        k++;
+        if (k > THINGS_COUNT)
+        {
+            ERRORLOG("Infinite loop detected when sweeping things list");
+            break;
+        }
+    }
+    long unserved = max(empty - served_count, 0);
+    long placeable = (long)dungeon->mnfct_info.trap_amount_stored[tngmodel] + dungeon->mnfct_info.trap_amount_offmap[tngmodel] - unserved;
+    dungeon->mnfct_info.trap_amount_placeable[tngmodel] = max(placeable, 0);
+}
+
+/**
  * Adds item to the amount of crates in workshops, but also to the amount available to be placed.
  * @param owner
  * @param tngclass
@@ -232,19 +317,8 @@ TbBool add_workshop_item_to_amounts_f(PlayerNumber plyr_idx, ThingClass tngclass
     case TCls_Trap:
         SYNCDBG(8,"%s: Adding Trap %s",func_name,trap_code_name(tngmodel));
         dungeon->mnfct_info.trap_amount_stored[tngmodel]++;
-        dungeon->mnfct_info.trap_amount_placeable[tngmodel]++;
         dungeon->mnfct_info.trap_build_flags[tngmodel] |= MnfBldF_Built;
-        // In case the placeable amount lost it, do a fix
-        if (dungeon->mnfct_info.trap_amount_placeable[tngmodel]
-            > dungeon->mnfct_info.trap_amount_stored[tngmodel]+dungeon->mnfct_info.trap_amount_offmap[tngmodel]) {
-            WARNLOG("%s: Placeable %s traps amount for player %d was too large; fixed",func_name,trap_code_name(tngmodel),(int)plyr_idx);
-            dungeon->mnfct_info.trap_amount_placeable[tngmodel] = dungeon->mnfct_info.trap_amount_stored[tngmodel]
-                + dungeon->mnfct_info.trap_amount_offmap[tngmodel];
-        }
-        if (dungeon->mnfct_info.trap_amount_placeable[tngmodel] < dungeon->mnfct_info.trap_amount_offmap[tngmodel]) {
-            WARNLOG("%s: Placeable %s traps amount for player %d was too small; fixed",func_name,trap_code_name(tngmodel),(int)plyr_idx);
-            dungeon->mnfct_info.trap_amount_placeable[tngmodel] = dungeon->mnfct_info.trap_amount_offmap[tngmodel];
-        }
+        recount_trap_amount_placeable(plyr_idx, tngmodel);
         break;
     case TCls_Door:
         SYNCDBG(8,"%s: Adding Door %s",func_name,door_code_name(tngmodel));
@@ -290,15 +364,7 @@ TbBool readd_workshop_item_to_amount_placeable_f(PlayerNumber plyr_idx, ThingCla
     {
     case TCls_Trap:
         SYNCDBG(8,"%s: Adding Trap %s",func_name,trap_code_name(tngmodel));
-        dungeon->mnfct_info.trap_amount_placeable[tngmodel]++;
-        if (dungeon->mnfct_info.trap_amount_placeable[tngmodel] > dungeon->mnfct_info.trap_amount_stored[tngmodel]+dungeon->mnfct_info.trap_amount_offmap[tngmodel]) {
-            SYNCLOG("%s: Placeable %s traps amount for player %d was too large; fixed",func_name,trap_code_name(tngmodel),(int)plyr_idx);
-            dungeon->mnfct_info.trap_amount_placeable[tngmodel] = dungeon->mnfct_info.trap_amount_stored[tngmodel]+dungeon->mnfct_info.trap_amount_offmap[tngmodel];
-        }
-        if (dungeon->mnfct_info.trap_amount_placeable[tngmodel] < dungeon->mnfct_info.trap_amount_offmap[tngmodel]) {
-            WARNLOG("%s: Placeable %s traps amount for player %d was too small; fixed",func_name,trap_code_name(tngmodel),(int)plyr_idx);
-            dungeon->mnfct_info.trap_amount_placeable[tngmodel] = dungeon->mnfct_info.trap_amount_offmap[tngmodel];
-        }
+        recount_trap_amount_placeable(plyr_idx, tngmodel);
         break;
     case TCls_Door:
         SYNCDBG(8,"%s: Adding Door %s",func_name,door_code_name(tngmodel));
@@ -346,6 +412,7 @@ int remove_workshop_item_from_amount_stored_f(PlayerNumber plyr_idx, ThingClass 
         if (amount > 0) {
             SYNCDBG(8,"%s: Removing stored trap %s",func_name,trap_code_name(tngmodel));
             dungeon->mnfct_info.trap_amount_stored[tngmodel] = amount - 1;
+            recount_trap_amount_placeable(plyr_idx, tngmodel);
             return WrkCrtS_Stored;
         }
         if ((flags & WrkCrtF_NoOffmap) == 0) {
@@ -354,6 +421,7 @@ int remove_workshop_item_from_amount_stored_f(PlayerNumber plyr_idx, ThingClass 
         if (amount > 0) {
             SYNCDBG(8,"%s: Removing offmap trap %s",func_name,trap_code_name(tngmodel));
             dungeon->mnfct_info.trap_amount_offmap[tngmodel] = amount - 1;
+            recount_trap_amount_placeable(plyr_idx, tngmodel);
             return WrkCrtS_Offmap;
         }
         ERRORLOG("%s: Trap %s not available",func_name,trap_code_name(tngmodel));
@@ -403,13 +471,16 @@ TbBool remove_workshop_item_from_amount_placeable_f(PlayerNumber plyr_idx, Thing
     switch (tngclass)
     {
     case TCls_Trap:
+        // Called once the trap now waiting for a crate (a blueprint just placed, or one
+        // that fired its last shot) exists, so the recount includes it. Having no crate
+        // to spare for it is normal: more traps can run empty than there are crates.
         amount = dungeon->mnfct_info.trap_amount_placeable[tngmodel];
+        recount_trap_amount_placeable(plyr_idx, tngmodel);
         if (amount <= 0) {
-            ERRORLOG("%s: Trap %s not available",func_name,trap_code_name(tngmodel));
+            SYNCDBG(8,"%s: No %s crate to spare",func_name,trap_code_name(tngmodel));
             break;
         }
         SYNCDBG(8,"%s: Removing Trap %s",func_name,trap_code_name(tngmodel));
-        dungeon->mnfct_info.trap_amount_placeable[tngmodel] = amount - 1;
         dungeon->mnfct_info.trap_build_flags[tngmodel] |= MnfBldF_Used;
         dungeon->lvstats.traps_used++;
         return true;

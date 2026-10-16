@@ -27,6 +27,7 @@
 #include "player_instances.h"
 #include "gui_soundmsgs.h"
 #include "bflib_joyst.h"
+#include "room_workshop.h"
 #include "post_inc.h"
 
 /******************************************************************************/
@@ -365,7 +366,7 @@ TbBool set_trap_buildable_and_add_to_amount(PlayerNumber plyr_idx, ThingModel tn
         dungeon->mnfct_info.trap_build_flags[tngmodel] &= ~MnfBldF_Manufacturable;
     }
     dungeon->mnfct_info.trap_amount_offmap[tngmodel] += amount;
-    dungeon->mnfct_info.trap_amount_placeable[tngmodel] += amount;
+    recount_trap_amount_placeable(plyr_idx, tngmodel);
     if (amount > 0)
     {
         dungeon->mnfct_info.trap_build_flags[tngmodel] |= MnfBldF_Built;
