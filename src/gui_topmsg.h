@@ -54,7 +54,7 @@ void erstats_clear(void);
 long erstat_inc(int stat_num);
 
 TbBool is_onscreen_msg_visible(void);
-TbBool show_onscreen_msg(int nturns, const char *fmt_str, ...);
+TbBool show_onscreen_msg(int nturns, const char *fmt_str, ...) KFX_PRINTF_FORMAT(2, 3);
 TbBool draw_onscreen_direct_messages(void);
 /******************************************************************************/
 #ifdef __cplusplus

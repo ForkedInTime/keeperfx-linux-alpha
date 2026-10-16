@@ -349,7 +349,7 @@ TbBool packets_process_cheats(
         {
             snprintf(str, sizeof(str), "%s", get_string(GUIStr_MnuOk));
         }
-        targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, str);
+        targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%s", str);
         if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
         {
             if (allowed)
@@ -367,7 +367,7 @@ TbBool packets_process_cheats(
         allowed = (room_exists(room));
         if (allowed)
         {
-            targeted_message_add(MsgType_Blank, 0, plyr_idx, 1, get_string(GUIStr_MnuOk));
+            targeted_message_add(MsgType_Blank, 0, plyr_idx, 1, "%s", get_string(GUIStr_MnuOk));
         }
         if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
         {
@@ -399,7 +399,7 @@ TbBool packets_process_cheats(
             break;
         case PSt_ConvertCreatr:
         clear_messages_from_player(MsgType_Player, ustate->cheatselection.chosen_player);
-        targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, str);
+        targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%s", str);
         thing = get_creature_near(x, y);
         if ((!thing_is_creature(thing)) || (thing->owner == ustate->cheatselection.chosen_player))
         {
@@ -419,7 +419,7 @@ TbBool packets_process_cheats(
         player->render_roomspace = create_box_roomspace(player->render_roomspace, 1, 1, slb_x, slb_y);
         allowed = tag_cursor_blocks_steal_slab(user, stl_x, stl_y);
         clear_messages_from_player(MsgType_Player, ustate->cheatselection.chosen_player);
-        targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, str);
+        targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%s", str);
         if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
         {
             if (allowed)
@@ -529,7 +529,7 @@ TbBool packets_process_cheats(
           struct PlayerInfo* PlayerToKill = get_player(ustate->cheatselection.chosen_player);
           if (player_exists(PlayerToKill))
           {
-              targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, str);
+              targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%s", str);
               if ((pckt->control_flags & PCtr_LBtnRelease) != 0)
               {
                 set_packet_action(pckt, PckA_CheatKillPlayer, PlayerToKill->id_number, 0, 0, 0);
@@ -670,12 +670,12 @@ TbBool packets_process_cheats(
                 {
                     dis_msg = str;
                 }
-                targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, dis_msg);
+                targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%s", dis_msg);
             }
             else
             {
                 slab_cfgstats = get_slab_kind_stats(ustate->cheatselection.chosen_terrain_kind);
-                targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, slab_cfgstats->code_name);
+                targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%s", slab_cfgstats->code_name);
             }
             clear_messages_from_player(MsgType_Blank, -1);
             if (is_key_pressed(KC_RSHIFT, KMod_DONTCARE))
@@ -687,7 +687,7 @@ TbBool packets_process_cheats(
             {
                 slb = get_slabmap_block(slb_x, slb_y);
                 slab_cfgstats = get_slab_kind_stats(slb->kind);
-                targeted_message_add(MsgType_Blank, 0, plyr_idx, 1, "%s (%d) %d %d (%d) %d %d (%d)", slab_cfgstats->code_name, slabmap_owner(slb), slb_x, slb_y, get_slab_number(slb_x, slb_y), stl_x, stl_y, get_subtile_number(stl_x, stl_y));
+                targeted_message_add(MsgType_Blank, 0, plyr_idx, 1, "%s (%ld) %d %d (%d) %d %d (%d)", slab_cfgstats->code_name, slabmap_owner(slb), slb_x, slb_y, get_slab_number(slb_x, slb_y), stl_x, stl_y, get_subtile_number(stl_x, stl_y));
             }
             if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
             {

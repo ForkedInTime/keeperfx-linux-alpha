@@ -1890,8 +1890,13 @@ static short process_command_line(unsigned short argc, char *argv[])
       if (strcasecmp(parstr, "fps_draw") == 0)
       {
           narg++;
-	  if (parse_draw_fps_config_val(pr2str, &start_params.num_fps_draw_main, &start_params.num_fps_draw_secondary) > 0)
+          // start_params is packed, so its members cannot be written through an int32_t pointer.
+          int32_t fps_main = start_params.num_fps_draw_main;
+          int32_t fps_secondary = start_params.num_fps_draw_secondary;
+          if (parse_draw_fps_config_val(pr2str, &fps_main, &fps_secondary) > 0)
             start_params.overrides[Clo_FramesPerSecond] = true;
+          start_params.num_fps_draw_main = fps_main;
+          start_params.num_fps_draw_secondary = fps_secondary;
       } else
       if (strcasecmp(parstr, "human") == 0)
       {

@@ -255,7 +255,7 @@ void frontstats_draw_main_stats(struct GuiButton *gbtn)
         }
         if ( (timer_enabled()) && (stat->name_stridx == GUIStr_Time) && (!TimerGame) )
         {
-            LbTextDrawResizedFmt(0, 0, tx_units_per_px, "%02ld:%02ld:%02ld:%03ld", Timer.Hours, Timer.Minutes, Timer.Seconds, Timer.MSeconds);
+            LbTextDrawResizedFmt(0, 0, tx_units_per_px, "%02d:%02d:%02d:%03d", Timer.Hours, Timer.Minutes, Timer.Seconds, Timer.MSeconds);
         }
         else
         {

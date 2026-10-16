@@ -2857,7 +2857,7 @@ static TbBool load_creaturemodel_config_for_mod(ThingModel crmodel, unsigned sho
 
     if (mod_state->cmpg_lvls)
     {
-        fname = get_mod_file_path_fmt(mod_dir, FGrp_CmpgLvls, "map%05lu.%s.cfg", get_level_number(), conf_fnstr);
+        fname = get_mod_file_path_fmt(mod_dir, FGrp_CmpgLvls, "map%05d.%s.cfg", get_level_number(), conf_fnstr);
         if (fname && strlen(fname) > 0)
         {
             result |= load_creaturemodel_config_file(crmodel, fname, flags);
@@ -2941,7 +2941,7 @@ TbBool load_creaturemodel_config(ThingModel conf_crmodel, ThingModel crmodel, un
         }
     }
 
-    fname = get_game_file_path_fmt(FGrp_CmpgLvls, "map%05lu.%s.cfg", get_level_number(), conf_fnstr);
+    fname = get_game_file_path_fmt(FGrp_CmpgLvls, "map%05d.%s.cfg", get_level_number(), conf_fnstr);
     if (fname && strlen(fname) > 0)
     {
         result |= load_creaturemodel_config_file(crmodel, fname, flags);

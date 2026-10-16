@@ -784,8 +784,9 @@ static long tri_split2(long tri_id1, long cor_id1, long pt_x, long pt_y, long pt
         tri_id4 = link_find(tri_id3, tri_id1);
         if (tri_id4 == -1) {
             ERRORLOG("A not found");
+        } else {
+            Triangles[tri_id3].tags[tri_id4] = tri_id2;
         }
-        Triangles[tri_id3].tags[tri_id4] = tri_id2;
     }
     reg_id1 = get_triangle_region_id(tri_id1);
     if (reg_id1 > 0) {

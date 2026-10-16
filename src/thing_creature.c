@@ -7450,7 +7450,8 @@ void display_controlled_pick_up_thing_name(struct Thing *picktng, unsigned long 
         return;
     }
     zero_messages();
-    targeted_message_add(type, id, plyr_idx, timeout, str);
+    // str can hold a box tooltip, which the map sets: never use it as a format.
+    targeted_message_add(type, id, plyr_idx, timeout, "%s", str);
 }
 
 struct Thing *controlled_get_thing_to_pick_up(struct Thing *creatng)

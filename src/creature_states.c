@@ -3444,6 +3444,9 @@ short creature_wants_a_home(struct Thing *creatng)
 
 struct Room* get_room_for_thing_salary(struct Thing* creatng, unsigned char *navtype)
 {
+    // Every return must leave *navtype set: callers branch on it, and a reachable
+    // treasury (the usual case) used to return without writing it.
+    *navtype = NavRtF_Default;
     RoomKind job_rrole = get_room_role_for_job(Job_TAKE_SALARY);
     if (!player_has_room_of_role(creatng->owner, job_rrole))
     {

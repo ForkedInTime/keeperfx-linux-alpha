@@ -262,7 +262,7 @@ TbBool init_bitmap_screen(struct ActiveBitmap *actv_bmp,int stype)
   SYNCDBG(18,"Starting; src %d,%d bpp %d",(int)actv_bmp->width,(int)actv_bmp->height,(int)actv_bmp->bpp);
   // Load PAL
   int32_t ldsize = PALETTE_SIZE;
-  unsigned char* buf = load_data_file_to_buffer(&ldsize, rbmp->fgroup, rbmp->pal_fname);
+  unsigned char* buf = load_data_file_to_buffer(&ldsize, rbmp->fgroup, "%s", rbmp->pal_fname);
   if (buf == NULL)
   {
     ERRORLOG("Couldn't load palette file for %s screen",rbmp->name);
@@ -272,7 +272,7 @@ TbBool init_bitmap_screen(struct ActiveBitmap *actv_bmp,int stype)
   actv_bmp->pal_data = (unsigned char *)buf;
   // Load RAW
   ldsize = actv_bmp->width*actv_bmp->height*((actv_bmp->bpp >> 3) + ((actv_bmp->bpp%8)>0));
-  buf = load_data_file_to_buffer(&ldsize, rbmp->fgroup, rbmp->raw_fname);
+  buf = load_data_file_to_buffer(&ldsize, rbmp->fgroup, "%s", rbmp->raw_fname);
   if (buf == NULL)
   {
     ERRORLOG("Couldn't load raw bitmap file for %s screen",rbmp->name);

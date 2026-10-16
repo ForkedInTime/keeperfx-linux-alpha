@@ -45,7 +45,11 @@ static void light_stat_light_map_clear_area(MapSubtlCoord x1, MapSubtlCoord y1, 
 
 /******************************************************************************/
 
-static unsigned long light_bitmask[32];
+// Saved as LightSystemState.bitmask, so it must be 32-bit. As unsigned long it was
+// 256 bytes on 64-bit Linux: every save copied it over the 128-byte field and the
+// 100 bytes of struct Game after it, and a load filled entries 16-19 from the
+// light counters.
+static uint32_t light_bitmask[32];
 static long stat_light_needs_updating;
 static long light_total_dynamic_lights;
 static long light_total_stat_lights;
@@ -237,8 +241,16 @@ TbBool light_create_light_adv(VALUE *init_data)
     return true;
 }
 
+static void light_init_bitmask(void)
+{
+    for (int i = 0; i < 32; i++) {
+        light_bitmask[i] = 1u << (31-i);
+    }
+}
+
 void light_export_system_state(struct LightSystemState *lightst)
 {
+    _Static_assert(sizeof(lightst->bitmask) == sizeof(light_bitmask), "light_bitmask must match LightSystemState.bitmask");
     memcpy(lightst->bitmask,light_bitmask,sizeof(light_bitmask));
     lightst->static_light_needs_updating = stat_light_needs_updating;
     lightst->total_dynamic_lights = light_total_dynamic_lights;
@@ -251,7 +263,9 @@ void light_export_system_state(struct LightSystemState *lightst)
 
 void light_import_system_state(const struct LightSystemState *lightst)
 {
-    memcpy(light_bitmask,lightst->bitmask,sizeof(light_bitmask));
+    // The bitmask is a constant table. Rebuild it rather than take it from the
+    // file: saves from 64-bit builds before the fix above hold it garbled.
+    light_init_bitmask();
     stat_light_needs_updating = lightst->static_light_needs_updating;
     light_total_dynamic_lights = lightst->total_dynamic_lights;
     light_total_stat_lights = lightst->total_stat_lights;
@@ -1451,9 +1465,7 @@ void light_initialise(void)
     if (!game.lish.lighting_tables_initialised)
     {
         light_initialise_lighting_tables();
-        for (i=0; i < 32; i++) {
-            light_bitmask[i] = 1 << (31-i);
-        }
+        light_init_bitmask();
         game.lish.lighting_tables_initialised = true;
     }
     stat_light_needs_updating = 1;

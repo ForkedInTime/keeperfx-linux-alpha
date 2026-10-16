@@ -1486,12 +1486,13 @@ static void api_process_buffer(const char *buffer, size_t buf_size)
         VALUE *data_level_info = &data_level_info_real;
         value_init_dict(data_level_info);
 
-        // Add stuff to level data
-        value_init_string(value_dict_add(data_level_info, "level_name"), lv_name);
+        // Add stuff to level data. A level outside the campaign has no level info
+        // (and, unless it is a multiplayer level, no name): report it as empty.
+        value_init_string(value_dict_add(data_level_info, "level_name"), (lv_name != NULL) ? lv_name : "");
         value_init_int32(value_dict_add(data_level_info, "level_number"), lv_number);
-        value_init_int32(value_dict_add(data_level_info, "players"), lv_info->players);
-        value_init_int32(value_dict_add(data_level_info, "mapsize_x"), lv_info->mapsize_x);
-        value_init_int32(value_dict_add(data_level_info, "mapsize_y"), lv_info->mapsize_y);
+        value_init_int32(value_dict_add(data_level_info, "players"), (lv_info != NULL) ? lv_info->players : 0);
+        value_init_int32(value_dict_add(data_level_info, "mapsize_x"), (lv_info != NULL) ? lv_info->mapsize_x : 0);
+        value_init_int32(value_dict_add(data_level_info, "mapsize_y"), (lv_info != NULL) ? lv_info->mapsize_y : 0);
         value_init_bool(value_dict_add(data_level_info, "is_multiplayer"), is_multiplayer_level(lv_number));
 
         // Create campaign data and add to level data
