@@ -59,8 +59,10 @@ it is 8, and these behaved differently from Windows:
   first minute of a level moves the sight instead of closing it. Lua's `unsummon_duration` reads 0 for a
   creature that is not summoned.
 - **Movie recording (Shift+M)** wrote files nothing could open and crashed on the second frame.
-- **High-score files** are 72 bytes per entry, as on Windows, so scores move between the two; files
-  written by earlier Linux builds are converted, not discarded.
+- **High-score files** in Windows' 72-byte layout are read as well as the 80-byte one Linux builds
+  write. Saving keeps the 80-byte layout for now, because stable 1.4.0.5660 shares the game folder
+  and reads only that one: given a 72-byte file it would replace the whole table with Bullfrog's
+  defaults the next time a player switched back.
 
 **Mods and maps made on Windows.** Windows does not care about upper/lower case in file names or which
 slash is used; Linux does. Now handled the Windows way:

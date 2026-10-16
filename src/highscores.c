@@ -37,7 +37,7 @@ _Static_assert(sizeof(struct HighScore) == 72, "high score file entries are 72 b
 
 /**
  * Loads a score file written in the earlier 64-bit Linux layout, converting each
- * entry, so those players keep their scores. The next save writes the 72-byte layout.
+ * entry, so those players keep their scores.
  */
 static TbBool load_high_score_table_lp64(const char *fname, long file_len)
 {
@@ -132,18 +132,38 @@ void load_or_create_high_score_table(void)
   }
 }
 
+/**
+ * Saves the table in the earlier 64-bit Linux layout (see load_high_score_table_lp64).
+ *
+ * Stable and alpha share one game folder, and stable 1.4.0.5660 reads only this
+ * layout: given a 72-byte table it decides the file is bad and writes a fresh
+ * default table over it, so a player switching back to stable lost every score.
+ * Both layouts are read; keep writing this one until the oldest stable a player
+ * can switch back to reads the 72-byte layout too.
+ */
 TbBool save_high_score_table(void)
 {
     char* fname = prepare_file_path(FGrp_Save, campaign.hiscore_fname);
-    long fsize = campaign.hiscore_count * sizeof(struct HighScore);
+    long fsize = campaign.hiscore_count * HISCORE_ENTRY_SIZE_LP64;
     if (fsize <= 0)
         return true;
     if (campaign.hiscore_table == NULL)
         return false;
-    // Save the file
-    if (LbFileSaveAt(fname, campaign.hiscore_table, fsize) == fsize)
-        return true;
-    return false;
+    unsigned char *buf = (unsigned char *)calloc(fsize, 1);
+    if (buf == NULL)
+        return false;
+    for (unsigned long i = 0; i < campaign.hiscore_count; i++)
+    {
+        unsigned char *dst = buf + i * HISCORE_ENTRY_SIZE_LP64;
+        const struct HighScore *hscore = &campaign.hiscore_table[i];
+        int64_t score = hscore->score;
+        memcpy(dst, &score, sizeof(score));
+        memcpy(dst + 8, hscore->name, HISCORE_NAME_LENGTH);
+        memcpy(dst + 8 + HISCORE_NAME_LENGTH, &hscore->lvnum, sizeof(hscore->lvnum));
+    }
+    TbBool saved = (LbFileSaveAt(fname, buf, fsize) == fsize);
+    free(buf);
+    return saved;
 }
 
 
