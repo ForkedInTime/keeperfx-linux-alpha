@@ -360,18 +360,6 @@ static int ro_io_open(lua_State *L)
         snprintf(detail, sizeof(detail), ", \"%s\"", mode);
         return ro_refuse(L, "io.open", fname, detail);
     }
-    int slot = -1;
-    for (int i = 0; i < RO_MAX_FILES; i++)
-    {
-        if (ro_slots[i].fp == NULL)
-        {
-            slot = i;
-            break;
-        }
-    }
-    if (slot < 0)
-        return ro_push_error(L, fname, EMFILE);
-
     // The handle exists before the file is opened, so an allocation failure
     // (which unwinds) cannot leak an open FILE.
     struct RoHandle *h = (struct RoHandle *)lua_newuserdata(L, sizeof(struct RoHandle));
@@ -386,6 +374,23 @@ static int ro_io_open(lua_State *L)
     FILE *fp = fopen(LbFileCaseInsensitivePath(fname, disk_fname, sizeof(disk_fname)), "rb");
     if (fp == NULL)
         return ro_push_error(L, fname, errno);
+    // Pick the slot only now, with no Lua call left before it is taken: the
+    // allocation above can run a garbage-collection step, and a script's __gc
+    // finalizer could open a file itself and take a slot chosen earlier.
+    int slot = -1;
+    for (int i = 0; i < RO_MAX_FILES; i++)
+    {
+        if (ro_slots[i].fp == NULL)
+        {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0)
+    {
+        fclose(fp);
+        return ro_push_error(L, fname, EMFILE);
+    }
     ro_slots[slot].fp = fp;
     h->slot = slot;
     h->gen = ro_slots[slot].gen;
