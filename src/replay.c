@@ -1245,8 +1245,8 @@ static void evict_old_replays(int type, uint32_t keep)
     size_t count = 0;
     size_t cap = 0;
     struct TbFileEntry fe;
-    char spec[DISKPATH_SIZE];
-    char rel[DISKPATH_SIZE];
+    char spec[OS_ABSPATH_SIZE];
+    char rel[OS_ABSPATH_SIZE];
     snprintf(rel, sizeof(rel), "%s/*", replay_type_dirs[type]);
     prepare_file_path_buf(spec, sizeof(spec), FGrp_Replays, rel);
     if (spec[0] == '\0')
@@ -1279,7 +1279,7 @@ static void evict_old_replays(int type, uint32_t keep)
         qsort(names, count, sizeof(char *), compare_replay_names);
     for (size_t i = 0; i + keep < count; i++)
     {
-        char fname[DISKPATH_SIZE];
+        char fname[OS_ABSPATH_SIZE];
         snprintf(rel, sizeof(rel), "%s/%s", replay_type_dirs[type], names[i]);
         prepare_file_path_buf(fname, sizeof(fname), FGrp_Replays, rel);
         if (fname[0] != '\0')
