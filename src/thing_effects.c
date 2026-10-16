@@ -1334,15 +1334,27 @@ TbBool area_effect_can_affect_thing(const struct Thing *thing, HitTargetFlags hi
  * @param blow_strength The strength of hitwave blowing creatures out of affected area.
  * @param hit_targets Defines which things are affected.
  */
-long explosion_affecting_map_block(struct Thing *tngsrc, const struct Map *mapblk, const struct Coord3d *pos,
-    MapCoord max_dist, HitPoints max_damage, long blow_strength, HitTargetFlags hit_targets)
+/** Most things one area effect handles on a single subtile; any more are left out. */
+#define AREA_EFFECT_MAX_TARGETS_ON_BLOCK 256
+
+/** The things on one subtile an area effect is about to hit, listed before any is hit. */
+struct AreaEffectTargets {
+    int count;
+    ThingIndex index[AREA_EFFECT_MAX_TARGETS_ON_BLOCK];
+    int32_t creation_turn[AREA_EFFECT_MAX_TARGETS_ON_BLOCK];
+    ThingClass class_id[AREA_EFFECT_MAX_TARGETS_ON_BLOCK];
+};
+
+/**
+ * Lists the things on a map block that an area effect may hit.
+ * The effect used to walk the block's thing list while hitting, reading each next
+ * thing before hitting the current one; a hit that deleted that next thing (a death,
+ * a dropped object) ended the walk with "Jump to non-existing thing", and everything
+ * after it on the subtile escaped the blast.
+ */
+static void collect_area_effect_targets(const struct Map *mapblk, HitTargetFlags hit_targets, PlayerNumber owner, struct AreaEffectTargets *targets)
 {
-    PlayerNumber owner;
-    if (thing_exists(tngsrc))
-        owner = tngsrc->owner;
-    else
-        owner = -1;
-    long num_affected = 0;
+    targets->count = 0;
     unsigned long k = 0;
     long i = get_mapwho_thing_index(mapblk);
     while (i != 0)
@@ -1361,27 +1373,67 @@ long explosion_affecting_map_block(struct Thing *tngsrc, const struct Map *mapbl
             WARNLOG("Jump to non-existing thing");
             break;
         }
-        // Per thing processing block
         if (area_effect_can_affect_thing(thing, hit_targets, owner))
         {
-            if (thing_is_shot(tngsrc))
+            if (targets->count >= AREA_EFFECT_MAX_TARGETS_ON_BLOCK)
             {
-                struct ShotConfigStats* shotst = get_shot_model_stats(tngsrc->model);
-                if (explosion_affecting_thing(tngsrc, thing, pos, max_dist, max_damage, blow_strength, shotst))
-                    num_affected++;
-            }
-            else
-            {
-                ERRORLOG("Exploding thing %s is not a shot", thing_model_name(tngsrc));
+                WARNLOG("More than %d things to hit on one subtile; the rest are left out", AREA_EFFECT_MAX_TARGETS_ON_BLOCK);
                 break;
             }
+            targets->index[targets->count] = thing->index;
+            targets->creation_turn[targets->count] = thing->creation_turn;
+            targets->class_id[targets->count] = thing->class_id;
+            targets->count++;
         }
-        // Per thing processing block ends
         k++;
         if (k > THINGS_COUNT)
         {
             ERRORLOG("Infinite loop detected when sweeping things list");
             break_mapwho_infinite_chain(mapblk);
+            break;
+        }
+    }
+}
+
+/**
+ * Gives listed target n, or INVALID_THING if an earlier hit removed it, its index now
+ * holds something created since, or it can no longer be affected.
+ */
+static struct Thing *area_effect_target_still_there(const struct AreaEffectTargets *targets, int n, HitTargetFlags hit_targets, PlayerNumber owner)
+{
+    struct Thing* thing = thing_get(targets->index[n]);
+    if (!thing_exists(thing) || (thing->creation_turn != targets->creation_turn[n]) || (thing->class_id != targets->class_id[n]))
+        return INVALID_THING;
+    if (!area_effect_can_affect_thing(thing, hit_targets, owner))
+        return INVALID_THING;
+    return thing;
+}
+
+long explosion_affecting_map_block(struct Thing *tngsrc, const struct Map *mapblk, const struct Coord3d *pos,
+    MapCoord max_dist, HitPoints max_damage, long blow_strength, HitTargetFlags hit_targets)
+{
+    PlayerNumber owner;
+    if (thing_exists(tngsrc))
+        owner = tngsrc->owner;
+    else
+        owner = -1;
+    long num_affected = 0;
+    struct AreaEffectTargets targets;
+    collect_area_effect_targets(mapblk, hit_targets, owner, &targets);
+    for (int n = 0; n < targets.count; n++)
+    {
+        struct Thing* thing = area_effect_target_still_there(&targets, n, hit_targets, owner);
+        if (thing_is_invalid(thing))
+            continue;
+        if (thing_is_shot(tngsrc))
+        {
+            struct ShotConfigStats* shotst = get_shot_model_stats(tngsrc->model);
+            if (explosion_affecting_thing(tngsrc, thing, pos, max_dist, max_damage, blow_strength, shotst))
+                num_affected++;
+        }
+        else
+        {
+            ERRORLOG("Exploding thing %s is not a shot", thing_model_name(tngsrc));
             break;
         }
     }
@@ -1515,38 +1567,15 @@ long poison_cloud_affecting_map_block(struct Thing *tngsrc, const struct Map *ma
     else
         owner = -1;
     long num_affected = 0;
-    unsigned long k = 0;
-    long i = get_mapwho_thing_index(mapblk);
-    while (i != 0)
+    struct AreaEffectTargets targets;
+    collect_area_effect_targets(mapblk, hit_targets, owner, &targets);
+    for (int n = 0; n < targets.count; n++)
     {
-        struct Thing* thing = thing_get(i);
-        TRACE_THING(thing);
+        struct Thing* thing = area_effect_target_still_there(&targets, n, hit_targets, owner);
         if (thing_is_invalid(thing))
-        {
-            WARNLOG("Jump out of things array");
-            break;
-        }
-        i = thing->next_on_mapblk;
-        // Should never happen - only existing thing shall be in list
-        if (!thing_exists(thing))
-        {
-            WARNLOG("Jump to non-existing thing");
-            break;
-        }
-        // Per thing processing block
-        if (area_effect_can_affect_thing(thing, hit_targets, owner))
-        {
-            if (poison_cloud_affecting_thing(tngsrc, thing, pos, max_dist, max_damage, blow_strength, area_affect_type, owner, spell_idx))
-                num_affected++;
-        }
-        // Per thing processing block ends
-        k++;
-        if (k > THINGS_COUNT)
-        {
-            ERRORLOG("Infinite loop detected when sweeping things list");
-            break_mapwho_infinite_chain(mapblk);
-            break;
-        }
+            continue;
+        if (poison_cloud_affecting_thing(tngsrc, thing, pos, max_dist, max_damage, blow_strength, area_affect_type, owner, spell_idx))
+            num_affected++;
     }
     return num_affected;
 }
