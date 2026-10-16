@@ -2998,10 +2998,14 @@ void creature_rebirth_at_lair(struct Thing *thing)
         thing->veloc_push_add.x.val = 0;
         thing->veloc_push_add.y.val = 0;
         clear_flag(thing->state_flags, TF1_PushAdd);
-        cleanup_current_thing_state(thing);
-        set_start_state(thing);
         cctrl->active_timebomb_spell = 0;
     }
+    // kill_creature() has already cleaned up the state the creature died in, but left the state itself
+    // in place, so a creature killed in a door fight came back still in CreatureDoorCombat without the
+    // fight. Forget that state first, so set_start_state() does not run its cleanup a second time (for a
+    // creature killed while praying that would take the temple count down twice), then start afresh.
+    internal_set_thing_state(thing, CrSt_Unused);
+    set_start_state(thing);
     if (!thing_exists(lairtng))
         return;
     create_effect(&thing->mappos, TngEff_HarmlessGas2, thing->owner);
