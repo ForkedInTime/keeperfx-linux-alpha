@@ -66,6 +66,8 @@ extern "C" {
 extern long level_file_version;
 
 #define MAX_CONFIG_VALUES 4
+/** An optional creature configuration value that was not given; 255 is a valid inertia, so UCHAR_MAX can't mark it. */
+#define CONFIG_VALUE_NOT_GIVEN INT32_MIN
 
 const struct CommandDesc subfunction_desc[] = {
     {"RANDOM",                     "Aaaaaaaa", Cmd_RANDOM, NULL, NULL},
@@ -2480,6 +2482,11 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
             {
                 config_value_secondary = atoi(scline->tp[3]);
             }
+            else if (creatvar == 39) // INERTIA
+            {
+                // tp[3] is empty, keep the current air inertia.
+                config_value_secondary = CONFIG_VALUE_NOT_GIVEN;
+            }
             // nothing there that would need the third value.
         }
     }
@@ -2908,6 +2915,21 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
     PROCESS_SCRIPT_VALUE(scline->command);
 }
 
+static TbBool update_creature_inertia(struct Thing *thing)
+{
+    struct CreatureModelConfig *crconf = creature_stats_get_from_thing(thing);
+    thing->inertia_floor = crconf->inertia_floor;
+    thing->inertia_air = crconf->inertia_air;
+    return true;
+}
+
+static TbBool update_creature_fall_acceleration(struct Thing *thing)
+{
+    struct CreatureModelConfig *crconf = creature_stats_get_from_thing(thing);
+    thing->fall_acceleration = crconf->fall_acceleration;
+    return true;
+}
+
 static void set_creature_configuration_process(struct ScriptContext* context)
 {
     short creatid = context->value->shorts[0];
@@ -3079,10 +3101,16 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             break;
         case 39: // INERTIA
             crconf->inertia_floor = value;
-            crconf->inertia_air = config_value_secondary;
+            if (config_value_secondary != CONFIG_VALUE_NOT_GIVEN)
+            {
+                crconf->inertia_air = config_value_secondary;
+            }
+            // Creatures copy these when created, so update the ones already on the map
+            do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_creature_inertia);
             break;
         case 40: // FALLACCELERATION
             crconf->fall_acceleration = value;
+            do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_creature_fall_acceleration);
             break;
         case ccr_comment:
             break;
