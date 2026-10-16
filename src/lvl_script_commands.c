@@ -470,6 +470,12 @@ ThingModel parse_creature_name(const char *creature_name)
 }
 
 // Variables that could be set
+// parse_set_varib() and parse_get_varib() scan the text between the brackets of
+// names like SACRIFICED[...] into a MAX_TEXT_LENGTH buffer. Lua and the API pass
+// names of any length, so the scan needs a width, or a long name overflows it.
+#define VARIB_ARG_FORMAT "%4095[^]]"
+_Static_assert(MAX_TEXT_LENGTH == 4096, "VARIB_ARG_FORMAT's width must be MAX_TEXT_LENGTH - 1");
+
 TbBool parse_set_varib(const char *varib_name, int32_t *varib_id, int32_t *varib_type)
 {
     char c;
@@ -504,12 +510,12 @@ TbBool parse_set_varib(const char *varib_name, int32_t *varib_id, int32_t *varib
         {
             *varib_id = -1;
         }
-        if (2 == sscanf(varib_name, "SACRIFICED[%n%[^]]%c", &len, arg, &c) && (c == ']'))
+        if (2 == sscanf(varib_name, "SACRIFICED[%n" VARIB_ARG_FORMAT "%c", &len, arg, &c) && (c == ']'))
         {
             *varib_id = get_id(creature_desc, arg);
             *varib_type = SVar_SACRIFICED;
         }
-        if (2 == sscanf(varib_name, "REWARDED[%n%[^]]%c", &len, arg, &c) && (c == ']'))
+        if (2 == sscanf(varib_name, "REWARDED[%n" VARIB_ARG_FORMAT "%c", &len, arg, &c) && (c == ']'))
         {
             *varib_id = get_id(creature_desc, arg);
             *varib_type = SVar_REWARDED;
@@ -588,7 +594,7 @@ TbBool parse_get_varib(const char *varib_name, int32_t *varib_id, int32_t *varib
             // activateD
             *varib_type = SVar_TRAP_ACTIVATED;
         }
-        else if (2 == sscanf(varib_name, "KEEPERS_DESTROYED[%n%[^]]%c", &len, arg, &c) && (c == ']'))
+        else if (2 == sscanf(varib_name, "KEEPERS_DESTROYED[%n" VARIB_ARG_FORMAT "%c", &len, arg, &c) && (c == ']'))
         {
             *varib_id = get_id(player_desc, arg);
             if (*varib_id == -1)
@@ -597,12 +603,12 @@ TbBool parse_get_varib(const char *varib_name, int32_t *varib_id, int32_t *varib
             }
             *varib_type = SVar_DESTROYED_KEEPER;
         }
-        else if (2 == sscanf(varib_name, "SACRIFICED[%n%[^]]%c", &len, arg, &c) && (c == ']'))
+        else if (2 == sscanf(varib_name, "SACRIFICED[%n" VARIB_ARG_FORMAT "%c", &len, arg, &c) && (c == ']'))
         {
             *varib_id = get_id(creature_desc, arg);
             *varib_type = SVar_SACRIFICED;
         }
-        else if (2 == sscanf(varib_name, "REWARDED[%n%[^]]%c", &len, arg, &c) && (c == ']'))
+        else if (2 == sscanf(varib_name, "REWARDED[%n" VARIB_ARG_FORMAT "%c", &len, arg, &c) && (c == ']'))
         {
             *varib_id = get_id(creature_desc, arg);
             *varib_type = SVar_REWARDED;
@@ -2584,8 +2590,9 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
     {
         if (creatvar == 21) //LairEnemy
         {
-            ThingModel creature_model[3];
-            for (int j = 0; j < 2; j++)
+            // Unset enemies stay 0 (none): all three are copied to the config.
+            ThingModel creature_model[3] = {0};
+            for (int j = 0; j < 3; j++)
             {
                 //Only needs one enemy, but can do up to 3
                 if ((j > 0) && (scline->tp[j + 2][0] == '\0'))
@@ -5559,9 +5566,9 @@ static void set_player_colour_process(struct ScriptContext *context)
 
 static void set_game_rule_check(const struct ScriptLine* scline)
 {
-    char* rulevalue_str = malloc(MAX_TEXT_LENGTH);
-    if (rulevalue_str == NULL)
-        return;
+    // On the stack: ALLOCATE_SCRIPT_VALUE can return early ("Too many VALUEs"),
+    // which leaked a heap copy.
+    char rulevalue_str[MAX_TEXT_LENGTH];
     snprintf(rulevalue_str, MAX_TEXT_LENGTH, "%s", scline->tp[1]);
     PlayerNumber plyr_idx;
     if (scline->tp[2][0] == '\0')
@@ -5576,7 +5583,6 @@ static void set_game_rule_check(const struct ScriptLine* scline)
             if (!parameter_is_number(scline->tp[2]))
             {
                 SCRPTERRLOG("Invalid player: %s", scline->tp[1]);
-                free(rulevalue_str);
                 return;
             }
             plyr_idx = ALL_PLAYERS;
@@ -5602,7 +5608,6 @@ static void set_game_rule_check(const struct ScriptLine* scline)
             break;
         }
     }
-    free(rulevalue_str);
     if (ruledesc == -1)
     {
         SCRPTERRLOG("Unknown Game Rule '%s'.", rulename);
