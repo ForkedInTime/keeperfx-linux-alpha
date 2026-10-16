@@ -2107,6 +2107,18 @@ short creature_arms_trap(struct Thing *thing)
         set_start_state(thing);
         return 0;
     }
+    // The trap may have been sold or destroyed while the crate was carried here, and
+    // its index handed to whatever was created next (often a hatchery chicken). Check
+    // that it is still a trap this crate arms, here and before the possessed-imp path,
+    // which checks nothing.
+    if ((traptng->class_id != TCls_Trap) || (crate_thing_to_workshop_item_model(cratetng) != traptng->model))
+    {
+        SYNCDBG(8,"The %s index %d to be armed with %s index %d is gone; index now holds class %d",
+            thing_model_name(traptng),(int)traptng->index,thing_model_name(cratetng),(int)cratetng->index,(int)traptng->class_id);
+        cctrl->arming_thing_id = 0;
+        set_start_state(thing);
+        return 0;
+    }
     if (is_thing_directly_controlled(thing))
     {
         return creature_arms_trap_first_person(thing);
