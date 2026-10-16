@@ -1484,7 +1484,8 @@ TbBool parse_creaturetype_job_blocks(char *buf, long len, const char *config_tex
             jobcfg->func_cord_check_idx = 0;
             jobcfg->func_cord_assign_idx = 0;
             creaturejob_desc[i].name = game.conf.crtr_conf.jobs[i].name;
-            creaturejob_desc[i].num = (1 << (i-1)); // creature jobs are a bit mask
+            // creature jobs are a bit mask; job 0 is "no job", and only 32 jobs fit the mask
+            creaturejob_desc[i].num = ((i >= 1) && (i <= 32)) ? (int)(1u << (i-1)) : 0;
         }
     }
     creaturejob_desc[INSTANCE_TYPES_MAX - 1].name = NULL; // must be null for get_id
@@ -1735,7 +1736,8 @@ TbBool parse_creaturetype_angerjob_blocks(char *buf, long len, const char *confi
             agjobcfg = &game.conf.crtr_conf.angerjobs[i];
             memset(agjobcfg->name, 0, COMMAND_WORD_LEN);
             angerjob_desc[i].name = agjobcfg->name;
-            angerjob_desc[i].num = (1 << (i-1)); // anger jobs are a bit mask
+            // anger jobs are a bit mask; job 0 is "no job", and only 32 jobs fit the mask
+            angerjob_desc[i].num = ((i >= 1) && (i <= 32)) ? (int)(1u << (i-1)) : 0;
         }
     }
     // arr_size = game.conf.crtr_conf.angerjobs_count;

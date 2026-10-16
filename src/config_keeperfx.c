@@ -965,7 +965,12 @@ static void load_file_configuration(const char *fname, const char *sname, const 
       case 39: // FRAMES_PER_SECOND
           if (!start_params.overrides[Clo_FramesPerSecond] && get_conf_parameter_whole(buf, &pos, len, word_buf, sizeof(word_buf)) > 0)
           {
-              i = parse_draw_fps_config_val(word_buf, &start_params.num_fps_draw_main, &start_params.num_fps_draw_secondary);
+              // start_params is packed, so its members cannot be written through an int32_t pointer.
+              int32_t fps_main = start_params.num_fps_draw_main;
+              int32_t fps_secondary = start_params.num_fps_draw_secondary;
+              i = parse_draw_fps_config_val(word_buf, &fps_main, &fps_secondary);
+              start_params.num_fps_draw_main = fps_main;
+              start_params.num_fps_draw_secondary = fps_secondary;
               if (i <= 0)
                   CONFWRNLOG("Couldn't recognize \"%s\" command parameter in %s file.", COMMAND_TEXT(cmd_num), config_textname);
           }
