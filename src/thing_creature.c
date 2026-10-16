@@ -4957,6 +4957,7 @@ struct Thing *create_creature(struct Coord3d *pos, ThingModel model, PlayerNumbe
     crtng->owner = owner;
     crtng->move_angle_xy = ANGLE_NORTH;
     crtng->move_angle_z = 0;
+    crtng->pushed_by_player = -1; // Not pushed yet; 0 would be player 0
     cctrl->max_speed = calculate_correct_creature_maxspeed(crtng);
     cctrl->shot_shift_x = crconf->shot_shift_x;
     cctrl->shot_shift_y = crconf->shot_shift_y;

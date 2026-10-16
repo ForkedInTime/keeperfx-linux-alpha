@@ -3449,7 +3449,7 @@ TbBool update_thing(struct Thing *thing)
                 play_creature_sound(thing, CrSnd_Drop, 3, 0);
             }
         }
-        thing->veloc_push_add.z.val -= thing->fall_acceleration;
+        thing->veloc_push_add.z.val -= CREATURE_FALL_ACCELERATION;
         set_flag(thing->state_flags, TF1_PushAdd);
     }
     if (falling || ((thing->movement_flags & TMvF_Immobile) == 0)) {
@@ -3510,8 +3510,11 @@ TbBool update_thing(struct Thing *thing)
             falling = true;
             thing->veloc_base.x.val = thing->velocity.x.val;
             thing->veloc_base.y.val = thing->velocity.y.val;
-            thing->fall_acceleration = CREATURE_FALL_ACCELERATION;
             thing->abyss_fall_sound_delay = ABYSS_FALL_SOUND_DELAY;
+            // The fall lasts longer than the push window, so decide now whether the pusher gets the kill
+            if ((get_gameturn() - thing->last_turn_pushed) >= 15) {
+                thing->pushed_by_player = -1;
+            }
         }
     }
     if (falling && (thing->mappos.z.val <= -subtile_coord(ABYSS_DEPTH, 0))) {
@@ -3523,7 +3526,7 @@ TbBool update_thing(struct Thing *thing)
             }
             PlayerNumber killer = -1;
             CrDeathFlags flags = CrDed_Default;
-            if ((get_gameturn() - thing->last_turn_pushed) < 15)
+            if (thing->pushed_by_player >= 0)
             {
                 flags = CrDed_DiedInBattle;
                 killer = thing->pushed_by_player;
