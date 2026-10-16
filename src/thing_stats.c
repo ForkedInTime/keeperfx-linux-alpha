@@ -1080,7 +1080,10 @@ HitPoints collide_door_and_boulder(struct Thing* doortng, struct Thing* boulder)
 
     if (is_magic)
     {
-        boulder_damage /= 8;
+        // Rounded up: the boulder pays 8 health for each point of door it breaks, so a
+        // door that holds must take all of it. Rounded down, a boulder of 8n+1..8n+7
+        // health kept 1-7 and both survived the collision.
+        boulder_damage = (boulder_damage + 7) / 8;
         if (boulder_damage < 1)
             boulder_damage = 1;
     }
