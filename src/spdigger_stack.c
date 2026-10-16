@@ -1671,6 +1671,9 @@ TbBool thing_can_be_picked_to_place_in_player_room_of_role(const struct Thing* t
     }
     struct SlabMap *slb;
     slb = get_slabmap_for_subtile(thing->mappos.x.stl.num, thing->mappos.y.stl.num);
+    // Every case below that can be picked is normal play (a box an imp has just found, one
+    // a hero dropped on our ground), so none of them is worth a warning; this is asked
+    // for each such thing whenever an imp looks for work.
     // Neutral things on either neutral or owned ground should be always pickable
     if ((thing->owner == game.neutral_player_num) && ((slabmap_owner(slb) == game.neutral_player_num) || (slabmap_owner(slb) == dungeon->owner)))
     {
@@ -1680,7 +1683,7 @@ TbBool thing_can_be_picked_to_place_in_player_room_of_role(const struct Thing* t
     if ((thing->owner == dungeon->owner) && (slabmap_owner(slb) == game.neutral_player_num))
     {
         if (thing_is_object(thing)) {
-            WARNLOG("The %s owner %d found on neutral ground instead of owner's %s",thing_model_name(thing),(int)thing->owner,room_role_code_name(rrole));
+            SYNCDBG(8,"The %s owner %d found on neutral ground instead of owner's %s",thing_model_name(thing),(int)thing->owner,room_role_code_name(rrole));
         }
         return true;
     } else
@@ -1688,7 +1691,7 @@ TbBool thing_can_be_picked_to_place_in_player_room_of_role(const struct Thing* t
     if (!players_are_mutual_allies(dungeon->owner, thing->owner) && (slabmap_owner(slb) == dungeon->owner))
     {
         if (thing_is_object(thing)) {
-            WARNLOG("The %s owner %d found on own ground instead of owner's %s",thing_model_name(thing),(int)thing->owner,room_role_code_name(rrole));
+            SYNCDBG(8,"The %s owner %d found on the ground of player %d, who may take it to a %s",thing_model_name(thing),(int)thing->owner,(int)dungeon->owner,room_role_code_name(rrole));
         }
         return true;
     } else
@@ -1704,7 +1707,7 @@ TbBool thing_can_be_picked_to_place_in_player_room_of_role(const struct Thing* t
         if (room_is_invalid(room) || (!room_role_matches(room->kind,rrole)))
         {
             if (thing_is_object(thing)) {
-                WARNLOG("The %s owner %d found on his ground but outside %s",thing_model_name(thing),(int)thing->owner,room_role_code_name(rrole));
+                SYNCDBG(8,"The %s owner %d found on his ground but outside %s",thing_model_name(thing),(int)thing->owner,room_role_code_name(rrole));
             }
             return true;
         }

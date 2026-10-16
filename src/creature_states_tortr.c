@@ -237,7 +237,7 @@ long process_torture_visuals(struct Thing *creatng, struct Room *room, CreatureJ
 short kinky_torturing(struct Thing *thing)
 {
     TRACE_THING(thing);
-    struct Room* room = get_room_thing_is_on(thing);
+    struct Room* room = get_room_creature_works_on(thing);
     if (creature_job_in_room_no_longer_possible(room, Job_KINKY_TORTURE, thing))
     {
         remove_creature_from_work_room(thing);
@@ -596,7 +596,7 @@ CrCheckRet process_torture_function(struct Thing *creatng)
 CrStateRet torturing(struct Thing *thing)
 {
     TRACE_THING(thing);
-    struct Room* room = get_room_thing_is_on(thing);
+    struct Room* room = get_room_creature_works_on(thing);
     if (creature_job_in_room_no_longer_possible(room, Job_PAINFUL_TORTURE, thing))
     {
         remove_creature_from_work_room(thing);

@@ -288,6 +288,8 @@ struct CreatureControl {
       } workshop;
       struct {
         ThingIndex foodtng_idx;
+        /** Creation turn of the food chosen, to tell it from a later thing given the same index. */
+        int32_t food_creation_turn;
       } eating;
       struct {
         unsigned char job_stage;

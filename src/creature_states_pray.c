@@ -115,7 +115,7 @@ short at_temple(struct Thing *thing)
 CrStateRet praying_in_temple(struct Thing *thing)
 {
     TRACE_THING(thing);
-    struct Room* room = get_room_thing_is_on(thing);
+    struct Room* room = get_room_creature_works_on(thing);
     if (creature_job_in_room_no_longer_possible(room, Job_TEMPLE_PRAY, thing))
     {
         remove_creature_from_work_room(thing);

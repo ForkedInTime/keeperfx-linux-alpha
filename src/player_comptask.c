@@ -2835,37 +2835,46 @@ long task_move_creature_to_room(struct Computer2 *comp, struct ComputerTask *cta
     {
         // 2nd phase - we have specific creature and specific room index, and creature is picked up already
         SYNCDBG(9,"Starting player %d drop",(int)dungeon->owner);
-        if (room_is_invalid(room))
+        // The task's own room first, then the room the 1st phase picked this creature for.
+        // The pick does not look at the task's room, so a "move to training" task can be
+        // holding a level 10 creature, or one the keeper cannot pay to train; the room it
+        // was picked for has a job it can do. Only when neither takes it does it go back
+        // to the heart. (This used to drop it at a position never set, then log that no
+        // position could be found.)
+        struct Room *rooms[2] = { room, room_get(ctask->move_to_room.room_idx2) };
+        TbBool any_room = false;
+        for (int n = 0; thing_is_creature(thing) && (n < 2); n++)
         {
-            room = room_get(ctask->move_to_room.room_idx2);
-        }
-        if (thing_is_creature(thing) && room_exists(room))
-        {
+            room = rooms[n];
+            if (!room_exists(room) || ((n == 1) && (room == rooms[0])))
+                continue;
+            any_room = true;
             struct CreatureModelConfig *crconf;
             crconf = creature_stats_get_from_thing(thing);
             CreatureJob jobpref = get_job_for_room(room->kind, JoKF_AssignComputerDrop|JoKF_AssignAreaWithinRoom, crconf->job_primary|crconf->job_secondary);
-            struct CreatureJobConfig* jobcfg = get_config_for_job(jobpref);
-            if (creature_job_player_check_func_list[jobcfg->func_plyr_check_idx] != NULL)
+            if (jobpref == Job_NULL)
             {
-                if (!creature_job_player_check_func_list[jobcfg->func_plyr_check_idx](thing, dungeon->owner, jobpref))
-                {
-                    SYNCDBG(13, "Cannot assign %s for %s index %d owner %d; check callback failed", creature_job_code_name(jobpref), thing_model_name(thing), (int)thing->index, (int)thing->owner);
-                    if (computer_dump_held_things_on_map(comp, thing, &pos, CrSt_Unused) > 0)
-                    {
-                        return CTaskRet_Unk2;
-                    }
-                } else
-                if (get_drop_position_for_creature_job_in_room(&pos, room, jobpref, thing))
-                {
-                    if (computer_dump_held_things_on_map(comp, thing, &pos, CrSt_Unused) > 0) {
-                        return CTaskRet_Unk2;
-                    }
-                }
-                ERRORLOG("Could not find valid position in %s %s for %s to be dropped", player_code_name(dungeon->owner), room_code_name(room->kind), thing_model_name(thing));
+                SYNCDBG(13, "No job in %s for %s index %d owner %d", room_code_name(room->kind), thing_model_name(thing), (int)thing->index, (int)thing->owner);
+                continue;
             }
-        } else
+            struct CreatureJobConfig* jobcfg = get_config_for_job(jobpref);
+            if ((creature_job_player_check_func_list[jobcfg->func_plyr_check_idx] != NULL) &&
+                !creature_job_player_check_func_list[jobcfg->func_plyr_check_idx](thing, dungeon->owner, jobpref))
+            {
+                SYNCDBG(13, "Cannot assign %s for %s index %d owner %d; check callback failed", creature_job_code_name(jobpref), thing_model_name(thing), (int)thing->index, (int)thing->owner);
+                continue;
+            }
+            if (get_drop_position_for_creature_job_in_room(&pos, room, jobpref, thing))
+            {
+                if (computer_dump_held_things_on_map(comp, thing, &pos, CrSt_Unused) > 0) {
+                    return CTaskRet_Unk2;
+                }
+            }
+            ERRORLOG("Could not find valid position in %s %s for %s to be dropped", player_code_name(dungeon->owner), room_code_name(room->kind), thing_model_name(thing));
+        }
+        if (!any_room)
         {
-            WARNLOG("Could not move %s creature by dropping %s into %s",player_code_name(dungeon->owner),thing_model_name(thing),room_code_name(room->kind));
+            WARNLOG("Could not move %s creature by dropping %s into %s",player_code_name(dungeon->owner),thing_model_name(thing),room_code_name(rooms[0]->kind));
         }
         computer_force_dump_held_things_on_map(comp, &dungeon->essential_pos);
         remove_task(comp, ctask);

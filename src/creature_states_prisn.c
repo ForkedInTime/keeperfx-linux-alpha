@@ -302,7 +302,7 @@ CrStateRet process_prison_visuals(struct Thing *creatng, struct Room *room)
 CrStateRet creature_in_prison(struct Thing *thing)
 {
     TRACE_THING(thing);
-    struct Room* room = get_room_thing_is_on(thing);
+    struct Room* room = get_room_creature_works_on(thing);
     if (creature_job_in_room_no_longer_possible(room, Job_CAPTIVITY, thing))
     {
         remove_creature_from_work_room(thing);

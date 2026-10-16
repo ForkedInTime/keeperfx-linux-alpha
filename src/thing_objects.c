@@ -1293,8 +1293,10 @@ static TngUpdateRet object_update_dungeon_heart(struct Thing *heartng)
     process_dungeon_destroy(heartng);
 
     SYNCDBG(18,"Beat update");
+    // The last step of the destruction deletes the heart. Say so, or update_object()
+    // goes on to move the emptied thing ("Attempt to move non-existing object").
     if ((heartng->alloc_flags & TAlF_Exists) == 0)
-      return TUFRet_Modified;
+      return TUFRet_Deleted;
     if (objst->model_flags & OMF_Beating)
     {
         update_dungeon_heart_beat(heartng);

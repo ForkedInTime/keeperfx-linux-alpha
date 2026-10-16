@@ -55,6 +55,7 @@ long manufacture_points_required_f(long mfcr_type, unsigned long mfcr_kind, cons
 
 #define add_workshop_item_to_amounts(plyr_idx, tngclass, tngmodel) add_workshop_item_to_amounts_f(plyr_idx, tngclass, tngmodel, __func__)
 TbBool add_workshop_item_to_amounts_f(PlayerNumber plyr_idx, ThingClass tngclass, ThingModel tngmodel, const char *func_name);
+void recount_trap_amount_placeable(PlayerNumber plyr_idx, ThingModel tngmodel);
 #define readd_workshop_item_to_amount_placeable(plyr_idx, tngclass, tngmodel) readd_workshop_item_to_amount_placeable_f(plyr_idx, tngclass, tngmodel, __func__)
 TbBool readd_workshop_item_to_amount_placeable_f(PlayerNumber plyr_idx, ThingClass tngclass, ThingModel tngmodel, const char *func_name);
 #define remove_workshop_item_from_amount_stored(plyr_idx, tngclass, tngmodel, flags) remove_workshop_item_from_amount_stored_f(plyr_idx, tngclass, tngmodel, flags, __func__)

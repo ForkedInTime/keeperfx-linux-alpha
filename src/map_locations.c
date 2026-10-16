@@ -23,6 +23,7 @@
 #include "game_legacy.h"
 #include "bflib_math.h"
 #include "player_instances.h"
+#include "dungeon_data.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -38,6 +39,21 @@ const struct NamedCommand head_for_desc[] = {
   {"APPROPRIATE_DUNGEON",  MLoc_APPROPRTDUNGEON},
   {NULL,                   0},
 };
+
+/**
+ * Where a player's dungeon heart stood once it has been destroyed, which the
+ * destruction keeps in essential_pos. Script actions that react to it, such as an
+ * objective that points at the heart, run after the heart thing is gone; they used
+ * to find no location and log "Dungeon Heart location for player 4 not found".
+ */
+static TbBool heart_location_after_destruction(PlayerNumber plyr_idx, struct Coord3d *pos)
+{
+    const struct Coord3d* epos = dungeon_get_essential_pos(plyr_idx);
+    if ((epos->x.val == 0) && (epos->y.val == 0))
+        return false;
+    *pos = *epos;
+    return true;
+}
 
 TbMapLocation get_coord_encoded_location(MapSubtlCoord stl_x,MapSubtlCoord stl_y)
 {
@@ -314,6 +330,10 @@ void find_location_pos(TbMapLocation location, PlayerNumber plyr_idx, struct Coo
       if (thing_exists(thing))
       {
         *pos = thing->mappos;
+      } else
+      if ((i < PLAYERS_COUNT) && heart_location_after_destruction(i, pos))
+      {
+        // The heart is gone, but where it stood is still the place to show.
       } else
         WARNMSG("%s: Dungeon Heart location for player %lu not found",func_name,i);
       break;
@@ -684,6 +704,12 @@ void find_map_location_coords(TbMapLocation location, MapSubtlCoord *x, MapSubtl
         {
           pos_y = thing->mappos.y.stl.num;
           pos_x = thing->mappos.x.stl.num;
+        } else
+        if ((i < PLAYERS_COUNT) && heart_location_after_destruction(i, &pos))
+        {
+          // The heart is gone, but where it stood is still the place to show.
+          pos_y = pos.y.stl.num;
+          pos_x = pos.x.stl.num;
         } else
           WARNMSG("%s: Dungeon Heart location for player %ld not found",func_name,i);
         break;

@@ -784,11 +784,11 @@ static TbBool load_thing_file(LevelNumber lv_num)
 
 static int load_kfx_toml_file(LevelNumber lv_num, const char *ext, const char *msg_name,
                                  const char *sections, const char *count_field, const char *section_fmt,
-                                 int max_count, TbBool (*section_loader)(VALUE *arg))
+                                 int max_count, TbBool (*section_loader)(VALUE *arg), unsigned short flags)
 {
     SYNCDBG(5,"Starting");
     int32_t fsize = 0;
-    unsigned char* buf = load_single_map_file_to_buffer(lv_num, ext, &fsize, LMFF_None);
+    unsigned char* buf = load_single_map_file_to_buffer(lv_num, ext, &fsize, flags);
     if (buf == NULL)
         return -1;
     VALUE file_root, *root_ptr = &file_root;
@@ -865,7 +865,7 @@ static int load_kfx_toml_file(LevelNumber lv_num, const char *ext, const char *m
 
 static TbBool load_tngfx_file(LevelNumber lv_num)
 {
-    return load_kfx_toml_file(lv_num, "tngfx", "TNGFX", "thing", "ThingsCount", "thing%d", THINGS_COUNT - 2, &thing_create_thing_adv) == 0;
+    return load_kfx_toml_file(lv_num, "tngfx", "TNGFX", "thing", "ThingsCount", "thing%d", THINGS_COUNT - 2, &thing_create_thing_adv, LMFF_None) == 0;
 }
 
 TbBool load_action_point_file(LevelNumber lv_num)
@@ -911,7 +911,7 @@ TbBool load_aptfx_file(LevelNumber lv_num)
 {
     return load_kfx_toml_file(lv_num, "aptfx", "APTFX",
                               "actionpoint", "ActionPointsCount", "actionpoint%d", ACTN_POINTS_COUNT - 1,
-                              &actnpoint_create_actnpoint_adv) >= 0;
+                              &actnpoint_create_actnpoint_adv, LMFF_None) >= 0;
 }
 
 /**
@@ -1297,9 +1297,11 @@ static TbBool load_static_light_file(unsigned long lv_num)
 
 static TbBool load_lgtfx_file(unsigned long lv_num)
 {
+    // Optional: a missing .lgtfx is how a level in the original format is told apart,
+    // and load_and_setup_map_info() then reads its .lgt instead.
     TbBool ret = load_kfx_toml_file(lv_num, "lgtfx", "LGTFX",
                              "light", "LightsCount", "light%d", LIGHTS_COUNT - 1,
-                             &light_create_light_adv) >= 0;
+                             &light_create_light_adv, LMFF_Optional) >= 0;
     if (light_count_lights() > LIGHTS_COUNT / 2)
     {
         WARNMSG("More than %d%% of light slots used by static lights.", 100*light_count_lights()/LIGHTS_COUNT);

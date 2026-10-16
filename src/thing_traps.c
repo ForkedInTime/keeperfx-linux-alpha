@@ -56,10 +56,14 @@ extern "C" {
 
 TbBool destroy_trap(struct Thing *traptng)
 {
-    if ((traptng->trap.num_shots == 0) && !is_neutral_thing(traptng) && !is_hero_thing(traptng)) {
-        readd_workshop_item_to_amount_placeable(traptng->owner, traptng->class_id, traptng->model);
-    }
+    // An empty trap held a claim on a crate; recount once it is gone.
+    TbBool was_waiting = (traptng->trap.num_shots == 0) && !is_neutral_thing(traptng) && !is_hero_thing(traptng);
+    PlayerNumber owner = traptng->owner;
+    ThingModel model = traptng->model;
     delete_thing_structure(traptng, 0);
+    if (was_waiting) {
+        recount_trap_amount_placeable(owner, model);
+    }
     return true;
 }
 
@@ -1184,8 +1188,14 @@ unsigned long remove_trap(struct Thing *traptng, int32_t *sell_value)
                 // Trap armed - we can get refund
                 (*sell_value) += i;
             }
-            // We don't want to increase trap_amount_placeable, so we'll not use destroy_trap() there
+            // Not destroy_trap(): its crate (if any) was sold above, not handed back.
+            PlayerNumber owner = traptng->owner;
+            ThingModel model = traptng->model;
+            TbBool owned = !is_neutral_thing(traptng) && !is_hero_thing(traptng);
             delete_thing_structure(traptng, 0);
+            if (owned) {
+                recount_trap_amount_placeable(owner, model);
+            }
         } else {
             destroy_trap(traptng);
         }
