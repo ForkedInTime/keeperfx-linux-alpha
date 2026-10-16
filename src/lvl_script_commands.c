@@ -66,7 +66,7 @@ extern "C" {
 extern long level_file_version;
 
 #define MAX_CONFIG_VALUES 4
-/** An optional creature configuration value that was not given; 255 is a valid inertia, so UCHAR_MAX can't mark it. */
+/** An optional creature configuration value that was not given; 255 is a valid inertia or height, so UCHAR_MAX can't mark it. */
 #define CONFIG_VALUE_NOT_GIVEN INT32_MIN
 
 const struct CommandDesc subfunction_desc[] = {
@@ -2482,9 +2482,9 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
             {
                 config_value_secondary = atoi(scline->tp[3]);
             }
-            else if (creatvar == 39) // INERTIA
+            else if ((creatvar == 39) || (creatvar == 19) || (creatvar == 27)) // INERTIA, SIZE, THINGSIZE
             {
-                // tp[3] is empty, keep the current air inertia.
+                // tp[3] is empty, keep the current air inertia or height.
                 config_value_secondary = CONFIG_VALUE_NOT_GIVEN;
             }
             // nothing there that would need the third value.
@@ -2895,7 +2895,7 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
     }
     if (config_value_tertiary == -1)
     {
-        SCRPTERRLOG("Unknown third creature configuration value %s", scline->tp[3]);
+        SCRPTERRLOG("Unknown third creature configuration value %s", scline->tp[4]);
         DEALLOCATE_SCRIPT_VALUE
         return;
     }
@@ -2955,10 +2955,8 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             if (crconf->health != value)
             {
                 crconf->health = value;
-                for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
-                {
-                    do_to_players_all_creatures_of_model(plyr_idx, creatid, update_relative_creature_health);
-                }
+                // Every creature of the model: a per-player loop never reached neutral ones
+                do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_relative_creature_health);
             }
             break;
         case 3: // HEALREQUIREMENT
@@ -3007,10 +3005,8 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             if (crconf->base_speed != value)
             {
                 crconf->base_speed = value;
-                for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
-                {
-                    update_speed_of_player_creatures_of_model(plyr_idx, creatid);
-                }
+                // Every creature of the model: a per-player loop never reached neutral ones
+                do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_creature_speed);
             }
             break;
         case 18: // GOLDHOLD
@@ -3018,7 +3014,10 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             break;
         case 19: // SIZE
             crconf->size_xy = value;
-            crconf->size_z = config_value_secondary;
+            if (config_value_secondary != CONFIG_VALUE_NOT_GIVEN)
+            {
+                crconf->size_z = config_value_secondary;
+            }
             break;
         case 20: // ATTACKPREFERENCE
             crconf->attack_preference = value;
@@ -3041,7 +3040,10 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             break;
         case 27: // THINGSIZE
             crconf->thing_size_xy = value;
-            crconf->thing_size_z = config_value_secondary;
+            if (config_value_secondary != CONFIG_VALUE_NOT_GIVEN)
+            {
+                crconf->thing_size_z = config_value_secondary;
+            }
             break;
         case 29: // NAMETEXTID
             crconf->namestr_idx = value;
