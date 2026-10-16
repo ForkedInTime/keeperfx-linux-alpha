@@ -61,8 +61,10 @@ jobs:
       - name: Build the engine with ASan + UBSan
         run: |
           rm -f src/ver_defs.h
-          make -f linux.mk SANITIZE=1 BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" \
-            VER_SUFFIX=alpha -j"$(nproc)"
+          # Assigned first: a failing $(...) inside make's arguments does not fail
+          # the command, and the build went green with an empty build number.
+          BN="$(packaging/linux-only/build-number.sh)"
+          make -f linux.mk SANITIZE=1 BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
 
       - name: Run the unit tests
         run: tests/run.sh

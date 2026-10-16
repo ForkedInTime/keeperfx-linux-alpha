@@ -128,19 +128,28 @@ jobs:
           BRANCH="upstream-sync/run-${{ github.run_id }}"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           git checkout -b "$BRANCH"
-          if git merge --no-ff --no-commit "$SNAP"; then
-            # Sources the team added or deleted this week, applied to linux.mk's
-            # list (every source left after the filter is meant for Linux).
-            packaging/linux-only/sync-linux-mk-sources.sh | tee mk_sources.txt
-            git add linux.mk
-            git commit -q -m "Merge the Linux-only snapshot of dkfans/keeperfx@$(git rev-parse --short=9 upstream/master) (weekly auto-sync)"
-            echo "clean=true" >> "$GITHUB_OUTPUT"
-            echo "Merge is clean."
-          else
+          if ! git merge --no-ff --no-commit "$SNAP"; then
             echo "clean=false" >> "$GITHUB_OUTPUT"
             git diff --name-only --diff-filter=U > conflicts.txt
             git merge --abort
             echo "Merge has conflicts:"; cat conflicts.txt
+          # Sources the team added or deleted this week, applied to linux.mk's
+          # list (every source left after the filter is meant for Linux). Not
+          # piped into tee: the step's shell has no pipefail, so a failure of the
+          # script would have been tee's success, and the merge committed with
+          # linux.mk half-updated. A failure goes to a person like a conflict.
+          elif ! packaging/linux-only/sync-linux-mk-sources.sh > mk_sources.txt 2>&1; then
+            cat mk_sources.txt
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+            echo "linux.mk (packaging/linux-only/sync-linux-mk-sources.sh failed; see the run log)" > conflicts.txt
+            git merge --abort
+            echo "Updating linux.mk's source list failed."
+          else
+            cat mk_sources.txt
+            git add linux.mk
+            git commit -q -m "Merge the Linux-only snapshot of dkfans/keeperfx@$(git rev-parse --short=9 upstream/master) (weekly auto-sync)"
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+            echo "Merge is clean."
           fi
 
       - name: Linux-only check (no Windows files or code after the merge)
@@ -190,7 +199,10 @@ jobs:
             deps/centijson/include/json.h deps/astronomy/include/astronomy.h \
             deps/enet6/include/enet6/enet.h deps/libcurl/lib/libcurl.a
           rm -f src/ver_defs.h
-          make -f linux.mk BUILD_NUMBER="$(packaging/linux-only/build-number.sh)" VER_SUFFIX=alpha -j"$(nproc)"
+          # Assigned first: a failing $(...) inside make's arguments does not fail
+          # the command, and the build went green with an empty build number.
+          BN="$(packaging/linux-only/build-number.sh)"
+          make -f linux.mk BUILD_NUMBER="$BN" VER_SUFFIX=alpha -j"$(nproc)"
 
       # Release builds generate the UTF-8 fonts from the team's tools/fxfontmaker;
       # a rename there breaks every release, so find out on the sync PR.
