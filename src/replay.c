@@ -1207,6 +1207,10 @@ void stop_replay_recording(const char *reason)
 void close_packet_file(void)
 {
     set_replay_crashlog(0, 0);
+    // a resync read but not yet applied belongs to this replay only
+    free(pending_resync);
+    pending_resync = NULL;
+    pending_resync_len = 0;
     if ( replay.fopened )
     {
         LbFileClose(replay.fp);
