@@ -83,7 +83,8 @@ struct Thing *check_for_empty_trap_for_imp(struct Thing *spdigtng, long tngmodel
             break;
         i = thing->next_of_class;
         // Per-thing code
-        if ((thing->model == tngmodel) && (thing->trap.num_shots == 0) && (thing->owner == spdigtng->owner))
+        if ((thing->model == tngmodel) && (thing->trap.num_shots == 0) && (thing->owner == spdigtng->owner)
+            && !trap_rearm_route_recently_failed(thing))
         {
             if (!imp_will_soon_be_arming_trap(thing)) {
                 return thing;
@@ -674,7 +675,7 @@ long check_out_empty_traps(struct Thing *spdigtng, long range)
           break;
         i = thing->next_of_class;
         // Per-thing code
-        if ((thing->trap.num_shots == 0) && (thing->owner == spdigtng->owner))
+        if ((thing->trap.num_shots == 0) && (thing->owner == spdigtng->owner) && !trap_rearm_route_recently_failed(thing))
         {
             if ( (range < 0) || (get_chessboard_distance(&thing->mappos, &spdigtng->mappos) < range) )
             {
@@ -1888,6 +1889,7 @@ short creature_picks_up_trap_object(struct Thing *thing)
     {
         // One line with the route diagnostics; the plain "cannot deliver" told nobody why.
         log_route_failure("Cannot deliver crate to trap", thing, &traptng->mappos);
+        traptng->trap.rearm_route_failed_turn = get_gameturn();
         cctrl->arming_thing_id = 0;
         set_start_state(thing);
         return 0;

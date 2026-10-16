@@ -85,6 +85,7 @@ struct Thing* activate_trap_spawn_creature(struct Thing* traptng, unsigned char 
 struct Thing *get_trap_for_position(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
 struct Thing *get_trap_for_slab_position(MapSlabCoord slb_x, MapSlabCoord slb_y);
 TbBool trap_is_active(const struct Thing *thing);
+TbBool trap_rearm_route_recently_failed(const struct Thing *traptng);
 TbBool trap_is_slappable_by_player(const struct Thing *thing, PlayerNumber plyr_idx);
 TbBool thing_is_deployed_trap(const struct Thing *thing);
 short thing_is_destructible_trap(const struct Thing* thing);

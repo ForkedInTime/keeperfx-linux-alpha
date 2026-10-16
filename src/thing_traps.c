@@ -68,6 +68,27 @@ TbBool trap_is_active(const struct Thing *thing)
     return ((thing->trap.num_shots > 0) && (thing->trap.rearm_turn <= get_gameturn()));
 }
 
+/** How long an empty trap is passed over for re-arming after an imp found no route to it. */
+#define TRAP_REARM_ROUTE_RETRY_TURNS 1000
+
+/**
+ * Whether an imp recently failed to find a route to bring a crate to this trap.
+ *
+ * Imps take the first empty trap of the crate's model and only check that they can reach the
+ * crate. A trap they cannot get to was therefore picked again on every task rebuild: an imp
+ * walked to the crate, found no route on to the trap and gave up, about every 130 turns for as
+ * long as the trap stayed out of reach (one trap 63 times in a level-20 log). Passing it over for
+ * a while sends the crates to traps that can be armed, and the retry afterwards picks the trap up
+ * again once it can be reached.
+ */
+TbBool trap_rearm_route_recently_failed(const struct Thing *traptng)
+{
+    GameTurn failed_turn = traptng->trap.rearm_route_failed_turn;
+    GameTurn now = get_gameturn();
+    // A turn later than now cannot have been written by this game; treat it as unset.
+    return (failed_turn != 0) && (failed_turn <= now) && (now - failed_turn < TRAP_REARM_ROUTE_RETRY_TURNS);
+}
+
 TbBool trap_is_slappable_by_player(const struct Thing *thing, PlayerNumber plyr_idx)
 {
     struct TrapConfigStats *trapst;
