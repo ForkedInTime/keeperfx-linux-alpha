@@ -391,7 +391,7 @@ long process_creature_in_workshop(struct Thing *creatng, struct Room *room)
 short manufacturing(struct Thing *creatng)
 {
     TRACE_THING(creatng);
-    struct Room* room = get_room_thing_is_on(creatng);
+    struct Room* room = get_room_creature_works_on(creatng);
     if (creature_job_in_room_no_longer_possible(room, Job_MANUFACTURE, creatng))
     {
         remove_creature_from_work_room(creatng);

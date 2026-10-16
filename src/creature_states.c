@@ -4147,7 +4147,7 @@ short person_sulking(struct Thing *creatng)
         set_start_state(creatng);
         return 0;
     }
-    struct Room* room = get_room_thing_is_on(creatng);
+    struct Room* room = get_room_creature_works_on(creatng);
     if (creature_job_in_room_no_longer_possible(room, Job_TAKE_SLEEP, creatng)) {
         set_start_state(creatng);
         return 0;
@@ -4214,6 +4214,25 @@ TbBool room_still_valid_as_type_for_thing(const struct Room *room, RoomRole rrol
 }
 
 /**
+ * Gives the room a creature at work is working in: the one it stands on or, if it has
+ * stepped off the edge on its way to the next spot in the room, the one at that spot.
+ * The step-off used to be caught only inside creature_job_in_room_no_longer_possible(),
+ * which kept the caller's room unchanged: training then went on with no room, charging
+ * its fee for no experience and logging "Received nonexisting room".
+ * @param thing The creature at work.
+ * @return The room, or INVALID_ROOM if it is on none and heading for none.
+ */
+struct Room *get_room_creature_works_on(const struct Thing *thing)
+{
+    struct Room* room = get_room_thing_is_on(thing);
+    if (room_exists(room)) {
+        return room;
+    }
+    struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
+    return get_room_at_pos(&cctrl->moveto_pos);
+}
+
+/**
  * Returns if it's no longer possible for a creature to work in given room.
  * Used to check if creatures are able to continue working in the rooms they're working.
  * @param room The work room to be checked, usually the one creature stands on.
@@ -4226,16 +4245,10 @@ TbBool creature_job_in_room_no_longer_possible_f(const struct Room *room, Creatu
     RoomRole rrole = get_room_role_for_job(jobpref);
     if (!room_exists(room))
     {
-        struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
-        //Sometimes they accidentally step off. Catch this.
-        room = get_room_at_pos(&cctrl->moveto_pos);
-        if (room_is_invalid(room))
-        {
-            SYNCLOG("%s: The %s(%d) owned by player %d can no longer work in %s because former work room doesn't exist",
-                func_name, thing_model_name(thing), thing->index, (int)thing->owner, room_role_code_name(rrole));
-            // Note that if given room doesn't exist, it do not mean this
-            return true;
-        }
+        SYNCLOG("%s: The %s(%d) owned by player %d can no longer work in %s because former work room doesn't exist",
+            func_name, thing_model_name(thing), thing->index, (int)thing->owner, room_role_code_name(rrole));
+        // Note that if given room doesn't exist, it do not mean this
+        return true;
     }
     if (!room_still_valid_as_type_for_thing(room, rrole, thing))
     {
