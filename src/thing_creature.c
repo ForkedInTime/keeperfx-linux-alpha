@@ -1390,7 +1390,7 @@ TbBool clear_thing_spell_flags_f(struct Thing *thing, unsigned long spell_flags,
         thing->veloc_push_add.x.val = 0;
         thing->veloc_push_add.y.val = 0;
         clear_flag(thing->state_flags, TF1_PushAdd);
-        cleanup_current_thing_state(thing);
+        // set_start_state() cleans up the state being left; doing it here as well ran that cleanup twice.
         set_start_state(thing);
         cctrl->active_timebomb_spell = 0;
         cleared = true;
