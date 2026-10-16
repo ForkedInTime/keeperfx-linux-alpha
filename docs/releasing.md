@@ -136,14 +136,24 @@ release — same engine tag, next `pkgrel` — without cutting a new stable:
 2. On the **stable's own branch** (for 1.4.0.5660, `hotfix/1.4.0.5660`), bump
    `pkgrel` in `packaging/aur/PKGBUILD` past the live one and set `_launcher_commit`
    to the launcher's new `alpha` head; update `.SRCINFO` to match.
-3. Run **Publish to AUR** by hand on that branch (`workflow_dispatch`, ref
+3. **Give that branch `alpha`'s `publish-aur.yml`** if it does not have it already
+   (`git checkout origin/alpha -- .github/workflows/publish-aur.yml`, commit). A
+   hand-run publish runs the workflow *of the branch it is dispatched on*, and a
+   stable's branch keeps the workflow it was cut with. Before 2026-10-11 that
+   workflow rebased its bookkeeping commit onto `alpha` and carried on when the
+   rebase stopped in conflict — then copied `packaging/aur` from the conflicted
+   tree, conflict markers and all, to the AUR. It stayed harmless only while the
+   committed recipe matched what the workflow regenerates exactly. `alpha`'s
+   workflow stages the files before anything else, records the bump on the branch
+   it was run from, aborts a rebase that conflicts, and waits until the AUR offers
+   the new version. (`hotfix/1.4.0.5660` has it since 5660-3.)
+4. Run **Publish to AUR** by hand on that branch (`workflow_dispatch`, ref
    `hotfix/1.4.0.5660`, tag `v1.4.0.5660`) — a dry run first:
    ```bash
    gh workflow run publish-aur.yml --repo ForkedInTime/keeperfx-linux-alpha \
      --ref hotfix/1.4.0.5660 -f tag=v1.4.0.5660 -f dry_run=true
    ```
-   then again with `dry_run=false`. Before `yay -Syu`, check that the AUR lists the
-   new version (below); a branch that predates the wait step does not wait for it.
+   then again with `dry_run=false`.
 
 Not from `alpha`: a stable's recipe belongs with its engine. `alpha`'s recipe has
 moved on (it no longer lists `libepoxy`, which 1.4.0.5660 links), and the workflow
@@ -176,7 +186,11 @@ still reported "nothing to do" minutes later, which looked like a failed publish
 The workflow's last step now polls the AUR's API (every 30 s, up to 15 minutes)
 until all three packages report the published version, and fails with a message
 saying so if they do not. Re-running the workflow re-checks without pushing
-again. By hand:
+again: the bump step re-pins the launcher to its current `alpha` head, so a re-run
+after the launcher moved finds a recipe that differs from the AUR's at the same
+version; when the launcher pin is the only difference it publishes nothing and
+just re-checks (any other difference under an unchanged version still fails). By
+hand:
 
 ```bash
 curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=keeperfx-tux' | grep -o '"Version":"[^"]*"'
