@@ -258,6 +258,7 @@ long edge_rotateAC(long tri1_id, long cor1_id)
     int cor2_id = link_find(tri2_id, tri1_id);
     if ( cor2_id == -1 ) {
         ERRORLOG("lB not found");
+        return false;
     }
 
     int cor1b_id = MOD3[cor1_id + 1];
@@ -309,16 +310,18 @@ long edge_rotateAC(long tri1_id, long cor1_id)
         int tmcor_id = link_find(tri3_id, tri1_id);
         if (tmcor_id == -1) {
             ERRORLOG("A not found");
+        } else {
+            Triangles[tri3_id].tags[tmcor_id] = tri2_id;
         }
-        Triangles[tri3_id].tags[tmcor_id] = tri2_id;
     }
     if (tri4_id != -1)
     {
         int tmcor_id = link_find(tri4_id, tri2_id);
         if (tmcor_id == -1) {
             ERRORLOG("B not found");
+        } else {
+            Triangles[tri4_id].tags[tmcor_id] = tri1_id;
         }
-        Triangles[tri4_id].tags[tmcor_id] = tri1_id;
     }
     unsigned short tri1_fld = Triangles[tri1_id].navigation_flags;
     unsigned short tri2_fld = Triangles[tri2_id].navigation_flags;
