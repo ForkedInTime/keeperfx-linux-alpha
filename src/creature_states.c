@@ -3635,9 +3635,10 @@ short move_backwards_to_position(struct Thing *creatng)
     }
     if (move_result == -1)
     {
+        // The route was there when the move was set up and closed on the way, as when a door
+        // on it is locked. The place itself is fine, so this resets like the forward move, and
+        // the warning gives the reason.
         log_route_failure("Move backwards failed", creatng, &cctrl->moveto_pos);
-        ERRORLOG("Bad place (%d,%d) to move %s backwards to.",
-            (int)cctrl->moveto_pos.x.val,(int)cctrl->moveto_pos.y.val,thing_model_name(creatng));
         set_start_state(creatng);
         creatng->continue_state = CrSt_Unused;
         return 0;
