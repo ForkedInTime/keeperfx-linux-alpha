@@ -207,7 +207,7 @@ void send_network_chat_message_at(NetUserId sender, const char *message, int32_t
 {
     if (network_user_is_spectator(netstate.my_id)) {
         if (netstate.phase == NetPhase_InGame && message[0] != '\0' && !network_spectator_chat_visible) {
-            show_onscreen_msg(5 * turns_per_second, get_string(GUIStr_NetSpectatorChatDisabled));
+            show_onscreen_msg(5 * turns_per_second, "%s", get_string(GUIStr_NetSpectatorChatDisabled));
         }
         char *write_pos = begin_net_message(NETMSG_SPECTATOR_CHAT);
         *write_pos++ = netstate.my_id;

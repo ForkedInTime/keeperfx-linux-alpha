@@ -960,7 +960,7 @@ long instf_first_person_do_imp_task(struct Thing *creatng, int32_t *param)
                         {
                             clear_messages_from_player(MsgType_Room, room->kind);
                         }
-                        targeted_message_add(MsgType_Room, room->kind, player->id_number, 50, "%d/%d", room->health, compute_room_max_health(room->slabs_count, room->efficiency));
+                        targeted_message_add(MsgType_Room, room->kind, player->id_number, 50, "%d/%lu", room->health, compute_room_max_health(room->slabs_count, room->efficiency));
                     }
                     else
                     {

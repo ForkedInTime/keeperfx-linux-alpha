@@ -67,12 +67,12 @@ void message_draw(void);
 void zero_messages(void);
 void message_add(char type, short idx, const char *text);
 void message_add_custom_icon(short icon_idx, const char *text);
-void message_add_fmt(char type, short idx, const char *fmt_str, ...);
+void message_add_fmt(char type, short idx, const char *fmt_str, ...) KFX_PRINTF_FORMAT(3, 4);
 void show_game_time_taken(unsigned long fps, unsigned long turns);
 void show_real_time_taken(void);
 void clear_messages_from_player(char type, PlayerNumber plyr_idx);
 void delete_message(unsigned char msg_idx);
-void targeted_message_add(char type, PlayerNumber plyr_idx, PlayerNumber target_idx, unsigned long timeout, const char *fmt_str, ...);
+void targeted_message_add(char type, PlayerNumber plyr_idx, PlayerNumber target_idx, unsigned long timeout, const char *fmt_str, ...) KFX_PRINTF_FORMAT(5, 6);
 /******************************************************************************/
 #ifdef __cplusplus
 }

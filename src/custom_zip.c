@@ -109,7 +109,7 @@ TbBool read_map_zip_entry(LevelNumber lvnum, const char *entry_name, unsigned ch
     *out_data = NULL;
     *out_size = 0;
 
-    char *fname = prepare_file_fmtpath(get_level_fgroup(lvnum), "map%05lu.zip", lvnum);
+    char *fname = prepare_file_fmtpath(get_level_fgroup(lvnum), "map%05d.zip", lvnum);
     if (!LbFileExists(fname))
     {
         return false;

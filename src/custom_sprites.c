@@ -381,7 +381,7 @@ void show_ignored_fxdata_zip_messages(void)
 
 void load_sprites_for_multi_front(LevelNumber lvnum)
 {
-    char *fname = prepare_file_fmtpath(get_level_fgroup(lvnum), "map%05lu.zip", lvnum);
+    char *fname = prepare_file_fmtpath(get_level_fgroup(lvnum), "map%05d.zip", lvnum);
     if (LbFileExists(fname))
         load_file_sprites(fname, "lof map file", campaign_load_flags);
 }
@@ -419,7 +419,7 @@ static void load_sprites_for_mod(LevelNumber lvnum, const struct ModConfigItem *
 
     if (mod_state->cmpg_lvls)
     {
-        fname = prepare_file_fmtpath_mod(mod_dir, FGrp_CmpgLvls, "map%05lu.zip", lvnum);
+        fname = prepare_file_fmtpath_mod(mod_dir, FGrp_CmpgLvls, "map%05d.zip", lvnum);
         if (strlen(fname) > 0 && LbFileExists(fname))
         {
             sprintf(desc, "Mod[%s] CmpgLvls file", mod_item->name);
@@ -577,7 +577,7 @@ void init_custom_sprites(LevelNumber lvnum)
         load_sprites_for_mod_list(lvnum, mods_conf.after_campaign_item, mods_conf.after_campaign_cnt, normal_load_flags);
     }
 
-    char *fname = prepare_file_fmtpath(get_level_fgroup(lvnum), "map%05lu.zip", lvnum);
+    char *fname = prepare_file_fmtpath(get_level_fgroup(lvnum), "map%05d.zip", lvnum);
     if (LbFileExists(fname))
         load_file_sprites(fname, "Main CmpgLvls file", normal_load_flags);
 

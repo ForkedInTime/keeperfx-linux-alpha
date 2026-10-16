@@ -2281,7 +2281,7 @@ static void load_config_for_mod(const struct ConfigFileData* file_data, unsigned
 
     if (mod_state->cmpg_lvls)
     {
-        fname = get_mod_file_path_fmt(mod_dir, FGrp_CmpgLvls, "map%05lu.%s", get_selected_level_number(), conf_fname);
+        fname = get_mod_file_path_fmt(mod_dir, FGrp_CmpgLvls, "map%05d.%s", get_selected_level_number(), conf_fname);
         if (fname && strlen(fname) > 0)
         {
             file_data->load_func(fname,flags);
@@ -2332,7 +2332,7 @@ TbBool load_config(const struct ConfigFileData* file_data, unsigned short flags)
         load_config_for_mod_list(file_data, flags, mods_conf.after_campaign_item, mods_conf.after_campaign_cnt);
     }
 
-    fname = get_game_file_path_fmt(FGrp_CmpgLvls, "map%05lu.%s", get_selected_level_number(), conf_fname);
+    fname = get_game_file_path_fmt(FGrp_CmpgLvls, "map%05d.%s", get_selected_level_number(), conf_fname);
     if (fname && strlen(fname) > 0)
     {
         file_data->load_func(fname,flags|CnfLd_AcceptPartial|CnfLd_IgnoreErrors);
