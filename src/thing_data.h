@@ -237,6 +237,8 @@ struct Thing {
         unsigned short volley_delay;
         unsigned short firing_at;
         unsigned char flag_number;
+        /** Game turn an imp last found no route to bring a crate here, or 0. See trap_rearm_route_recently_failed(). */
+        GameTurn rearm_route_failed_turn;
       } trap;
 //TCls_Door
       struct {

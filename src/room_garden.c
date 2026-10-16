@@ -149,6 +149,9 @@ TbBool recreate_repositioned_food_in_room_on_subtile(struct Room *room, MapSubtl
                 if (object_is_mature_food(foodtng)) {
                     foodtng->food.life_remaining = -1;
                 }
+                // count_food_in_room() is recounting the room; the food put back takes its place now,
+                // or the rest of the sweep sees spare capacity and puts back more than the room holds.
+                room->used_capacity++;
                 rrepos->used--;
                 rrepos->models[ri] = 0;
                 rrepos->exp_level[ri] = 0;
@@ -184,7 +187,11 @@ void reposition_all_food_in_room_on_subtile(struct Room *room, MapSubtlCoord stl
                 if (!store_reposition_entry(rrepos, objkind)) {
                     WARNLOG("Too many things to reposition in %s.",room_code_name(room->kind));
                 }
+                // destroy_food() takes a hatchery's own chicken off used_capacity, but the sweep in
+                // count_food_in_room() never counted the food on this subtile; keep the count it has.
+                long used_capacity = room->used_capacity;
                 destroy_object(thing);
+                room->used_capacity = used_capacity;
             }
         }
         // Per thing code ends
@@ -227,7 +234,7 @@ int check_food_on_subtile_for_reposition_in_room(struct Room *room, MapSubtlCoor
                 // If exceeded capacity of the room
                 if (room->used_capacity >= room->total_capacity)
                 {
-                    WARNLOG("Trying to place %s back in room %s, that is already at %d/%d capacity",thing_model_name(thing), room_code_name(room->kind),(int)room->total_capacity,(int)room->used_capacity);
+                    WARNLOG("Trying to place %s back in room %s, that is already at %d/%d capacity",thing_model_name(thing), room_code_name(room->kind),(int)room->used_capacity,(int)room->total_capacity);
                     return -1; // re-create all 
                 } else
                 // If the thing is in wall, remove it but store to re-create later

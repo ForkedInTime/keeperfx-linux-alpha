@@ -398,7 +398,8 @@ struct Thing *check_for_empty_trap_for_imp_not_being_armed(struct Thing *digger,
           break;
         i = thing->next_of_class;
         // Per-thing code
-        if ( (thing->model == trpmodel) && (thing->trap.num_shots == 0) && (thing->owner == digger->owner) )
+        if ( (thing->model == trpmodel) && (thing->trap.num_shots == 0) && (thing->owner == digger->owner)
+            && !trap_rearm_route_recently_failed(thing) )
         {
             if ( !imp_will_soon_be_arming_trap(thing) )
             {
@@ -2132,7 +2133,7 @@ int add_empty_traps_to_imp_stack(struct Dungeon *dungeon, int max_tasks)
         if ((dungeon->digger_stack_length >= DIGGER_TASK_MAX_COUNT) || (remain_num <= 0)) {
             break;
         }
-        if ((thing->trap.num_shots == 0) && (thing->owner == dungeon->owner))
+        if ((thing->trap.num_shots == 0) && (thing->owner == dungeon->owner) && !trap_rearm_route_recently_failed(thing))
         {
             if ( add_object_for_trap_to_imp_stack(dungeon, thing) ) {
                 remain_num--;
