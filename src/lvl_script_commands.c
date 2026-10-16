@@ -66,6 +66,8 @@ extern "C" {
 extern long level_file_version;
 
 #define MAX_CONFIG_VALUES 4
+/** An optional creature configuration value that was not given; 255 is a valid inertia or height, so UCHAR_MAX can't mark it. */
+#define CONFIG_VALUE_NOT_GIVEN INT32_MIN
 
 const struct CommandDesc subfunction_desc[] = {
     {"RANDOM",                     "Aaaaaaaa", Cmd_RANDOM, NULL, NULL},
@@ -1741,7 +1743,7 @@ static void move_creature_check(const struct ScriptLine* scline)
     }
     else
     {
-        effct_id = ball_puff_effects[scline->np[0]];
+        effct_id = SCRIPT_MOVE_OWNER_PUFF;
     }
 
     value->ulongs[0] = location;
@@ -2486,6 +2488,11 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
             {
                 config_value_secondary = atoi(scline->tp[3]);
             }
+            else if ((creatvar == 39) || (creatvar == 19) || (creatvar == 27)) // INERTIA, SIZE, THINGSIZE
+            {
+                // tp[3] is empty, keep the current air inertia or height.
+                config_value_secondary = CONFIG_VALUE_NOT_GIVEN;
+            }
             // nothing there that would need the third value.
         }
     }
@@ -2895,7 +2902,7 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
     }
     if (config_value_tertiary == -1)
     {
-        SCRPTERRLOG("Unknown third creature configuration value %s", scline->tp[3]);
+        SCRPTERRLOG("Unknown third creature configuration value %s", scline->tp[4]);
         DEALLOCATE_SCRIPT_VALUE
         return;
     }
@@ -2913,6 +2920,21 @@ static void set_creature_configuration_check(const struct ScriptLine* scline)
     SCRIPTDBG(7,"Setting creature %s configuration value %d:%d to %d (%d)", creature_code_name(value->shorts[0]), value->shorts[4], value->shorts[1], value->shorts[2], value->shorts[3]);
 
     PROCESS_SCRIPT_VALUE(scline->command);
+}
+
+static TbBool update_creature_inertia(struct Thing *thing)
+{
+    struct CreatureModelConfig *crconf = creature_stats_get_from_thing(thing);
+    thing->inertia_floor = crconf->inertia_floor;
+    thing->inertia_air = crconf->inertia_air;
+    return true;
+}
+
+static TbBool update_creature_fall_acceleration(struct Thing *thing)
+{
+    struct CreatureModelConfig *crconf = creature_stats_get_from_thing(thing);
+    thing->fall_acceleration = crconf->fall_acceleration;
+    return true;
 }
 
 static void set_creature_configuration_process(struct ScriptContext* context)
@@ -2940,10 +2962,8 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             if (crconf->health != value)
             {
                 crconf->health = value;
-                for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
-                {
-                    do_to_players_all_creatures_of_model(plyr_idx, creatid, update_relative_creature_health);
-                }
+                // Every creature of the model: a per-player loop never reached neutral ones
+                do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_relative_creature_health);
             }
             break;
         case 3: // HEALREQUIREMENT
@@ -2992,10 +3012,8 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             if (crconf->base_speed != value)
             {
                 crconf->base_speed = value;
-                for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
-                {
-                    update_speed_of_player_creatures_of_model(plyr_idx, creatid);
-                }
+                // Every creature of the model: a per-player loop never reached neutral ones
+                do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_creature_speed);
             }
             break;
         case 18: // GOLDHOLD
@@ -3003,7 +3021,10 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             break;
         case 19: // SIZE
             crconf->size_xy = value;
-            crconf->size_z = config_value_secondary;
+            if (config_value_secondary != CONFIG_VALUE_NOT_GIVEN)
+            {
+                crconf->size_z = config_value_secondary;
+            }
             break;
         case 20: // ATTACKPREFERENCE
             crconf->attack_preference = value;
@@ -3026,7 +3047,10 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             break;
         case 27: // THINGSIZE
             crconf->thing_size_xy = value;
-            crconf->thing_size_z = config_value_secondary;
+            if (config_value_secondary != CONFIG_VALUE_NOT_GIVEN)
+            {
+                crconf->thing_size_z = config_value_secondary;
+            }
             break;
         case 29: // NAMETEXTID
             crconf->namestr_idx = value;
@@ -3086,10 +3110,16 @@ static void set_creature_configuration_process(struct ScriptContext* context)
             break;
         case 39: // INERTIA
             crconf->inertia_floor = value;
-            crconf->inertia_air = config_value_secondary;
+            if (config_value_secondary != CONFIG_VALUE_NOT_GIVEN)
+            {
+                crconf->inertia_air = config_value_secondary;
+            }
+            // Creatures copy these when created, so update the ones already on the map
+            do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_creature_inertia);
             break;
         case 40: // FALLACCELERATION
             crconf->fall_acceleration = value;
+            do_to_all_things_of_class_and_model(TCls_Creature, creatid, update_creature_fall_acceleration);
             break;
         case ccr_comment:
             break;

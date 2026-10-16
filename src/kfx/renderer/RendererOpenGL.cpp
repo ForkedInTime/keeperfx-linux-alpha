@@ -479,11 +479,13 @@ void RendererOpenGL::render_thread_work()
 
         m_impl->atlas.FlushPendingGL();
 
+        // Read once: the game thread may bump it between a compare and a store, losing a rebuild
+        const unsigned int textures_generation = level_textures_generation;
         if (!m_impl->world_atlas.IsInitialized() && block_ptrs[0] != nullptr)
             m_impl->world_atlas.Init();
-        else if (m_impl->world_atlas_generation != level_textures_generation)
+        else if (m_impl->world_atlas_generation != textures_generation)
             m_impl->world_atlas.Rebuild();
-        m_impl->world_atlas_generation = level_textures_generation;
+        m_impl->world_atlas_generation = textures_generation;
 
         if (!m_impl->fade_tables_refreshed && fade_tables_ready)
         {

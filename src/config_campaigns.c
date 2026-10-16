@@ -165,6 +165,10 @@ static TbBool check_lif_files_in_mappack(struct GameCampaign *campgn,unsigned lo
 TbBool free_campaign(struct GameCampaign *campgn)
 {
   campgn->fgroup = FGrp_None;
+  for (unsigned long i = 0; i < campgn->lvinfos_count; i++)
+  {
+    KfxFree(campgn->lvinfos[i].level_description_geo);
+  }
   KfxFree(campgn->lvinfos);
   KfxFree(campgn->hiscore_table);  
   KfxFree(campgn->level_description_geo);
@@ -198,8 +202,6 @@ void clear_level_info(struct LevelInformation *lvinfo)
   lvinfo->location = LvLc_VarLevels;
   lvinfo->mapsize_x = DEFAULT_MAP_SIZE;
   lvinfo->mapsize_y = DEFAULT_MAP_SIZE;  
-  KfxFree(lvinfo->level_description_geo);
-  lvinfo->level_description_geo = NULL;
 }
 
 /**
@@ -720,19 +722,21 @@ short parse_campaign_common_blocks(struct GameCampaign *campgn,char *buf,long le
           }
           break;
       case 24: // DESCRIPTION_GEO
-          campgn->level_description_geo = malloc(sizeof(struct LevelDescriptionGeo));
+          KfxFree(campgn->level_description_geo);
+          campgn->level_description_geo = KfxCalloc(1, sizeof(struct LevelDescriptionGeo));
           if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
           {
             k = atoi(word_buf);
-            if (k > 0)
+            if (k >= 0)
             {
               campgn->level_description_geo->pos_x = k;
+              n++;
             }
           }
           if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
           {
             k = atoi(word_buf);
-            if (k > 0)
+            if (k >= 0)
             {
               campgn->level_description_geo->pos_y = k;
               n++;
@@ -756,10 +760,12 @@ short parse_campaign_common_blocks(struct GameCampaign *campgn,char *buf,long le
               n++;
             }
           }
-          if (n > 4)
+          if (n < 4)
           {
               CONFWRNLOG("Couldn't recognize \"%s\" coordinates in [%s] block of '%s' file.",
                 COMMAND_TEXT(cmd_num), block_name, config_textname);
+              KfxFree(campgn->level_description_geo);
+              campgn->level_description_geo = NULL;
           }
           break;
       case ccr_comment:
@@ -1105,19 +1111,21 @@ short parse_campaign_map_block(long lvnum, unsigned long lvoptions, char *buf, l
             }
             break;
         case 16: // DESCRIPTION_GEO
-            lvinfo->level_description_geo = malloc(sizeof(struct LevelDescriptionGeo));
+            KfxFree(lvinfo->level_description_geo);
+            lvinfo->level_description_geo = KfxCalloc(1, sizeof(struct LevelDescriptionGeo));
             if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
             {
                 k = atoi(word_buf);
-                if (k > 0)
+                if (k >= 0)
                 {
                 lvinfo->level_description_geo->pos_x = k;
+                n++;
                 }
             }
             if (get_conf_parameter_single(buf,&pos,len,word_buf,sizeof(word_buf)) > 0)
             {
                 k = atoi(word_buf);
-                if (k > 0)
+                if (k >= 0)
                 {
                 lvinfo->level_description_geo->pos_y = k;
                 n++;
@@ -1141,10 +1149,12 @@ short parse_campaign_map_block(long lvnum, unsigned long lvoptions, char *buf, l
                 n++;
                 }
             }
-            if (n > 4)
+            if (n < 4)
             {
                 CONFWRNLOG("Couldn't read \"%s\" parameter in [%s] block of '%s' file.",
                     COMMAND_TEXT(cmd_num),block_buf,config_textname);
+                KfxFree(lvinfo->level_description_geo);
+                lvinfo->level_description_geo = NULL;
             }
             break;
         case ccr_comment:

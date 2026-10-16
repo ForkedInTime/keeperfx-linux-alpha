@@ -42,6 +42,9 @@ extern "C" {
 #define SWIPE_SPRITES_Y 2
 #define SWIPE_SPRITE_FRAMES 5
 
+/** Effect for script_move_creature(): the ball puff in the creature owner's colour. No effect or effect element has this id. */
+#define SCRIPT_MOVE_OWNER_PUFF INT16_MIN
+
 /******************************************************************************/
 #pragma pack(1)
 

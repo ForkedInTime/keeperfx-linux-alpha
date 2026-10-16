@@ -341,9 +341,9 @@ void init_reposition_struct(struct RoomReposition * rrepos)
 
 TbBool store_reposition_entry(struct RoomReposition * rrepos, ThingModel tngmodel)
 {
-    if (rrepos->used > ROOM_REPOSITION_COUNT)
+    if (rrepos->used >= ROOM_REPOSITION_COUNT)
     {
-        ERRORLOG("Reposition entries to store (%d) exceed maximum %d", rrepos->used,ROOM_REPOSITION_COUNT);
+        ERRORLOG("Reposition entries to store (%d) exceed maximum %d", rrepos->used + 1, ROOM_REPOSITION_COUNT);
         rrepos->used = ROOM_REPOSITION_COUNT;
         return false;
     }
@@ -352,10 +352,10 @@ TbBool store_reposition_entry(struct RoomReposition * rrepos, ThingModel tngmode
         if (rrepos->models[ri] == 0) {
             rrepos->models[ri] = tngmodel;
             rrepos->used++;
-            break;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 TbBool store_unique_reposition_entry(struct RoomReposition* rrepos, ThingModel tngmodel)
