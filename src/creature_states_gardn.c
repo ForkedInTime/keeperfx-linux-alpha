@@ -208,6 +208,7 @@ void person_search_for_food_again(struct Thing *creatng, struct Room *room)
     creatng->continue_state = CrSt_CreatureEatingAtGarden;
     cctrl = creature_control_get_from_thing(creatng);
     cctrl->eating.foodtng_idx = near_food_tng->index;
+    cctrl->eating.food_creation_turn = near_food_tng->creation_turn;
 }
 
 short creature_arrived_at_garden(struct Thing *thing)
@@ -242,9 +243,12 @@ short creature_eating_at_garden(struct Thing *creatng)
 {
     struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
     struct Thing* foodtng = thing_get(cctrl->eating.foodtng_idx);
-    if (!thing_exists(foodtng)) {
-        set_start_state(creatng);
-        return 0;
+    // The food was chosen before the walk here. If another creature ate it on the way,
+    // its index usually belongs to the next thing created by now - in a hatchery, the
+    // next chicken it grows, which cannot be eaten yet. Choose again from here.
+    if (!thing_exists(foodtng) || (foodtng->creation_turn != cctrl->eating.food_creation_turn)) {
+        cctrl->eating.foodtng_idx = 0;
+        return creature_arrived_at_garden(creatng);
     }
     struct Room* room = INVALID_ROOM;
     room = get_room_thing_is_on(foodtng);
