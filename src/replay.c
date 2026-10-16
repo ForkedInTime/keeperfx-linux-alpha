@@ -616,7 +616,7 @@ static TbBool replay_write_fits(size_t raw_len)
     if (pos < 0)
         return true;
     const size_t bound = packet_file_compressed() ? (packet_turn_len + raw_len) * 3 / 2 + 2 : raw_len;
-    if ((uint32_t)pos + bound <= packetsave_max_kb * 1024)
+    if ((uint32_t)pos + bound <= (uint64_t)packetsave_max_kb * 1024)
         return true;
     WARNLOG("Replay reached the %u KB limit at turn %u; recording stopped", packetsave_max_kb, (unsigned)get_gameturn());
     close_packet_file();
