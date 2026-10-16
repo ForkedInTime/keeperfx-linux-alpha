@@ -130,6 +130,10 @@ removed="$(status_files REMOVED)"
 [ -z "$removed" ] || echo "linux-only: removed by the filter (Windows-only): $(paste -sd' ' <<<"$removed")"
 notlinux="$(status_files NOT-LINUX)"
 [ -z "$notlinux" ] || echo "linux-only: do not build on Linux before or after: $(paste -sd' ' <<<"$notlinux")"
+onlyfiltered="$(status_files ONLY-FILTERED-BUILDS)"
+[ -z "$onlyfiltered" ] || echo "linux-only: build on Linux only after the filter: $(paste -sd' ' <<<"$onlyfiltered")"
+absent="$(status_files SKIP-ABSENT)"
+[ -z "$absent" ] || echo "linux-only: not in the team's tree (nothing to compare): $(paste -sd' ' <<<"$absent")"
 
 fail=0
 bad="$(grep -E '^(DIFFERENT|BROKEN) ' "$work/results" || true)"
@@ -141,12 +145,14 @@ if [ -n "$bad" ]; then
         diff -u "$work/out/raw/$f.i" "$work/out/filtered/$f.i" | head -40 >&2 || true
     done
 fi
-# Something linux.mk compiles must neither be removed nor fail to build.
+# Something linux.mk compiles must neither be removed nor fail to build -- nor
+# build only because the filter changed it, which is a change all the same.
 needed="$( { comm -12 <(printf '%s\n' "$removed" | grep -v '^$' || true) "$work/listed";
-             comm -12 <(printf '%s\n' "$notlinux" | grep -v '^$' || true) "$work/listed"; } )"
+             comm -12 <(printf '%s\n' "$notlinux" | grep -v '^$' || true) "$work/listed";
+             comm -12 <(printf '%s\n' "$onlyfiltered" | grep -v '^$' || true) "$work/listed"; } )"
 if [ -n "$needed" ]; then
     fail=1
-    echo "linux-only: linux.mk compiles file(s) that the filter removes or that do not build:" >&2
+    echo "linux-only: linux.mk compiles file(s) that the filter removes, that do not build, or that build only after the filter:" >&2
     printf '    %s\n' "${needed//$'\n'/$'\n'    }" >&2
 fi
 [ "$fail" = 0 ] && echo "linux-only: PROVEN -- the filter does not change what the Linux build compiles."

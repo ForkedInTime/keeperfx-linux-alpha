@@ -418,6 +418,16 @@ jobs:
           elif [ "$live" != "-" ] && [ "$(vercmp "$new" "$live")" -lt 0 ]; then
             echo "::error::$new is older than the live $live -- pacman would never offer it. The PKGBUILD's pkgrel has drifted behind the AUR; set it above the live one and re-run."
             exit 1
+          elif [ "$live" != "-" ] && [ "$(vercmp "$new" "$live")" -eq 0 ] \
+               && [ -z "$(git diff --cached --name-only -- . ':!PKGBUILD' ':!.SRCINFO')" ] \
+               && ! git diff --cached -U0 -- PKGBUILD .SRCINFO | grep -E '^[-+][^-+]' \
+                    | grep -vE '^[-+](_launcher_commit=|[[:space:]]*source = keeperfx-tux-launcher::)' | grep -q .; then
+            # A re-run of a publish that already went out: the bump step re-pins
+            # the launcher to its alpha head, which has moved on since. That
+            # alone is not a change to publish -- this version is already the
+            # AUR's -- so publish nothing and re-check that it is offered.
+            echo "::notice::$new is already on the AUR; only the launcher pin moved since it was published, so nothing is republished"
+            echo "expect=$new" >> "$GITHUB_OUTPUT"
           elif [ "$live" != "-" ] && [ "$(vercmp "$new" "$live")" -eq 0 ]; then
             git diff --cached --stat
             echo "::error::the package changed but its version did not ($new) -- nobody would be offered it. Bump pkgrel in packaging/aur/PKGBUILD and re-run."

@@ -1494,11 +1494,21 @@ static enum ContinueTargets find_continue_target(int32_t *slot_num, char *cmpgn_
             }
         }
     }
+    // fx1contn.sav is kept after its import, for stable 1.4.0.5660. Once its campaign has
+    // a progress file of its own the import has happened, and taking the fallback then
+    // would resume that stable-era campaign whenever the continue link stops resolving
+    // (a freeplay win removes it, a trashed save breaks it). Upstream deleted the file
+    // at import, so offer it only while the import is still to come.
     char legacy_fname[CAMPAIGN_FNAME_LEN];
     if (read_legacy_progress_fname(legacy_fname) && is_campaign_in_list(legacy_fname, &campaigns_list))
     {
-        snprintf(cmpgn_fname, fnamelen, "%s", legacy_fname);
-        return CntT_CampaignProgress;
+        char legacy_progress_fname[DISKPATH_SIZE];
+        get_progress_filename(legacy_fname, legacy_progress_fname, sizeof(legacy_progress_fname));
+        if (!LbFileExists(prepare_file_path(FGrp_Save, legacy_progress_fname)))
+        {
+            snprintf(cmpgn_fname, fnamelen, "%s", legacy_fname);
+            return CntT_CampaignProgress;
+        }
     }
     return CntT_None;
 }

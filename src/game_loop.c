@@ -938,18 +938,24 @@ static TbBool wait_at_frontend(void)
     memset(scratch, 0, PALETTE_SIZE);
     RendererPaletteSet(scratch);
     FrontendMenuState startup_state = get_startup_menu_state();
+    TbBool failed_load_resumed = false;
     if (failed_load_campaign[0] != '\0') {
         if (resume_campaign_progress(failed_load_campaign)) {
             startup_state = FeSt_LAND_VIEW;
+            failed_load_resumed = true;
         }
         failed_load_campaign[0] = '\0';
     }
     // A save that was refused, and whose campaign could not be resumed at its
     // recorded progress, goes back to the load list it was clicked in rather
-    // than to the main menu. Consumed once.
+    // than to the main menu. Consumed once. Test the resume itself, not the
+    // state: get_startup_menu_state() picks the land view on its own after a
+    // level was quit or lost, and that land view would be the previous
+    // campaign's progress shown under the refused save's campaign, which a
+    // failed resume may already have switched to.
     if (frontend_reentry_state != FeSt_INITIAL)
     {
-        if (startup_state != FeSt_LAND_VIEW)
+        if (!failed_load_resumed)
             startup_state = frontend_reentry_state;
         frontend_reentry_state = FeSt_INITIAL;
     }
@@ -1092,7 +1098,6 @@ static TbBool wait_at_frontend(void)
               // than closing the game on a player who only clicked an old save.
               WARNLOG("Loading game %d failed; returning to the menus.",(int)game.save_game_slot);
               create_frontend_error_box(save_load_failure_text());
-              game.save_game_slot = flgmem;
               frontend_reentry_state = FeSt_FELOAD_GAME;
               return false;
           }
