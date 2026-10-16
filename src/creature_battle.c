@@ -279,6 +279,14 @@ void set_creature_in_combat(struct Thing *fightng, struct Thing *enmtng, CrAttac
         ERRORLOG("Creature in combat already - state %s", creature_state_code_name(crstate));
         return;
     }
+    // A creature cowering from a slap, or preparing a spell, cannot leave that state
+    // until it ends. The combat check looks past those states to what the creature is
+    // really doing, so it asks; the answer is just "not yet", and a later check, once
+    // the state has ended, starts the fight.
+    if (!can_change_from_state_to(fightng, fightng->active_state, CrSt_CreatureInCombat)) {
+        SYNCDBG(8,"The %s index %d cannot fight yet, it is in state %s",thing_model_name(fightng),(int)fightng->index,creature_state_code_name(fightng->active_state));
+        return;
+    }
     if ( !external_set_thing_state(fightng, CrSt_CreatureInCombat) ) {
         ERRORLOG("Failed to enter combat state for %s index %d",thing_model_name(fightng),(int)fightng->index);
         return;
