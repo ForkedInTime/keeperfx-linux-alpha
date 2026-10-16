@@ -2999,6 +2999,9 @@ void creature_rebirth_at_lair(struct Thing *thing)
         thing->veloc_push_add.y.val = 0;
         clear_flag(thing->state_flags, TF1_PushAdd);
         cctrl->active_timebomb_spell = 0;
+        // The bomb doubled max_speed, and kill_creature() ran cleanup_timebomb() while the flag was still
+        // set, so the speed it recomputed is still doubled. Recompute it now that the flag is gone.
+        cctrl->max_speed = calculate_correct_creature_maxspeed(thing);
     }
     // kill_creature() has already cleaned up the state the creature died in, but left the state itself
     // in place, so a creature killed in a door fight came back still in CreatureDoorCombat without the
