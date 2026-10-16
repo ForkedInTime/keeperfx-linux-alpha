@@ -616,7 +616,7 @@ static TbBool replay_write_fits(size_t raw_len)
     if (pos < 0)
         return true;
     const size_t bound = packet_file_compressed() ? (packet_turn_len + raw_len) * 3 / 2 + 2 : raw_len;
-    if ((uint32_t)pos + bound <= packetsave_max_kb * 1024)
+    if ((uint32_t)pos + bound <= (uint64_t)packetsave_max_kb * 1024)
         return true;
     WARNLOG("Replay reached the %u KB limit at turn %u; recording stopped", packetsave_max_kb, (unsigned)get_gameturn());
     close_packet_file();
@@ -722,6 +722,9 @@ static TbBool read_long_turn_records(TbBool apply)
         {
             apply_recorded_network_stop();
         }
+        // applying a record may have ended the replay and closed its file
+        if (apply && !replay.fopened)
+            return false;
         if ((len > used) && !skip_packet_bytes(len - used))
             return false;
     }
@@ -752,6 +755,8 @@ static TbBool apply_long_turn_records(const struct PacketDecoderState *records_s
     struct PacketDecoderState resume;
     save_packet_decoder_state(&resume);
     TbBool ok = restore_packet_decoder_state(records_state) && read_long_turn_records(true);
+    if (!replay.fopened)
+        return false;
     if (!restore_packet_decoder_state(&resume))
         ok = false;
     return ok;
@@ -1202,6 +1207,10 @@ void stop_replay_recording(const char *reason)
 void close_packet_file(void)
 {
     set_replay_crashlog(0, 0);
+    // a resync read but not yet applied belongs to this replay only
+    free(pending_resync);
+    pending_resync = NULL;
+    pending_resync_len = 0;
     if ( replay.fopened )
     {
         LbFileClose(replay.fp);
@@ -1236,8 +1245,8 @@ static void evict_old_replays(int type, uint32_t keep)
     size_t count = 0;
     size_t cap = 0;
     struct TbFileEntry fe;
-    char spec[DISKPATH_SIZE];
-    char rel[DISKPATH_SIZE];
+    char spec[OS_ABSPATH_SIZE];
+    char rel[OS_ABSPATH_SIZE];
     snprintf(rel, sizeof(rel), "%s/*", replay_type_dirs[type]);
     prepare_file_path_buf(spec, sizeof(spec), FGrp_Replays, rel);
     if (spec[0] == '\0')
@@ -1270,7 +1279,7 @@ static void evict_old_replays(int type, uint32_t keep)
         qsort(names, count, sizeof(char *), compare_replay_names);
     for (size_t i = 0; i + keep < count; i++)
     {
-        char fname[DISKPATH_SIZE];
+        char fname[OS_ABSPATH_SIZE];
         snprintf(rel, sizeof(rel), "%s/%s", replay_type_dirs[type], names[i]);
         prepare_file_path_buf(fname, sizeof(fname), FGrp_Replays, rel);
         if (fname[0] != '\0')
@@ -1489,6 +1498,8 @@ void load_packets_for_turn(GameTurn nturn)
         memcpy(&game.packets[users[i]], &pckt_buf[i * sizeof(struct Packet)], sizeof(struct Packet));
     if (has_records && !apply_long_turn_records(&records_state))
     {
+        if (!replay.fopened) // a record ended the replay; nothing left to read
+            return;
         ERRORLOG("Cannot read long turn records from Packet File; replay aborted at turn %u", (unsigned)get_gameturn());
         erstat_inc(ESE_CantReadPackets);
         disable_packet_mode();

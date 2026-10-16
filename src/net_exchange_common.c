@@ -165,10 +165,16 @@ static TbError handle_exchange_message(NetUserId source, void *server_buf, size_
 
 static TbError handle_chat_message(NetUserId source, char *read_pos, size_t message_size, enum NetMessageType expected_frame_type)
 {
-    NetUserId sender = (NetUserId)read_pos[0];
+    NetUserId sender = (NetUserId)(uint8_t)read_pos[0];
     read_pos += 1;
+    // only the host relays, and only other users' messages; anyone else speaks only for itself
+    if (sender >= MAX_NET_USERS || sender == netstate.my_id || (source != SERVER_ID && source != sender)) {
+        WARNLOG("Peer %i tried to send a chat message as user %i", (int)source, (int)sender);
+        return Lb_OK;
+    }
     const char *message;
-    if (!read_network_message_text(&read_pos, &message, sizeof(netstate.msg_buffer) - 1)) {
+    if (!read_network_message_text(&read_pos, &message, sizeof(netstate.msg_buffer) - 1)
+        || (size_t)(read_pos - netstate.msg_buffer) > message_size) {
         ERRORLOG("Chat message too long or not null-terminated");
         return Lb_OK;
     }
@@ -324,7 +330,8 @@ TbError process_network_message(NetUserId source, void *server_buf, size_t frame
     }
     if (source == SERVER_ID && network_user_is_spectator(netstate.my_id) && message_buffer[0] == NETMSG_RESYNC_DATA) {
         TbError result = Lb_FAIL;
-        if (expected_frame_type != NETMSG_SPECTATOR_BOOTSTRAP && !network_spectator_desynced && message_size <= 16 * 1024 * 1024 && apply_recorded_resync(message_buffer, message_size)) {
+        // taken even when desynced: the host's next resync is how a desynced spectator recovers
+        if (expected_frame_type != NETMSG_SPECTATOR_BOOTSTRAP && message_size <= 16 * 1024 * 1024 && apply_recorded_resync(message_buffer, message_size)) {
             result = Lb_OK;
         }
         netstate.sp->readmsg(source, netstate.msg_buffer, 0);

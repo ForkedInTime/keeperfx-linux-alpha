@@ -77,6 +77,7 @@
 #include "local_camera.h"
 #include "kjm_input.h"
 #include "timer.h"
+#include "replay.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -147,6 +148,26 @@ static TbBool console_cmd_cheats_allowed(PlayerNumber plyr_idx)
         return true;
     }
     return user_cheats_allowed(console_cmd_user(plyr_idx));
+}
+
+// Commands acting on this machine alone (its files, its settings or the program
+// itself) run only for what was typed here: never for another user's chat, nor
+// for commands played back from a replay or relayed to a spectator.
+static TbBool console_cmd_typed_locally(PlayerNumber plyr_idx)
+{
+    if (console_cmd_observer != NULL) {
+        return true;
+    }
+    if (replay.load_enable || observer_is_active()) {
+        return false;
+    }
+    return console_cmd_user(plyr_idx) == get_local_user();
+}
+
+// saving and loading need a game of our own, not one being watched
+static TbBool console_cmd_save_load_allowed(PlayerNumber plyr_idx)
+{
+    return console_cmd_typed_locally(plyr_idx) && !replay.load_enable && !observer_is_active();
 }
 
 static MapCoord console_cmd_cursor_x;
@@ -547,6 +568,9 @@ TbBool cmd_fps_turn(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_fps_draw(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     parse_draw_fps_config_val(args, &fps_limit_main, &fps_limit_secondary);
     redetect_screen_refresh_rate_for_draw();
     return true;
@@ -554,6 +578,9 @@ TbBool cmd_fps_draw(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_frametime(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     if (debug_display_frametime == 1) { // If already displaying, then turn off
         debug_display_frametime = 0;
     } else {
@@ -564,6 +591,9 @@ TbBool cmd_frametime(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_frametime_max(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     if (debug_display_frametime == 2) { // If already displaying, then turn off
         debug_display_frametime = 0;
     } else {
@@ -574,6 +604,9 @@ TbBool cmd_frametime_max(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_network_stats(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     if (debug_display_network_stats != 0) {
         debug_display_network_stats = 0;
     } else {
@@ -584,6 +617,9 @@ TbBool cmd_network_stats(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_quit(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     quit_game = 1;
     exit_keeper = 1;
     return true;
@@ -601,6 +637,9 @@ TbBool cmd_time(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_timer_toggle(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     game_flags2 ^= GF2_Timer;
     struct PlayerInfo * player = console_cmd_player(plyr_idx);
     if ( (player->victory_state == VicS_WonLevel) && (timer_enabled()) && (TimerGame) ) {
@@ -612,6 +651,9 @@ TbBool cmd_timer_toggle(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_timer_switch(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     TimerGame ^= 1;
     struct PlayerInfo * player = console_cmd_player(plyr_idx);
     if ( (player->victory_state == VicS_WonLevel) && (timer_enabled()) && (TimerGame) ) {
@@ -642,6 +684,9 @@ TbBool cmd_step(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_game_save(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_save_load_allowed(plyr_idx)) {
+        return false;
+    }
     char * pr1str = strsep_param_with_space(&args);
     long slot_num = (pr1str != NULL) ? atoi(pr1str) : 0;
     if (slot_num < 0 || slot_num >= SAVE_SLOTS_LIMIT)
@@ -653,6 +698,8 @@ TbBool cmd_game_save(PlayerNumber plyr_idx, char * args)
     if (pr2str != NULL) {
         fill_game_catalogue_slot(slot_num, pr2str);
     }
+    // only this machine saves, so leave the game it shares in the state it was in
+    const TbBool was_paused = flag_is_set(game.operation_flags, GOF_Paused);
     set_flag(game.operation_flags, GOF_Paused); // games are saved in a paused state
     TbBool result = save_game(slot_num);
     if (result) {
@@ -661,12 +708,16 @@ TbBool cmd_game_save(PlayerNumber plyr_idx, char * args)
         ERRORLOG("Error in save!");
         create_error_box(GUIStr_ErrorSaving);
     }
-    clear_flag(game.operation_flags, GOF_Paused); // unpause after save attempt
+    set_flag_value(game.operation_flags, GOF_Paused, was_paused);
     return result;
 }
 
 TbBool cmd_game_load(PlayerNumber plyr_idx, char * args)
 {
+    // in a network game only this machine would load, as the Load menu knows
+    if (!console_cmd_save_load_allowed(plyr_idx) || network_is_active()) {
+        return false;
+    }
     char * pr1str = strsep_param_with_space(&args);
     long slot_num = (pr1str != NULL) ? atoi(pr1str) : 0;
     if (slot_num < 0 || slot_num >= SAVE_SLOTS_LIMIT)
@@ -709,6 +760,9 @@ TbBool cmd_volume(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_volume_sound(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     char * pr1str = strsep_param_with_space(&args);
     if (pr1str == NULL || !parameter_is_number(pr1str)) {
         if (pr1str == NULL)
@@ -728,6 +782,9 @@ TbBool cmd_volume_sound(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_volume_music(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     char * pr1str = strsep_param_with_space(&args);
     if (pr1str == NULL || !parameter_is_number(pr1str)) {
         if (pr1str == NULL)
@@ -2686,6 +2743,9 @@ TbBool cmd_quick_show(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_toggle_tooltip_land_coord(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     tool_tip_dbg.land_coord = !tool_tip_dbg.land_coord;
     targeted_message_add(MsgType_Player, plyr_idx, plyr_idx, GUI_MESSAGES_DELAY, "tooltip_land_coord is turned %s", tool_tip_dbg.land_coord ? "on" : "off");
     return true;
@@ -2709,6 +2769,9 @@ TbBool cmd_lua(PlayerNumber plyr_idx, char * args)
 
 TbBool cmd_luatypedump(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     if (!console_cmd_cheats_allowed(plyr_idx)) {
         targeted_message_add(MsgType_Player, plyr_idx, plyr_idx, GUI_MESSAGES_DELAY, "require 'cheat mode'");
         return false;
@@ -2807,6 +2870,9 @@ TbBool cmd_chicken_creature(PlayerNumber plyr_idx, char * args)
 extern TbBool dbc_initialized;
 TbBool cmd_dbc(PlayerNumber plyr_idx, char * args)
 {
+    if (!console_cmd_typed_locally(plyr_idx)) {
+        return false;
+    }
     if (!console_cmd_cheats_allowed(plyr_idx)) {
         targeted_message_add(MsgType_Player, plyr_idx, plyr_idx, GUI_MESSAGES_DELAY, "require 'cheat mode'");
         return false;
