@@ -169,6 +169,8 @@ static void landview_populate_textbox_values(LevelNumber lvnum){
             height = campaign.level_description_geo != NULL ? campaign.level_description_geo->height : 86;
         }    
         landview_textbox_set_geometry(&landview_textbox, pos_x,  pos_y, width, height);
+    } else {
+        landview_textbox_hide(&landview_textbox);
     }
     
     set_level_name_text(mouse_over_lvnum, lv_name);  
