@@ -131,7 +131,8 @@ static void lua_blacklist(lua_State *L, const char *libname, const char *name)
     lua_pop(L, 1);
 }
 
-static void lua_whitelist(lua_State *L, const char *libname, const char *keep)
+// Removes every function of a library but the ones named in keep, a list ending with NULL
+static void lua_whitelist(lua_State *L, const char *libname, const char *const keep[])
 {
     lua_getglobal(L, libname);
     if (!lua_istable(L, -1)) {
@@ -143,7 +144,10 @@ static void lua_whitelist(lua_State *L, const char *libname, const char *keep)
     while (lua_next(L, t) != 0) {
         if (lua_type(L, -2) == LUA_TSTRING) {
             const char *key = lua_tostring(L, -2);
-            if (strcmp(key, keep) != 0) {
+            const char *const *k = keep;
+            while ((*k != NULL) && (strcmp(key, *k) != 0))
+                k++;
+            if (*k == NULL) {
                 lua_pushnil(L);
                 lua_setfield(L, t, key);
             }
@@ -157,10 +161,14 @@ static void lua_whitelist(lua_State *L, const char *libname, const char *keep)
 static void disable_lua_functions(lua_State *L)
 {
     // TODO - remove/replace these
-    lua_whitelist(L, "io", "open");
+    lua_whitelist(L, "io", (const char *const[]){"open", NULL});
 
     // TODO - remove/replace these
-    lua_whitelist(L, "os", "remove");
+    // This edition also keeps the clock functions: they read the time and reach nothing outside
+    // the game, and scripts use them, as the Pandaemonium campaign's second level does for its
+    // welcome message (without os.date its whole setup stopped there). Multiplayer replaces
+    // time, date and clock below, since they are not synchronised.
+    lua_whitelist(L, "os", (const char *const[]){"remove", "date", "time", "clock", "difftime", NULL});
 
     lua_blacklist(L, "package", "loadlib");
 
