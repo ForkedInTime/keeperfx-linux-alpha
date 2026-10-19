@@ -4227,16 +4227,24 @@ TbBool room_still_valid_as_type_for_thing(const struct Room *room, RoomRole rrol
  * The step-off used to be caught only inside creature_job_in_room_no_longer_possible(),
  * which kept the caller's room unchanged: training then went on with no room, charging
  * its fee for no experience and logging "Received nonexisting room".
+ * The edge can just as well be shared with another room, a bridge or the training room
+ * beside the workshop: a worker that crosses it on its way back to a spot in its own room
+ * is still at work there. Taking the room under it made it quit its job, logging "Room
+ * BRIDGE index 65 is not valid ROOM_ROLE_TRAIN_EXP" a hundred times in a stable 5660 log.
  * @param thing The creature at work.
  * @return The room, or INVALID_ROOM if it is on none and heading for none.
  */
 struct Room *get_room_creature_works_on(const struct Thing *thing)
 {
+    struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     struct Room* room = get_room_thing_is_on(thing);
+    struct Room* wrkroom = room_get(cctrl->work_room_id);
+    if ((room != wrkroom) && room_exists(wrkroom) && (get_room_at_pos(&cctrl->moveto_pos) == wrkroom)) {
+        return wrkroom;
+    }
     if (room_exists(room)) {
         return room;
     }
-    struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     return get_room_at_pos(&cctrl->moveto_pos);
 }
 

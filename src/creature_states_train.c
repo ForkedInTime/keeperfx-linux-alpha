@@ -133,7 +133,8 @@ struct Thing *get_creature_in_training_room_which_could_accept_partner(struct Ro
         {
             if ( (get_creature_state_besides_move(thing) == CrSt_Training) && (cctrl->training.partner_idx == 0) )
             {
-                if (get_room_thing_is_on(thing) == room) {
+                // A trainee crossing a neighbouring room on its way back is still here
+                if (get_room_creature_works_on(thing) == room) {
                     return thing;
                 } else {
                     WARNLOG("The %s pretends to be in room but it's not.",thing_model_name(thing));
@@ -200,10 +201,10 @@ void setup_move_to_new_training_position(struct Thing *thing, struct Room *room,
  *  Note that this routine does not always select the nearest post - it is enough if it's 3 subtiles away.
  *
  * @param creatng The creature who wish to train with training post.
+ * @param room The training room it works in, which is not always the room under it.
  */
-void setup_training_search_for_post(struct Thing *creatng)
+void setup_training_search_for_post(struct Thing *creatng, struct Room *room)
 {
-    struct Room* room = get_room_thing_is_on(creatng);
     // Let's start from a random slab
     long slb_x = -1;
     long slb_y = -1;
@@ -303,7 +304,7 @@ void process_creature_in_training_room(struct Thing *thing, struct Room *room)
         if (cctrl->training.search_timeout < 1)
         {
             SYNCDBG(6,"Search timeout - selecting post nearest to (%d,%d)",(int)thing->mappos.x.stl.num, (int)thing->mappos.y.stl.num);
-            setup_training_search_for_post(thing);
+            setup_training_search_for_post(thing, room);
             cctrl->training.search_timeout = 100;
             break;
         }
@@ -426,7 +427,7 @@ void process_creature_in_training_room(struct Thing *thing, struct Room *room)
             setup_move_to_new_training_position(thing, room, false);
             break;
         }
-        if (get_room_thing_is_on(crtng) != room)
+        if (get_room_creature_works_on(crtng) != room)
         {
             SYNCDBG(8,"The %s cannot start partner training - partner has left the room.",thing_model_name(thing));
             cctrl->training.partner_idx = 0;

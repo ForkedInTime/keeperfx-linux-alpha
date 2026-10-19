@@ -228,10 +228,10 @@ short at_workshop_room(struct Thing *creatng)
     return 1;
 }
 
-void setup_workshop_search_for_post(struct Thing *creatng)
+// room is the workshop the creature works in, which is not always the room under it
+void setup_workshop_search_for_post(struct Thing *creatng, struct Room *room)
 {
     struct Thing* postng = INVALID_THING;
-    struct Room* room = get_room_thing_is_on(creatng);
     // Find a random slab in the room to be used as our starting point
     long i = THING_RANDOM(creatng, room->slabs_count);
     unsigned long n = room->slabs_list;
@@ -293,7 +293,7 @@ long process_creature_in_workshop(struct Thing *creatng, struct Room *room)
         cctrl->workshop.work_timer--;
         if (cctrl->workshop.work_timer <= 0)
         {
-            setup_workshop_search_for_post(creatng);
+            setup_workshop_search_for_post(creatng, room);
             cctrl->workshop.work_timer = 100;
             break;
         }
