@@ -102,3 +102,14 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflag
 	"$ROOT_DIR/bin/bflib_fileio_for_tests.o" \
 	$(pkg-config --libs sdl3 luajit)
 "$ROOT_DIR/bin/test_lua_readonly" "$ROOT_DIR"
+
+# The save format (upstream #5424): upstream's own codec and file tests, built
+# for this edition's 64-bit target. They round-trip a real struct Game through
+# the field tables and compare digests, so a table that reads differently here
+# than on upstream's 32-bit Windows build fails. SDL_INCLUDES must not be empty,
+# or build.sh downloads the headers instead of using the ones found here.
+SDL_INCLUDES="$(pkg-config --cflags-only-I sdl3) -I$ROOT_DIR/src" \
+	CFLAGS_EXTRA="$EXTRA_FLAGS" LDFLAGS_EXTRA="$EXTRA_FLAGS" \
+	bash "$ROOT_DIR/tests/save/build.sh" "$ROOT_DIR/bin/test_save_format"
+"$ROOT_DIR/bin/test_save_format"
+"$ROOT_DIR/bin/test_save_format_records"
