@@ -271,14 +271,33 @@ static void set_detail(char *detail, size_t detail_len, const char *text)
         snprintf(detail, detail_len, "%s", text);
 }
 
+// The info block of saves written before the KFXS container, by every earlier build of this edition
+static_assert(sizeof(CatalogueEntry) == 412, "ReadLegacyTitle() reads the 412-byte info block earlier builds wrote");
+
 bool ReadLegacyTitle(IFileSystem &filesystem, const char *fname, CatalogueEntry *centry)
 {
     std::unique_ptr<IFileReader> reader = filesystem.OpenReader(fname);
     FileChunkHeader header;
     if (!reader || !reader->ReadAt(0, &header, sizeof(header)))
         return false;
+    // This edition: the header was three `unsigned long`s until upstream #5353 made them
+    // uint32_t, so every save 64-bit Linux builds wrote before 1.4.0.5751 -- stable
+    // 1.4.0.5660 included -- has 24-byte headers, each value 8 bytes. Chunk ids are four
+    // ASCII characters and never zero, while that layout's second 32-bit word is the high
+    // half of a length and always is, so one look tells the two apart.
+    size_t title_at = sizeof(header);
+    if (header.id == 0)
+    {
+        uint32_t wide[6];
+        if (!reader->ReadAt(0, wide, sizeof(wide)))
+            return false;
+        header.len = wide[0];
+        header.id = wide[2];
+        header.ver = wide[4];
+        title_at = sizeof(wide);
+    }
     clear_flag(centry->flags, CEF_InUse);
-    if ((header.id == SGC_InfoBlock) && (header.len == sizeof(CatalogueEntry)) && reader->ReadAt(sizeof(header), centry, sizeof(CatalogueEntry)))
+    if ((header.id == SGC_InfoBlock) && (header.len == sizeof(CatalogueEntry)) && reader->ReadAt(title_at, centry, sizeof(CatalogueEntry)))
         set_flag(centry->flags, CEF_InUse);
     centry->textname[SAVE_TEXTNAME_LEN-1] = '\0';
     centry->campaign_name[LINEMSG_SIZE-1] = '\0';
