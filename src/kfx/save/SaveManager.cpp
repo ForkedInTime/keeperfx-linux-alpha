@@ -274,8 +274,10 @@ enum SaveLoadOutcome SaveManager::Load(int slot_num, enum SaveCheckResult *why)
         return SvLoad_Refused;
     // prepare_file_fmtpath()'s buffer is overwritten by its next call, and
     // apply_game_kfxs() below triggers several (change_campaign, load_stats_files...),
-    // so take a stable copy now.
-    char fname[DISKPATH_SIZE];
+    // so take a stable copy now. This edition: as long as the path it copies -- a save
+    // folder deep enough (a long home directory, a Flatpak data dir) ran past DISKPATH_SIZE,
+    // and the cut name read as a missing file, disabling the slot.
+    char fname[FULLPATH_SIZE];
     snprintf(fname, sizeof(fname), "%s", prepare_file_fmtpath(FGrp_Save, SAVED_GAME_FILENAME, slot_num));
     if (!Fs().Exists(fname))
     {
