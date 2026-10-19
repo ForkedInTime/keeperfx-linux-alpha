@@ -162,7 +162,7 @@ jobs:
         if: steps.merge.outputs.clean == 'true'
         run: |
           sudo apt-get install -y --no-install-recommends \
-            build-essential git python3 pkg-config \
+            build-essential git python3 pkg-config gdb \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
             libopenal-dev libluajit-5.1-dev libspng-dev libminizip-dev zlib1g-dev \
             libminiupnpc-dev libnatpmp-dev libssl-dev libzstd-dev \
@@ -230,9 +230,11 @@ jobs:
       # The save-format break of 2026-08-19 arrived exactly this way: an
       # upstream commit added one field to struct Thing, the merge was clean,
       # the build was green, and five campaigns in progress became unloadable.
-      # Not fatal to the PR -- taking upstream may still be right -- but it must
-      # be on the PR before anyone clicks Merge.
-      - name: Save-format check (does this merge invalidate every saved game?)
+      # Saves describe their own layout since upstream #5424, so most table
+      # changes now keep them loading, but every change is still accepted by
+      # hand, and a break must be on the PR before anyone clicks Merge. Not
+      # fatal to the PR -- taking upstream may still be right.
+      - name: Save-format check (does this merge change the save format?)
         id: saveformat
         if: steps.merge.outputs.clean == 'true' && steps.build.outcome == 'success'
         continue-on-error: true
@@ -328,11 +330,11 @@ jobs:
             echo
             if [ "$SAVEFORMAT" != success ]; then
               echo "> [!WARNING]"
-              echo "> **This merge breaks save compatibility.** \`sizeof(struct Game)\` changed, and the engine"
-              echo "> refuses any save whose size does not match the running build -- so merging this makes"
-              echo "> every existing saved game unloadable, and the release build fails until"
-              echo "> \`packaging/ci/save-format-baseline\` is updated on this branch (read that file first)."
-              echo "> The [run log]($RUN_URL) shows the sizes and the likely field."
+              echo "> **This merge changes the save format.** The format's field tables differ from"
+              echo "> \`packaging/ci/save-format/\`, or miss a member of a saved struct (which would not be saved)."
+              echo "> The [run log]($RUN_URL) has upstream's policy verdict on whether older saves still load;"
+              echo "> the release build fails until \`packaging/ci/check-save-format.sh --update\` is run on this"
+              echo "> branch (read \`packaging/ci/save-format-baseline\` first)."
               echo
             fi
             if [ -s mk_sources.txt ] && ! grep -q 'up to date' mk_sources.txt; then
