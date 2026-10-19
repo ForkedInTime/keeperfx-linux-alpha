@@ -2,8 +2,8 @@
  * fx1contn.sav as 64-bit Linux builds wrote it (campaign_flags as 8-byte longs)
  * must import into the int32_t IntralevelData without moving any other byte.
  *
- * decode_lp64_intralevel_v0() and every size macro it uses are cut out of the
- * real src/game_saves.c by tests/run.sh, so this checks the code that ships. The
+ * decode_lp64_intralevel_v0() and its size macros are the real ones from
+ * src/legacy_progress_lp64.c/.h, so this checks the code that ships. The
  * input is laid out by hand from the old declaration -- every byte before the
  * flags, 40 eight-byte flags, every byte after -- because the old header is no
  * longer in the tree; tests/run.sh's comment says how it was checked against a
@@ -18,7 +18,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "legacy_progress_decode.inc"
+#include "legacy_progress_lp64.h"
+
+// The 32-bit-long layout upstream's own import reads (LEGACY_PROGRESS_FILE_SIZE there)
+#define LEGACY_PROGRESS_FILE_SIZE (CAMPAIGN_FNAME_LEN + sizeof(LevelNumber) + LEGACY_LP64_V0_SIZE)
 
 static int failures = 0;
 
@@ -43,7 +46,7 @@ int main(void)
     printf("legacy fx1contn.sav import (64-bit layout)\n");
     check(LEGACY_PROGRESS_FILE_SIZE == 67241, "the 32-bit-long file upstream imports is 67241 bytes");
     check(LEGACY_LP64_PROGRESS_FILE_SIZE == 67401, "the file 64-bit builds wrote is 67401 bytes");
-    check(LEGACY_LP64_INTRALEVEL_SIZE - INTRALEVEL_DATA_V0_SIZE == 160, "the only difference is 40 flags x 4 bytes");
+    check(LEGACY_LP64_INTRALEVEL_SIZE - LEGACY_LP64_V0_SIZE == 160, "the only difference is 40 flags x 4 bytes");
 
     unsigned char *raw = malloc(LEGACY_LP64_INTRALEVEL_SIZE);
     struct IntralevelData *ilvl = malloc(sizeof(struct IntralevelData));
@@ -79,10 +82,10 @@ int main(void)
     check(flags_ok, "every campaign flag keeps its value, in its player/slot");
     check(ilvl->campaign_flags[0][3] == INT32_MAX && ilvl->campaign_flags[0][4] == INT32_MIN,
         "values beyond 32 bits are clamped, keeping their sign");
-    check(memcmp(out + rest_at, raw + old_rest_at, INTRALEVEL_DATA_V0_SIZE - rest_at) == 0,
+    check(memcmp(out + rest_at, raw + old_rest_at, LEGACY_LP64_V0_SIZE - rest_at) == 0,
         "next level and ensign overrides are copied unchanged");
     int tail_zero = 1;
-    for (size_t i = INTRALEVEL_DATA_V0_SIZE; i < sizeof(struct IntralevelData); i++)
+    for (size_t i = LEGACY_LP64_V0_SIZE; i < sizeof(struct IntralevelData); i++)
         if (out[i] != 0)
             tail_zero = 0;
     check(tail_zero, "fields the old file never had are left for the caller to fill");

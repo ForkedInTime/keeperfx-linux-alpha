@@ -42,22 +42,12 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/bin" \
 "$ROOT_DIR/bin/test_render_trig_carry"
 
 # Importing fx1contn.sav as 64-bit builds wrote it (campaign_flags as 8-byte
-# longs) into the int32_t IntralevelData. The decoder and the size macros it
-# uses are cut out of the real src/game_saves.c, as above, and compiled against
-# the engine's own headers. Checked once by hand against a file written by the
-# old struct itself (compiled from the v1.4.0.5660 tag): every field, flag and
-# ensign override came back where it was.
-SAVES_SRC="$ROOT_DIR/src/game_saves.c"
-{
-	grep -E '^#define (INTRALEVEL_DATA_V0_SIZE|LEGACY_PROGRESS_FILE_SIZE) ' "$SAVES_SRC"
-	awk '/^#define LEGACY_LP64_FLAGS_COUNT/,/^}/' "$SAVES_SRC"
-} > "$ROOT_DIR/bin/legacy_progress_decode.inc"
-if [ "$(grep -c -E '^#define (INTRALEVEL_DATA_V0_SIZE|LEGACY_PROGRESS_FILE_SIZE|LEGACY_LP64_)|^static void decode_lp64_intralevel_v0\(' "$ROOT_DIR/bin/legacy_progress_decode.inc")" != 6 ]; then
-	echo "tests/run.sh: the legacy progress decoder was not found in $SAVES_SRC" >&2
-	exit 1
-fi
-cc -std=gnu17 -Wall -Wextra -Wno-unused-parameter $EXTRA_FLAGS -I"$ROOT_DIR/bin" -I"$ROOT_DIR/src" $(pkg-config --cflags sdl3) \
-	-o "$ROOT_DIR/bin/test_legacy_progress" "$ROOT_DIR/tests/test_legacy_progress.c"
+# longs) into the int32_t IntralevelData. The decoder is the real
+# src/legacy_progress_lp64.c, compiled against the engine's own headers. Checked
+# once by hand against a file written by the old struct itself (compiled from the
+# v1.4.0.5660 tag): every field, flag and ensign override came back where it was.
+cc -std=gnu17 -Wall -Wextra -Wno-unused-parameter $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflags sdl3) \
+	-o "$ROOT_DIR/bin/test_legacy_progress" "$ROOT_DIR/tests/test_legacy_progress.c" "$ROOT_DIR/src/legacy_progress_lp64.c"
 "$ROOT_DIR/bin/test_legacy_progress"
 
 # Level and campaign Lua may read files but not change them, nor load native
@@ -84,6 +74,8 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflag
 	-Dmain=keeperfx_platform_main_unused \
 	-c "$ROOT_DIR/src/kfx/platform/PlatformLinux.cpp" \
 	-o "$ROOT_DIR/bin/platform_linux_for_tests.o"
+# PlatformManager owns the file system the save code reads through (upstream
+# #5424), so its FileSystemLb.cpp is linked as well.
 # The enumerator finds its directory through LbFileCaseInsensitivePath(), so the
 # real bflib_fileio.c is linked too (it is C, so it gets its own object), with
 # the -Wno-format-truncation linux.mk builds it with.
@@ -94,6 +86,7 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflag
 	-o "$ROOT_DIR/bin/test_file_find" \
 	"$ROOT_DIR/tests/test_file_find.cpp" \
 	"$ROOT_DIR/src/kfx/platform/PlatformManager.cpp" \
+	"$ROOT_DIR/src/kfx/platform/FileSystemLb.cpp" \
 	"$ROOT_DIR/bin/platform_linux_for_tests.o" \
 	"$ROOT_DIR/bin/bflib_fileio_for_tests.o" \
 	$(pkg-config --libs sdl3)
@@ -104,6 +97,7 @@ g++ -std=c++17 -Wall -Wextra $EXTRA_FLAGS -I"$ROOT_DIR/src" $(pkg-config --cflag
 	"$ROOT_DIR/tests/test_lua_readonly.cpp" \
 	"$ROOT_DIR/bin/lua_readonly_io_for_tests.o" \
 	"$ROOT_DIR/src/kfx/platform/PlatformManager.cpp" \
+	"$ROOT_DIR/src/kfx/platform/FileSystemLb.cpp" \
 	"$ROOT_DIR/bin/platform_linux_for_tests.o" \
 	"$ROOT_DIR/bin/bflib_fileio_for_tests.o" \
 	$(pkg-config --libs sdl3 luajit)

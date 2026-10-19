@@ -359,7 +359,8 @@ src/kfx/save/SaveReplayHeader.cpp \
 src/kfx/save/SaveUnionSelectors.cpp \
 src/replay_rewind.c \
 src/roomspace_input.c \
-src/save_trash.c
+src/save_trash.c \
+src/legacy_progress_lp64.c
 
 KFX_C_SOURCES = $(filter %.c,$(KFX_SOURCES))
 KFX_CXX_SOURCES = $(filter %.cpp,$(KFX_SOURCES))

@@ -30,6 +30,7 @@
 #include "kfx/platform/IPlatform.h"
 #include "player_data.h"
 #include "keeperfx.hpp"
+#include "legacy_progress_lp64.h"
 #include "post_inc.h"
 
 #include <cstring>
@@ -131,11 +132,12 @@ bool write_progress_file(const char *progress_fname, const IntralevelData *ilvl)
     return savefile::WriteRecord(Fs(), prepare_file_path(FGrp_Save, progress_fname), *ilvl);
 }
 
-/** The oldest progress file, fx1contn.sav: a campaign name, a level and the progress data of version 0. */
+/** The oldest progress file, fx1contn.sav: a campaign name, a level and the progress data of version 0.
+ *  This edition also reads it as 64-bit Linux builds wrote it, stable 1.4.0.5660 included (legacy_progress_lp64.h). */
 bool read_legacy_progress_file(std::vector<uint8_t> &file)
 {
     return (Fs().ReadAll(prepare_file_path(FGrp_Save, legacy_campaign_progress), file) == FsStatus::Ok)
-        && (file.size() == LEGACY_PROGRESS_FILE_SIZE);
+        && ((file.size() == LEGACY_PROGRESS_FILE_SIZE) || (file.size() == LEGACY_LP64_PROGRESS_FILE_SIZE));
 }
 
 bool read_legacy_progress_fname(char *cmpgn_fname)
@@ -167,14 +169,12 @@ bool read_legacy_progress(const char *cmpgn_fname, IntralevelData *ilvl)
     if (strcasecmp(legacy_fname, cmpgn_fname) != 0)
         return false;
     memset(ilvl, 0, sizeof(IntralevelData));
-    memcpy(ilvl, file.data() + CAMPAIGN_FNAME_LEN + sizeof(lvnum), INTRALEVEL_DATA_V0_SIZE);
+    if (file.size() == LEGACY_LP64_PROGRESS_FILE_SIZE)
+        decode_lp64_intralevel_v0(file.data() + CAMPAIGN_FNAME_LEN + sizeof(lvnum), ilvl);
+    else
+        memcpy(ilvl, file.data() + CAMPAIGN_FNAME_LEN + sizeof(lvnum), INTRALEVEL_DATA_V0_SIZE);
     ilvl->continue_level = encode_continue_level(lvnum);
     return true;
-}
-
-void delete_legacy_progress()
-{
-    Fs().Delete(prepare_file_path(FGrp_Save, legacy_campaign_progress));
 }
 
 bool read_last_file_link(char *link, size_t linklen)
@@ -243,8 +243,12 @@ bool SaveManager::LoadCampaignProgress(const GameCampaign *campgn, IntralevelDat
 {
     char progress_fname[DISKPATH_SIZE];
     get_progress_filename(campgn->fname, progress_fname, sizeof(progress_fname));
+    // This edition keeps fx1contn.sav after importing it (see SaveLevelProgress), so it
+    // stands in only while the campaign has no file of its own: a .cid that is there but
+    // unreadable must not resume the older, stable-era position instead.
+    const bool own_file = Fs().Exists(prepare_file_path(FGrp_Save, progress_fname));
     bool found = read_progress_file(progress_fname, ilvl);
-    if (!found)
+    if (!found && !own_file)
         found = read_legacy_progress(campgn->fname, ilvl);
     if (!found)
         return false;
@@ -319,11 +323,21 @@ enum ContinueTargets SaveManager::FindContinueTarget(int *slot_num, char *cmpgn_
             }
         }
     }
+    // fx1contn.sav is kept after its import, for stable 1.4.0.5660. Once its campaign has
+    // a progress file of its own the import has happened, and taking the fallback then
+    // would resume that stable-era campaign whenever the continue link stops resolving
+    // (a freeplay win removes it, a trashed save breaks it). Upstream deletes the file
+    // at import, so offer it only while the import is still to come.
     char legacy_fname[CAMPAIGN_FNAME_LEN];
     if (read_legacy_progress_fname(legacy_fname) && is_campaign_in_list(legacy_fname, &campaigns_list))
     {
-        snprintf(cmpgn_fname, fnamelen, "%s", legacy_fname);
-        return CntT_CampaignProgress;
+        char legacy_progress_fname[DISKPATH_SIZE];
+        get_progress_filename(legacy_fname, legacy_progress_fname, sizeof(legacy_progress_fname));
+        if (!Fs().Exists(prepare_file_path(FGrp_Save, legacy_progress_fname)))
+        {
+            snprintf(cmpgn_fname, fnamelen, "%s", legacy_fname);
+            return CntT_CampaignProgress;
+        }
     }
     return CntT_None;
 }
@@ -417,8 +431,11 @@ bool SaveManager::SaveLevelProgress(LevelNumber lvnum, unsigned char victory_sta
     if (victory_state != VicS_Undecided)
         write_last_file_link(progress_fname);
 
-    // clean up legacy file if this is a replacement
-    if (legacy_progress_matches(campaign.fname))
-        delete_legacy_progress();
+    // Upstream deletes fx1contn.sav here once the campaign has a file of its own. It
+    // is kept: this edition ships two channels into one game folder, and a stable
+    // build from before the per-campaign files reads nothing else, so deleting it
+    // would lose stable's Continue the first time a level ended on alpha. This build
+    // never reads it again for this campaign -- the per-campaign file wins -- so
+    // leaving it changes nothing here.
     return true;
 }
