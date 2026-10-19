@@ -83,12 +83,14 @@ C_SRCS := $(wildcard \
 	src/*.c \
 	src/kfx/*.c \
 	src/kfx/*/*.c \
-	src/kfx/*/*/*.c)
+	src/kfx/*/*/*.c \
+	src/kfx/*/*/*/*.c)
 CXX_SRCS := $(filter-out src/kfx/platform/PlatformLinux.cpp src/main.cpp,$(wildcard \
 	src/*.cpp \
 	src/kfx/*.cpp \
 	src/kfx/*/*.cpp \
-	src/kfx/*/*/*.cpp))
+	src/kfx/*/*/*.cpp \
+	src/kfx/*/*/*/*.cpp))
 OBJS_CORE := \
 	$(patsubst src/%.c,obj/%.o,$(C_SRCS)) \
 	$(patsubst src/%.cpp,obj/%.o,$(CXX_SRCS))
@@ -370,6 +372,7 @@ src/bflib_fmvids.cpp: deps/ffmpeg/libavformat/avformat.h
 src/bflib_sndlib.cpp: deps/openal/include/AL/al.h
 src/net_exchange_gameplay.c: deps/zlib/include/zlib.h
 src/net_resync.cpp: deps/zlib/include/zlib.h
+src/replay_rewind.c: deps/zlib/include/zlib.h
 src/console_cmd.c: deps/luajit/include/lua.h
 src/net_portforward.cpp: deps/miniupnpc/include/miniupnpc/miniupnpc.h deps/libnatpmp/include/natpmp/natpmp.h
 src/net_matchmaking.c: deps/libcurl/include/curl/curl.h

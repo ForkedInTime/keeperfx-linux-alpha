@@ -42,6 +42,7 @@ void sync_local_camera_pose(struct PlayerInfo *player, const struct DungeonCamer
 void update_local_dungeon_view_mode(struct PlayerInfo *player);
 void rotate_local_camera(int32_t angle);
 void set_local_camera_destination(struct PlayerInfo *player);
+void snap_local_camera_to_destination(void);
 void set_local_camera_destination_pose(struct PlayerInfo *player, const struct DungeonCamera *pose);
 void step_local_possession_camera(struct PlayerInfo *player, const struct Thing *thing);
 void record_local_possession_start(struct PlayerInfo *player);
@@ -59,6 +60,7 @@ TbBool is_observer_camera_active(void);
 void enter_observer_camera(void);
 void return_to_player_camera(void);
 void set_observer_camera_view(unsigned char view_type);
+void fade_observer_camera_view(unsigned char view_type);
 void observer_camera_jump(MapSubtlCoord stl_x, MapSubtlCoord stl_y);
 
 /******************************************************************************/

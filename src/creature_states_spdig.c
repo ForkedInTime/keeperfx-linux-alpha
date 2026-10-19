@@ -1058,10 +1058,7 @@ short imp_converts_dungeon(struct Thing *spdigtng)
                       MapCoord coord_y = subtile_coord_center(room->central_stl_y);
                       event_create_event_or_update_nearby_existing_event(coord_x, coord_y,
                           EvKind_RoomUnderAttack, room->owner, 0);
-                      if (is_my_player_number(room->owner))
-                      {
-                          output_message(SMsg_EnemyDestroyRooms, MESSAGE_DURATION_FIGHT);
-                      }
+                      output_player_message(room->owner, SMsg_EnemyDestroyRooms, MESSAGE_DURATION_FIGHT);
                 }
               }
           }
@@ -1471,9 +1468,8 @@ short imp_toking(struct Thing *creatng)
 {
     TRACE_THING(creatng);
     struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
-    if (!creature_would_benefit_from_healing(creatng))
-    {
-        internal_set_thing_state(creatng, creatng->continue_state);
+    if (!creature_would_benefit_from_healing(creatng)) {
+        set_start_state(creatng);
         return 0;
     }
     if (cctrl->instance_id == CrInst_NULL)
@@ -1673,9 +1669,9 @@ short creature_save_unconscious_creature(struct Thing *thing)
             set_start_state(thing);
             return 0;
         }
-        if (!find_lair_totem_at(lairtng->mappos.x.stl.num,lairtng->mappos.y.stl.num))
+        if (!thing_is_lair_totem(lairtng))
         {
-            WARNLOG("Player %d can't pick %s - no position within %s to store it",(int)thing->owner,thing_model_name(picktng),room_role_code_name(RoRoF_Prison));
+            WARNLOG("Player %d can't pick %s - it has no lair totem within %s",(int)thing->owner,thing_model_name(picktng),room_role_code_name(RoRoF_LairStorage));
             set_start_state(thing);
             return 0;
         }

@@ -60,6 +60,7 @@
 #include "vidmode.h"
 #include "kjm_input.h"
 #include "packets.h"
+#include "observer.h"
 #include "replay.h"
 #include "config.h"
 #include "config_slabsets.h"
@@ -284,7 +285,7 @@ void init_keeper(void)
     game.comp_player_creatrsonly = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[3]);
     game.creatures_tend_imprison = 0;
     game.creatures_tend_flee = 0;
-    game.operation_flags |= GOF_ShowPanel;
+    local_state.show_panel = true;
     game.view_mode_flags |= (GNFldD_StatusPanelDisplay | GNFldD_RoomFlameProcessing);
     init_censorship();
     SYNCDBG(9,"Finished");
@@ -433,7 +434,7 @@ short setup_game(void)
       }
   }
 
-  game.fast_forward = start_params.fast_forward;
+  local_state.fast_forward = start_params.fast_forward;
   redetect_screen_refresh_rate_for_draw();
 
   // Intro problems shouldn't force the game to quit,
@@ -488,8 +489,8 @@ short setup_game(void)
 static bool players_cursor_is_at_top_of_view()
 {
     const struct PlayerInfo *const player = get_displayed_player();
-    const struct UserState *const ustate = get_player_user_state(player);
-    switch (player->work_state)
+    const struct UserState *const ustate = get_player_user_state_prediction(player);
+    switch (ustate->work_state)
     {
     case PSt_BuildRoom:
     case PSt_PlaceDoor:
@@ -672,6 +673,7 @@ void toggle_hero_health_flowers(void)
 
 void reset_gui_based_on_player_mode(void)
 {
+    struct UserState* ustate = get_local_user_state();
     struct PlayerInfo *player = get_my_player();
     if (get_player_view_type(player) == PVT_CreatureContrl)
     {
@@ -692,7 +694,7 @@ void reset_gui_based_on_player_mode(void)
         if (game.active_panel_mnu_idx > 0)
         {
             initialise_tab_tags(game.active_panel_mnu_idx);
-            if ( (player->work_state == PSt_CreatrInfo) || (player->work_state == PSt_CreatrInfoAll) )
+            if ( (ustate->work_state == PSt_CreatrInfo) || (ustate->work_state == PSt_CreatrInfoAll) )
             {
                 turn_on_menu(vid_change_query_menu);
             }
@@ -960,8 +962,8 @@ void clear_players_for_save(void)
     unsigned short saved_player_id;
     unsigned char saved_player_type;
     unsigned short saved_allocation_flags;
-    int i;
-    for (i=0; i < PLAYERS_COUNT; i++)
+    
+    for (int i=0; i < PLAYERS_COUNT; i++)
     {
       player = get_player(i);
       saved_player_id = player->id_number;
@@ -969,11 +971,30 @@ void clear_players_for_save(void)
       saved_allocation_flags = player->allocflags;
       memset(player, 0, sizeof(struct PlayerInfo));
       player->id_number = saved_player_id;
-      player->user_id = -1;
       player->player_type = saved_player_type;
       set_flag_value(player->allocflags, PlaF_Allocated, ((saved_allocation_flags & PlaF_Allocated) != 0));
       set_flag_value(player->allocflags, PlaF_CompCtrl, ((saved_allocation_flags & PlaF_CompCtrl) != 0));
       set_flag_value(player->allocflags, PlaF_Placeholder, ((saved_allocation_flags & PlaF_Placeholder) != 0));
+      set_flag_value(player->allocflags, PlaF_Seat, ((saved_allocation_flags & PlaF_Seat) != 0));
+    }
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++)
+    {
+      struct UserState *ustate = get_user_state(user);
+      ustate->hand_thing_idx = 0;
+      ustate->hand_animationId = 0;
+      ustate->thing_under_hand = 0;
+      ustate->cursor_light_idx = 0;
+      ustate->work_state = 0;
+      ustate->continue_work_state = 0;
+      memset(&ustate->render_roomspace, 0, sizeof(ustate->render_roomspace));
+      ustate->roomspace_mode = 0;
+      ustate->roomspace_detection_looseness = 0;
+      ustate->roomspace_width = 0;
+      ustate->roomspace_height = 0;
+      ustate->roomspace_highlight_mode = 0;
+      ustate->roomspace_drag_paint_mode = 0;
+      ustate->roomspace_l_shape = 0;
+      ustate->roomspace_horizontal_first = 0;
     }
 }
 
@@ -1097,7 +1118,9 @@ void PaletteSetUserPalette(NetUserId user, unsigned char *pal)
     {
       ustate->additional_flags &= ~UsrAF_FreezePaletteIsActive; // flag Freeze palette is not active
     }
-    if (user != get_local_user())
+    // an observer following a player sees that player's palette
+    if ((user != get_local_user())
+     && !(observer_is_active() && (get_player(get_net_user_player_number(user)) == get_displayed_player())))
         return;
     if ( (local_state.lens_palette == 0) || ((pal != local_state.main_palette) && (pal == local_state.lens_palette)) )
     {
@@ -1106,6 +1129,15 @@ void PaletteSetUserPalette(NetUserId user, unsigned char *pal)
         local_state.palette_fade_step_possession = 0;
         LbScreenWaitVbi();
         RendererPaletteSet(pal);
+    }
+}
+
+void PaletteSetPlayerPalette(const struct PlayerInfo *player, unsigned char *pal)
+{
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++)
+    {
+        if (get_net_user_player_number(user) == player->id_number)
+            PaletteSetUserPalette(user, pal);
     }
 }
 
@@ -1355,6 +1387,9 @@ void update_local_mouse_light(void)
     // ... or during text input (save menu)
     if (game_is_busy_doing_gui_string_input())
         return;
+    // ... or in first person: there is no map under the mouse, and block_pointed_at is left from the dungeon view
+    if ((get_local_view_type(player) == PVT_CreatureContrl) || (get_local_view_type(player) == PVT_CreaturePasngr))
+        return;
 
     struct Camera *cam = get_local_active_camera(player);
     struct Coord3d pos;
@@ -1371,13 +1406,10 @@ void update_local_mouse_light(void)
 void update_mouse_light(NetUserId user)
 {
     SYNCDBG(6,"Starting");
-    const struct Packet *pckt = nullptr;
+    if (user == get_local_user() && !replay.load_enable)
+        return;
 
-    if (user == get_local_user())
-        pckt = get_history_packet(user, get_gameturn());
-    if (pckt == nullptr)
-        pckt = get_packet(user);
-
+    const struct Packet *pckt = get_packet(user);
     const TbBool valid = (pckt->control_flags & PCtr_MapCoordsValid) != 0;
     struct Coord3d pos;
     pos.x.val = pckt->pos_x;
@@ -1558,7 +1590,7 @@ void redetect_screen_refresh_rate_for_draw()
 bool use_delta_time()
 {
     // Always enable interpolation in multiplayer games.
-    return is_feature_on(Ft_DeltaTime) || network_is_active() || game.fast_forward > 1;
+    return is_feature_on(Ft_DeltaTime) || network_is_active() || local_state.fast_forward > 1;
 }
 
 void update_frontend_delta_time()
@@ -1568,7 +1600,7 @@ void update_frontend_delta_time()
     const int64_t ns = now - prev;
     prev = now;
     const long double dt = ns / 1e9L * turns_per_second;
-    game.delta_time = min(max(dt, 0.L), 1.L);
+    local_state.delta_time = min(max(dt, 0.L), 1.L);
 }
 
 void update_gameplay_delta_time()
@@ -1583,13 +1615,13 @@ void update_gameplay_delta_time()
         const long double turns = seconds * turns_per_second;
         const long double frames = seconds * fps_limit_current;
 
-        if (game.fast_forward >= GAME_FAST_FORWARD_MAX && !network_is_active()) {
-            game.process_turn_time = 1;
+        if (local_state.fast_forward >= GAME_FAST_FORWARD_MAX && !network_is_active()) {
+            local_state.process_turn_time = 1;
         } else {
-            game.process_turn_time += turns * multiplayer_clock_adjust * max(game.fast_forward, 1);
+            local_state.process_turn_time += turns * multiplayer_clock_adjust * max(local_state.fast_forward, 1);
         }
 
-        // This sets game.delta_time, which is used to pace locally-displayed
+        // This sets local_state.delta_time, which is used to pace locally-displayed
         // things (eg. tooltip scroll speed).  It should not be affected by
         // multiplayer clock adjustment or frameskip.
         time_since_last_draw += turns;
@@ -1599,8 +1631,8 @@ void update_gameplay_delta_time()
     } else {
         // Set to 1 so that these variables don't affect anything. (if something is multiplied by 1 it doesn't change)
         time_since_last_draw = 1;
-        game.delta_time = 1;
-        game.process_turn_time = 1;
+        local_state.delta_time = 1;
+        local_state.process_turn_time = 1;
         process_frame_time = 1;
     }
 }
@@ -1991,6 +2023,14 @@ static short process_command_line(unsigned short argc, char *argv[])
   }
   start_params.selected_level_number = level_num;
   my_player_number = default_loc_player;
+
+  // Flags which skip the main menu should also skip the intro
+  if (start_params.packet_load_enable
+      || flag_is_set(start_params.operation_flags, GOF_SingleLevel)
+      || (game_flags2 & (GF2_Connect | GF2_Server)))
+  {
+      start_params.no_intro = true;
+  }
 
 #ifdef FUNCTESTING
   ftest_init(); // initialise test framework on ftest build

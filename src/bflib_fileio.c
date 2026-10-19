@@ -344,6 +344,22 @@ int LbFileDelete(const char *filename)
   return result;
 }
 
+//Renames a disk file, replacing any existing file with the new name
+int LbFileRename(const char *oldname, const char *newname)
+{
+  const char *src_fname = oldname;
+  char actual_fname[PATH_MAX];
+  if (access(oldname, F_OK) != 0 && find_case_insensitive_file(oldname, actual_fname, sizeof(actual_fname))) {
+    src_fname = actual_fname;
+  }
+  // rename() on Windows fails when the target exists
+  if (LbFileExists(newname))
+    LbFileDelete(newname);
+  if ( rename(src_fname, newname) )
+    return -1;
+  return 1;
+}
+
 int LbDirectoryCurrent(char *buf, unsigned long buflen)
 {
 //  if ( GetCurrentDirectoryA(buflen, buf) )

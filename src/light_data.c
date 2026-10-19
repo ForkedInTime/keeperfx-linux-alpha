@@ -28,11 +28,13 @@
 #include "local_camera.h"
 #include "player_data.h"
 #include "player_instances.h"
+#include "gui_parchment.h"
 #include "local_camera.h"
 #include "map_data.h"
 
 #include "thing_stats.h"
 #include "game_legacy.h"
+#include "replay_rewind.h"
 #include "value_util.h"
 
 #include "post_inc.h"
@@ -45,14 +47,14 @@ static void light_stat_light_map_clear_area(MapSubtlCoord x1, MapSubtlCoord y1, 
 
 /******************************************************************************/
 
-static unsigned long light_bitmask[32];
-static long stat_light_needs_updating;
-static long light_total_dynamic_lights;
-static long light_total_stat_lights;
-static long light_rendered_dynamic_lights;
-static long light_rendered_optimised_dynamic_lights;
-static long light_updated_stat_lights;
-static long light_out_of_date_stat_lights;
+kfx_rewindable static unsigned long light_bitmask[32];
+kfx_rewindable static long stat_light_needs_updating;
+kfx_rewindable static long light_total_dynamic_lights;
+kfx_rewindable static long light_total_stat_lights;
+kfx_rewindable static long light_rendered_dynamic_lights;
+kfx_rewindable static long light_rendered_optimised_dynamic_lights;
+kfx_rewindable static long light_updated_stat_lights;
+kfx_rewindable static long light_out_of_date_stat_lights;
 /******************************************************************************/
 
 struct Light *light_allocate_light(void)
@@ -454,7 +456,7 @@ void light_remove_light_from_list(struct Light *lgt, struct StructureList *list)
 {
   if ( list->count == 0 )
   {
-      ERRORLOG("List %lu has no structures", list->index);
+      ERRORLOG("List %" PRIu32 " has no structures", list->index);
       return;
   }
   TbBool Removed = false;
@@ -1512,6 +1514,27 @@ void light_stat_refresh() {
     light_signal_stat_light_update_in_area(1, 1, game.map_subtiles_x, game.map_subtiles_y);
 }
 
+/** Rebuilds what a save doesn't carry: the lighting tables, the shadow cache slots the saved lights use, and the
+ *  static light map. Every light is flagged to be rendered again. */
+void light_rebuild_after_load(void)
+{
+    if (!game.lish.lighting_tables_initialised)
+    {
+        light_initialise_lighting_tables();
+        game.lish.lighting_tables_initialised = true;
+    }
+    for (int i = 0; i < LIGHTS_COUNT; i++)
+    {
+        struct Light* lgt = &game.lish.lights[i];
+        if ((lgt->flags & LgtF_Allocated) == 0)
+            continue;
+        if ((lgt->shadow_index > 0) && (lgt->shadow_index < SHADOW_CACHE_COUNT))
+            game.lish.shadow_cache[lgt->shadow_index].flags |= ShCF_Allocated;
+        lgt->flags |= LgtF_NeedUpdate;
+    }
+    light_stat_refresh();
+}
+
 void light_set_lights_on(char state)
 {
     SYNCDBG(8, "Starting");
@@ -2280,7 +2303,7 @@ void update_light_render_area(void)
     SYNCDBG(6,"Starting");
     struct PlayerInfo* player = get_my_player();
     const unsigned char view_type = get_local_view_type(player);
-    if ((view_type == PVT_DungeonTop || view_type == PVT_CreatureContrl || view_type == PVT_CreaturePasngr) && (is_observer_camera_active() || player->instance_num != PI_MapFadeFrom)) {
+    if ((view_type == PVT_DungeonTop || view_type == PVT_CreatureContrl || view_type == PVT_CreaturePasngr) && (get_local_map_fade() != PVT_MapFadeOut)) {
         game.something_light_y = LIGHT_MAX_RANGE;
         game.something_light_x = LIGHT_MAX_RANGE;
     }

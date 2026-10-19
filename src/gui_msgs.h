@@ -54,14 +54,18 @@ unsigned long expiration_turn;
 struct GuiMessage {
     char text[64];
     short plyr_idx; //not playernumber because it is abused for other icons too
-    unsigned long expiration_turn;
+    uint32_t expiration_turn;
     short target_idx;
-    char type;
+    int8_t type;
     short icon_idx;
 };
 
 #pragma pack()
 /******************************************************************************/
+#define CHAT_LINE_SPACING_PERCENT 125
+
+extern int chat_font_size;
+
 void message_update(void);
 void message_draw(void);
 void zero_messages(void);

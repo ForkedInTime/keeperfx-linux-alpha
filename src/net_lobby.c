@@ -26,6 +26,7 @@
 #include "config_sounds.h"
 #include "front_landview.h"
 #include "front_network.h"
+#include "frontend.h"
 #include "net_lan.h"
 #include "net_matchmaking.h"
 #include "net_spectator.h"
@@ -74,8 +75,8 @@ void net_lobby_refresh_metadata(void)
     session.spectator_count = net_lobby_spectator_count();
     snprintf(session.version, sizeof(session.version), "%d.%d.%d.%d", VER_MAJOR, VER_MINOR, VER_RELEASE, VER_BUILD);
     struct LevelInformation *level = get_level_info(get_selected_level_number());
-    if (netstate.locked && level && level->players > 0) {
-        session.max_players = min(session.max_players, level->players);
+    if (netstate.locked && level) {
+        session.max_players = min(session.max_players, max(level->players, 2));
     }
     for (int i = 0; i < netstate.max_users && i < SESSION_HUMANS_MAX; i++) {
         if (netstate.users[i].progress == USER_LOGGEDIN) {
@@ -365,9 +366,8 @@ TbError LbNetwork_ExchangeLogin(char *player_name)
     return Lb_OK;
 }
 
-TbError LbNetwork_ExchangeFrontend(void *send_buf, void *server_buf, size_t frame_size)
+static void sample_lobby_ping(void)
 {
-    TbError result = exchange_frame_block(NETMSG_FRONTEND, send_buf, server_buf, frame_size);
     TbClockMSec now = LbTimerClock();
     if (network_lobby_ping == 0 || now - lobby_ping_last_sample >= 1000) {
         uint32_t ping = GetPlayersPing();
@@ -376,6 +376,37 @@ TbError LbNetwork_ExchangeFrontend(void *send_buf, void *server_buf, size_t fram
         }
         lobby_ping_last_sample = now;
     }
+}
+
+TbError LbNetwork_ExchangeFrontend(void *send_buf, void *server_buf, size_t frame_size)
+{
+    TbError result = exchange_frame_block(NETMSG_FRONTEND, send_buf, server_buf, frame_size);
+    sample_lobby_ping();
+    return result;
+}
+
+TbError LbNetwork_ExchangeLobby(void *send_buf, void *server_buf, size_t frame_size, TbBool send_frame, void (*process_frame)(NetUserId))
+{
+    TbError result = Lb_OK;
+    if (send_frame) {
+        result = exchange_frame_message(send_buf, server_buf, frame_size, NETMSG_FRONTEND);
+        netstate.seq_nbr += 1;
+    }
+    netstate.sp->update(OnNewUser);
+    int menu_state = frontend_menu_state;
+    for (NetUserId peer_id = 0; peer_id < netstate.max_users; peer_id += 1) {
+        if (!can_send_to_peer(peer_id)) {
+            continue;
+        }
+        while (frontend_menu_state == menu_state && netstate.sp->msgready(peer_id, 0)) {
+            NetUserId frame_peer_id;
+            process_network_message(peer_id, server_buf, frame_size, NETMSG_FRONTEND, &frame_peer_id);
+            if (frame_peer_id != INVALID_USER_ID) {
+                process_frame(frame_peer_id);
+            }
+        }
+    }
+    sample_lobby_ping();
     return result;
 }
 
