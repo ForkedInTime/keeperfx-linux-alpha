@@ -891,6 +891,9 @@ void script_set_sacrifice_recipe(const int action, const int param, ThingModel* 
                 {
                     memmove(sac, sac + 1, remaining * sizeof(*sac));
                 }
+                // This edition: the shift leaves the last slot as it was, so in a full table
+                // its recipe ended up listed twice.
+                memset(&game.conf.rules[0].sacrifices.sacrifice_recipes[MAX_SACRIFICE_RECIPES - 1], 0, sizeof(*sac));
             }
             return;
         }
