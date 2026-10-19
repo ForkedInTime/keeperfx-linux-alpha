@@ -72,14 +72,19 @@ static enum SaveResult read_one_chunk(TbFileHandle file, uint32_t &id, uint32_t 
     uint8_t hdrbuf[SAVE_CHUNK_HEADER_SIZE];
     if (LbFileRead(file, hdrbuf, sizeof(hdrbuf)) != static_cast<int>(sizeof(hdrbuf)))
         return save_fail(err, SVR_Damaged, "replay file ends inside a chunk header");
+    // This edition: the same checks the in-memory reader makes (save_chunk_head), against what
+    // is left of the file. Parsed by hand, a damaged or hostile replay could size the buffer
+    // below from any stored_len (up to 4 GiB) or give an uncompressed chunk a raw_len longer
+    // than its body, which save_chunk_unpack() then copies past the end of.
+    const long file_len = LbFileLengthHandle(file);
+    const long pos = LbFilePosition(file);
+    if ((file_len < 0) || (pos < 0) || (pos > file_len))
+        return save_fail(err, SVR_Damaged, "can't tell how much of the replay file is left");
+    const long left = file_len - pos;
     SaveChunk chunk;
-    chunk.id = savebytes::LoadLE<uint32_t>(hdrbuf);
-    chunk.flags = savebytes::LoadLE<uint32_t>(hdrbuf + 4);
-    chunk.stored_len = savebytes::LoadLE<uint32_t>(hdrbuf + 8);
-    chunk.raw_len = savebytes::LoadLE<uint32_t>(hdrbuf + 12);
-    chunk.crc32 = savebytes::LoadLE<uint32_t>(hdrbuf + 16);
-    if (chunk.raw_len > SAVE_MAX_RAW_LEN)
-        return save_fail(err, SVR_Damaged, "replay chunk is too large");
+    enum SaveResult head = save_chunk_head(hdrbuf, (left > (long)UINT32_MAX) ? UINT32_MAX : static_cast<uint32_t>(left), &chunk, err);
+    if (head != SVR_Ok)
+        return head;
     std::vector<uint8_t> stored(chunk.stored_len ? chunk.stored_len : 1);
     if ((chunk.stored_len > 0) && (LbFileRead(file, stored.data(), chunk.stored_len) != static_cast<int>(chunk.stored_len)))
         return save_fail(err, SVR_Damaged, "replay file ends inside a chunk body");
