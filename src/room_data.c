@@ -1406,6 +1406,26 @@ TbBool update_room_contents(struct Room *room)
     return true;
 }
 
+/**
+ * Points the room ids creatures keep besides their work room at the room another one was merged into.
+ * change_work_room_of_creatures_working_in_room() moves the workers; a creature still on its way to
+ * the absorbed room (target_room_id) or about to go back to it (last_work_room_id) kept that room's
+ * index, which free_room_structure() hands to the next room built. This edition's.
+ */
+static void redirect_creature_room_ids(const struct Room *oldroom, const struct Room *newroom)
+{
+    for (long ci = 1; ci < CREATURES_COUNT; ci++)
+    {
+        struct CreatureControl* cctrl = creature_control_get(ci);
+        if (!creature_control_exists(cctrl))
+            continue;
+        if (cctrl->target_room_id == oldroom->index)
+            cctrl->target_room_id = newroom->index;
+        if (cctrl->last_work_room_id == oldroom->index)
+            cctrl->last_work_room_id = newroom->index;
+    }
+}
+
 static TbBool merge_room_into(struct Room *linkroom, struct Room *oldroom)
 {
     if (!add_slab_list_to_room_tiles_list(linkroom, oldroom->slabs_list)) {
@@ -1416,6 +1436,7 @@ static TbBool merge_room_into(struct Room *linkroom, struct Room *oldroom)
     update_room_total_capacity(linkroom);
     link_room_health(linkroom, oldroom);
     change_work_room_of_creatures_working_in_room(oldroom, linkroom);
+    redirect_creature_room_ids(oldroom, linkroom);
     delete_room_flag(oldroom);
     oldroom->slabs_count = 0;
     oldroom->slabs_list = 0;
