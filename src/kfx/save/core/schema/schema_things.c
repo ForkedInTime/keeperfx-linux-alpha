@@ -427,4 +427,6 @@ SAVE_STRUCT(Thing_trap, struct Thing,
     SAVE_FIELD(struct Thing, trap.volley_delay, SV_U16),
     SAVE_FIELD(struct Thing, trap.firing_at, SV_U16),
     SAVE_FIELD(struct Thing, trap.flag_number, SV_U8),
+    // this edition: when an imp last failed to reach this trap to re-arm it
+    SAVE_FIELD(struct Thing, trap.rearm_route_failed_turn, SV_U32),
 );
