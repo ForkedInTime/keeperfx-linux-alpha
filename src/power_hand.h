@@ -21,6 +21,7 @@
 
 #include "bflib_basics.h"
 #include "globals.h"
+#include "net_main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,8 +46,9 @@ TbBool object_is_pickable_by_hand_to_hold_by_player(const struct Thing* thing, l
 TbBool object_is_pickable_by_hand_to_hold(const struct Thing* thing);
 TbBool thing_is_pickable_by_hand(struct PlayerInfo *player, const struct Thing *thing);
 struct Thing *process_object_being_picked_up(struct Thing *thing, PlayerNumber plyr_idx);
-void set_power_hand_graphic(unsigned char plyr_idx, long HandAnimationID);
+void set_power_hand_graphic(NetUserId user, long HandAnimationID);
 TbBool power_hand_is_empty(const struct PlayerInfo *player);
+TbBool power_hand_is_hovering(const struct PlayerInfo *player);
 TbBool power_hand_is_full(const struct PlayerInfo *player);
 struct Thing *get_first_thing_in_power_hand(const struct PlayerInfo *player);
 void draw_power_hand(void);
@@ -72,8 +74,8 @@ TbBool object_is_slappable_by_player(const struct Thing *thing, PlayerNumber ply
 TbBool object_is_slappable(const struct Thing* thing);
 TbBool thing_slappable(const struct Thing *thing, PlayerNumber plyr_idx);
 
-struct Thing *create_power_hand(PlayerNumber owner);
-void delete_power_hand(PlayerNumber owner);
+struct Thing *create_power_hand(NetUserId user);
+void delete_power_hand(NetUserId user);
 void stop_creatures_around_hand(PlayerNumber plyr_idx, MapSubtlCoord stl_x,  MapSubtlCoord stl_y);
 
 TbBool place_thing_in_power_hand(struct Thing *thing, PlayerNumber plyr_idx);
@@ -116,10 +118,10 @@ enum HandRuleAction {
 };
 
 struct HandRule {
-    char type;
-    char enabled;
-    char allow; // allow: 1, deny: 0
-    long param;
+    int8_t type;
+    int8_t enabled;
+    int8_t allow; // allow: 1, deny: 0
+    int32_t param;
 };
 
 TbBool eval_hand_rule_for_thing(struct HandRule *rule, const struct Thing *thing_to_pick);

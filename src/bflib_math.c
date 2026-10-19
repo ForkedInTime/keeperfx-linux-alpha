@@ -690,6 +690,49 @@ static long bitScanReverse(long s)
 #endif
 }
 
+/** Returns the index of the lowest set bit (number of trailing zeros), or -1 if x is 0. */
+int LbCtz32(uint32_t x)
+{
+    unsigned long source = (unsigned long)x;
+#if   defined(__GNUC__)
+    return (source == 0) ? -1 : (int)__builtin_ctz(source);
+#else
+#pragma message "Falling back to iterative bitscan forward, consider using intrinsics"
+    if (source != 0)
+    {
+        for (int32_t i = 0; i < 32; i++)
+        {
+            if (source & (1UL << i))
+            {
+                return i;
+            }
+        }
+    }
+    return -1;
+#endif
+}
+
+/** Returns the index of the lowest set bit (trailing zeros) of a 64-bit value, or -1 if x is 0. */
+int LbCtz64(uint64_t x)
+{
+#if   defined(__GNUC__)
+    return (x == 0) ? -1 : (int)__builtin_ctzll(x);
+#else
+#pragma message "Falling back to iterative bitscan forward, consider using intrinsics"
+    if (x != 0)
+    {
+        for (int32_t i = 0; i < 64; i++)
+        {
+            if (x & (1ULL << i))
+            {
+                return i;
+            }
+        }
+    }
+    return -1;
+#endif
+}
+
 long LbSqrL(long x)
 {
   if (x <= 0)

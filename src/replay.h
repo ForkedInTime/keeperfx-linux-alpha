@@ -23,6 +23,7 @@
 #include "net_main.h"
 #include "net_checksums.h"
 #include "user_prefs.h"
+#include "packets.h"
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -30,12 +31,14 @@ extern "C" {
 #endif
 /******************************************************************************/
 struct CatalogueEntry;
-struct Packet;
 
 #pragma pack(1)
 
 // save file header for .fxpkt files.
-// (Bump the version if this struct or the .fxpkt format changes.)
+// (Bump the version if PacketSaveHead, CatalogueEntry, Game or Packet's *set of
+// saved fields* changes in a way the schema decoder can't reconcile by name --
+// see SaveManager::ReadReplayHeader. A field rename/reorder/insertion
+// alone does NOT need a bump; the schema decode matches by name.)
 #define PACKET_SAVE_HEAD_VER 6
 
 enum PacketSaveHeadFlags {
@@ -53,6 +56,7 @@ struct PacketSaveHead {
     uint32_t level_num;
     PlayerBitFlags players_exist;
     PlayerBitFlags players_comp;
+    PlayerBitFlags players_seat;
     uint8_t flags; // PacketSaveHeadFlags
     uint32_t action_seed;
     int64_t timestamp;
@@ -62,12 +66,30 @@ struct PacketSaveHead {
     UserPreferences user_prefs[MAX_NET_USERS];
     signed char user_players[MAX_NET_USERS];
     signed char recording_user;
-    char frontend_alliances;
+    int8_t frontend_alliances;
     char user_names[MAX_NET_USERS][20];
 };
 
 #pragma pack()
 /******************************************************************************/
+
+// where the replay reader is in the packet file, for rewinding
+struct PacketDecoderState {
+    int32_t file_pos;
+    uint32_t bits_acc;
+    int bits_count;
+    uint32_t dec_zeros;
+    unsigned char dec_lit[4];
+    int dec_lit_pos;
+    int dec_lit_len;
+    uint32_t dec_raw_left;
+};
+
+struct ReplayReaderPos {
+    struct PacketDecoderState dec;
+    struct Packet codec_prev[MAX_NET_USERS];
+    GameTurn pckt_gameturn;
+};
 
 /*
  * State relating to watching and saving replays, including whether replay mode is enabled.
@@ -112,6 +134,7 @@ void replay_apply_pending_resync(void);
 void close_packet_file(void);
 void stop_replay_recording(const char *reason);
 void replay_record_chat_message(NetUserId user, const char *message, MapCoord cursor_x, MapCoord cursor_y);
+void replay_record_spectator_notice(const char *notice, size_t size);
 void replay_record_paused_action(NetUserId user, const struct Packet *pckt);
 void replay_record_resync(const void *message, size_t message_size);
 void replay_record_network_stopped(void);
@@ -120,6 +143,8 @@ void set_replay_playback_paused(TbBool paused);
 TbBool reinit_packets_after_load(void);
 void disable_packet_mode(void);
 TbBool verify_replay_map_checksums(void);
+void replay_save_reader_pos(struct ReplayReaderPos *pos);
+TbBool replay_restore_reader_pos(const struct ReplayReaderPos *pos);
 /******************************************************************************/
 #ifdef __cplusplus
 }

@@ -298,7 +298,6 @@ src/room_util.c \
 src/room_workshop.c \
 src/roomspace.c \
 src/roomspace_detection.c \
-src/roomspace_prediction.c \
 src/scrcapt.c \
 src/slab_data.c \
 src/sounds.c \
@@ -328,7 +327,39 @@ src/front_landview_textbox.c \
 src/logging.c \
 src/net_spectator.c \
 src/observer.c \
-src/lua_readonly_io.c
+src/lua_readonly_io.c \
+src/kernel_memtracker.c \
+src/kfx/platform/FileSystemLb.cpp \
+src/kfx/save/core/save_codec.cpp \
+src/kfx/save/core/save_config_overlay.cpp \
+src/kfx/save/core/save_convert.cpp \
+src/kfx/save/core/save_decode.cpp \
+src/kfx/save/core/save_encode.cpp \
+src/kfx/save/core/save_inspect.cpp \
+src/kfx/save/core/save_migrate.cpp \
+src/kfx/save/core/save_names.cpp \
+src/kfx/save/core/save_recfile.cpp \
+src/kfx/save/core/save_resync.cpp \
+src/kfx/save/core/save_schema.cpp \
+src/kfx/save/core/save_schema_file.cpp \
+src/kfx/save/core/schema/schema_all.c \
+src/kfx/save/core/schema/schema_config.c \
+src/kfx/save/core/schema/schema_dungeon.c \
+src/kfx/save/core/schema/schema_game.c \
+src/kfx/save/core/schema/schema_misc.c \
+src/kfx/save/core/schema/schema_script.c \
+src/kfx/save/core/schema/schema_things.c \
+src/kfx/save/core/schema/schema_world.c \
+src/kfx/save/SaveCatalogue.cpp \
+src/kfx/save/SaveContinue.cpp \
+src/kfx/save/SaveGameFile.cpp \
+src/kfx/save/SaveManager.cpp \
+src/kfx/save/SaveRecordFiles.cpp \
+src/kfx/save/SaveReplayHeader.cpp \
+src/kfx/save/SaveUnionSelectors.cpp \
+src/replay_rewind.c \
+src/roomspace_input.c \
+src/save_trash.c
 
 KFX_C_SOURCES = $(filter %.c,$(KFX_SOURCES))
 KFX_CXX_SOURCES = $(filter %.cpp,$(KFX_SOURCES))

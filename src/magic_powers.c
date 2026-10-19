@@ -133,12 +133,13 @@ const Magic_use_Func magic_use_func_list[] = {
 TbBool can_cast_spell_f(PlayerNumber plyr_idx, PowerKind pwkind, MapSubtlCoord stl_x, MapSubtlCoord stl_y, const struct Thing *thing, unsigned long flags, const char *func_name)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    if (player->work_state == PSt_FreeDestroyWalls)
+    struct UserState* ustate = get_player_user_state(player);
+    if (ustate->work_state == PSt_FreeDestroyWalls)
     {
         struct SlabConfigStats *slabst = get_slab_stats(get_slabmap_for_subtile(stl_x, stl_y));
         return ( (slabst->category == SlbAtCtg_FortifiedWall) || (slabst->category == SlbAtCtg_FriableDirt) );
     }
-    else if ( (player->work_state == PSt_FreeCastDisease) || (player->work_state == PSt_FreeTurnChicken) )
+    else if ( (ustate->work_state == PSt_FreeCastDisease) || (ustate->work_state == PSt_FreeTurnChicken) )
     {
         return (slab_is_wall(subtile_slab(stl_x), subtile_slab(stl_y)) == false);
     }
@@ -148,7 +149,7 @@ TbBool can_cast_spell_f(PlayerNumber plyr_idx, PowerKind pwkind, MapSubtlCoord s
             return false;
         }
     }
-    if (player->work_state == PSt_FreeCtrlDirect)
+    if (ustate->work_state == PSt_FreeCtrlDirect)
     {
         return true;
     }
@@ -168,26 +169,21 @@ TbBool can_cast_spell_f(PlayerNumber plyr_idx, PowerKind pwkind, MapSubtlCoord s
                 cast_on_tng = false;
             }
         }
-        if (flag_is_set(powerst->can_cast_flags,PwCast_ThingOrMap))
-        {
-            // Fail only if both functions have failed - one is enough
-            if (!cast_at_xy && !cast_on_tng) {
-                if ((flags & CastChk_Final) != 0) {
-                    WARNLOG("%s: Player %d tried to cast %s on %s which can't be targeted",func_name,(int)plyr_idx,
-                        power_code_name(pwkind), (!cast_on_tng)?"a thing":(!cast_at_xy)?"a subtile":"thing or subtile");
+        TbBool can_target = cast_at_xy && cast_on_tng;
+        if (flag_is_set(powerst->can_cast_flags,PwCast_ThingOrMap)) {
+            can_target = cast_at_xy || cast_on_tng;
+        }
+        if (!can_target) {
+            if ((flags & CastChk_Final) != 0) {
+                if (flag_is_set(player->allocflags, PlaF_CompCtrl)) {
+                    WARNLOG("%s: Player %d tried to cast %s on a target which can't be targeted (thing %d, subtile %d)",func_name,(int)plyr_idx,
+                        power_code_name(pwkind), (int)cast_on_tng, (int)cast_at_xy);
+                } else {
+                    SYNCDBG(7,"%s: Player %d tried to cast %s on a target which can't be targeted (thing %d, subtile %d)",func_name,(int)plyr_idx,
+                        power_code_name(pwkind), (int)cast_on_tng, (int)cast_at_xy);
                 }
-                return false;
             }
-        } else
-        {
-            // Fail if any of the functions has failed - we need both
-            if (!cast_at_xy || !cast_on_tng) {
-                if ((flags & CastChk_Final) != 0) {
-                    WARNLOG("%s: Player %d tried to cast %s on %s which can't be targeted",func_name,(int)plyr_idx,
-                        power_code_name(pwkind), (!cast_on_tng)?"a thing":(!cast_at_xy)?"a subtile":"thing or subtile");
-                }
-                return false;
-            }
+            return false;
         }
         if ((powerst->config_flags & PwCF_IsParent) != 0)
         {
@@ -953,8 +949,7 @@ TbBool pay_for_spell(PlayerNumber plyr_idx, PowerKind pwkind, KeepPwrLevel power
         return true;
     }
     // If failed, say "you do not have enough gold"
-    if (is_my_player_number(plyr_idx))
-        output_message(SMsg_GoldNotEnough, 0);
+    output_player_message(plyr_idx, SMsg_GoldNotEnough, 0);
     return false;
 }
 
@@ -1002,8 +997,7 @@ static TbResult magic_use_power_armageddon(PowerKind power_kind, PlayerNumber pl
     {
         // If we can't afford the power, fail
         if (!pay_for_spell(plyr_idx, power_kind, 0)) {
-            if (is_my_player_number(plyr_idx))
-                output_message(SMsg_GoldNotEnough, 0);
+            output_player_message(plyr_idx, SMsg_GoldNotEnough, 0);
             return Lb_OK;
         }
     }
@@ -1272,11 +1266,7 @@ static TbResult magic_use_power_destroy_walls(PowerKind power_kind, PlayerNumber
             }
         }
     }
-    if (is_my_player_number(plyr_idx))
-    {
-        struct PowerConfigStats *powerst = get_power_model_stats(power_kind);
-        play_non_3d_sample(powerst->select_sound_idx);
-    }
+    play_player_sample(plyr_idx, get_power_model_stats(power_kind)->select_sound_idx);
     return Lb_SUCCESS;
 }
 
@@ -1561,8 +1551,7 @@ static TbResult magic_use_power_sight(PowerKind power_kind, PlayerNumber plyr_id
     {
         // If we can't afford the power, fail
         if (!pay_for_spell(plyr_idx, PwrK_SIGHT, power_level)) {
-            if (is_my_player_number(plyr_idx))
-                output_message(SMsg_GoldNotEnough, 0);
+            output_player_message(plyr_idx, SMsg_GoldNotEnough, 0);
             return Lb_FAIL;
         }
     }
@@ -1833,8 +1822,7 @@ static TbResult magic_use_power_possess_thing(PowerKind power_kind, PlayerNumber
     {
         // If we can't afford the power, fail
         if (!pay_for_spell(plyr_idx, power_kind, 0)) {
-            if (is_my_player_number(plyr_idx))
-                output_message(SMsg_GoldNotEnough, 0);
+            output_player_message(plyr_idx, SMsg_GoldNotEnough, 0);
             return Lb_OK;
         }
     }
@@ -2069,10 +2057,7 @@ TbResult magic_use_available_power_on_thing(PlayerNumber plyr_idx, PowerKind pwk
     }
     if (ret == Lb_FAIL) {
         // Make a rejection sound
-        if (is_my_player_number(plyr_idx))
-        {
-            play_non_3d_sample(snd_refusal);
-        }
+        play_player_sample(plyr_idx, snd_refusal);
     }
     return ret;
 }
@@ -2178,8 +2163,7 @@ TbResult magic_use_available_power_on_subtile(PlayerNumber plyr_idx, PowerKind p
     }
     if (ret == Lb_FAIL) {
         // Make a rejection sound
-        if (is_my_player_number(plyr_idx))
-            play_non_3d_sample(snd_refusal);
+        play_player_sample(plyr_idx, snd_refusal);
     }
     return ret;
 }

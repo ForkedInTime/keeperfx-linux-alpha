@@ -236,7 +236,7 @@ static void draw_creature_view_icons(struct Thing* creatng)
 
 int32_t engine_window_reserved_left(void)
 {
-    if ((game.operation_flags & GOF_ShowGui) == 0)
+    if (!local_state.show_gui)
         return 0;
     return (viewport_mode == VpMode_Original) ? status_panel_width : 0;
 }
@@ -292,95 +292,69 @@ void load_engine_window(TbGraphicsWindow *ewnd)
     local_state.engine_window_height = ewnd->height;
 }
 
+static unsigned char map_fade_blend[PALETTE_COLORS * PALETTE_COLORS];
+
+static void map_fade_sample_table(int32_t *tab, int count, int blk, int size, int warp, int mult)
+{
+    const int base = 4 * warp * size / 320;
+    for (int i = 0; i < count; i++)
+    {
+        const int pos = min(i * blk + blk / 2, size - 1);
+        tab[i] = mult * min(base + pos * (size - 2 * base) / size, size - 1);
+    }
+}
+
 void map_fade(unsigned char *outbuf, unsigned char *srcbuf1, unsigned char *srcbuf2, unsigned char *fade_tbl, unsigned char *ghost_tbl, long a6, long const xmax, long const ymax, long a9, int32_t warp_turns)
 {
-    long ix;
-    long iy;
     ensure_map_fade_tables(xmax, ymax);
     if ((xtab == NULL) || (ytab == NULL))
         return;
-    const long warp1 = a6 * warp_turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS;
-    const long warp0 = (32 - a6) * warp_turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS;
-    long x1base = 4 * warp1 * xmax / 320;
-    long x0base = 4 * warp0 * xmax / 320;
-    int32_t * xt = xtab;
-    int vx0 = 0;
-    int vx1 = 0;
-    for (ix = xmax; ix > 0; ix--)
+    const int blk = xmax >= 2560 && a6 > 0 && a6 < 32 ? 2 : 1;
+    const int cols = (xmax + blk - 1) / blk;
+    const int rows = (ymax + blk - 1) / blk;
+    int32_t *xs0 = xtab;
+    int32_t *xs1 = xtab + xmax;
+    int32_t *ys0 = ytab;
+    int32_t *ys1 = ytab + ymax;
+    map_fade_sample_table(xs0, cols, blk, xmax, (32 - a6) * warp_turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, 1);
+    map_fade_sample_table(xs1, cols, blk, xmax, a6 * warp_turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, 1);
+    map_fade_sample_table(ys0, rows, blk, ymax, (32 - a6) * warp_turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, xmax);
+    map_fade_sample_table(ys1, rows, blk, ymax, a6 * warp_turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, xmax);
+
+    const unsigned char *fade1 = &fade_tbl[a6 << 8];
+    const unsigned char *fade2 = &fade_tbl[(32 - a6) << 8];
+    for (int c2 = 0; c2 < PALETTE_COLORS; c2++)
     {
-        long val = x1base + vx1 / xmax;
-        long m;
-        if (val >= 0)
-        {
-            m = min(xmax,val);
-        }
-        else
-        {
-            m = 0;
-        }
-        xt[1] = m;
-        val = x0base + vx0 / xmax;
-        if (val >= 0) {
-            m = min(xmax,val);
-        } else {
-            m = 0;
-        }
-        xt[0] = m;
-        xt += 2;
-        vx0 += xmax - 2 * x0base;
-        vx1 += xmax - 2 * x1base;
+        const unsigned char *ghost = &ghost_tbl[PALETTE_COLORS * fade2[c2]];
+        unsigned char *blend = &map_fade_blend[PALETTE_COLORS * c2];
+        for (int c1 = 0; c1 < PALETTE_COLORS; c1++)
+            blend[c1] = ghost[fade1[c1]];
     }
 
-    long y1base = 4 * warp1 * ymax / 320;
-    long y0base = 4 * warp0 * ymax / 320;
-    int32_t * yt = ytab;
-    int vy1 = 0;
-    int vy0 = 0;
-    for (iy = ymax; iy > 0; iy--)
+    for (int r = 0; r < rows; r++)
     {
-        long val = y1base + vy1 / ymax;
-        long m;
-        if (val >= 0)
+        unsigned char *out = &outbuf[r * blk * a9];
+        if (r > 0 && ys0[r] == ys0[r - 1] && ys1[r] == ys1[r - 1])
         {
-            m = min(ymax,val);
-        }
-        else
+            memcpy(out, out - blk * a9, xmax);
+        } else
         {
-            m = 0;
+            const unsigned char *src1 = &srcbuf1[ys0[r]];
+            const unsigned char *src2 = &srcbuf2[ys1[r]];
+            if (blk == 1)
+            {
+                for (int x = 0; x < xmax; x++)
+                    out[x] = map_fade_blend[(src2[xs1[x]] << 8) | src1[xs0[x]]];
+            } else
+            {
+                for (int c = 0; c < xmax / 2; c++)
+                    out[2 * c] = out[2 * c + 1] = map_fade_blend[(src2[xs1[c]] << 8) | src1[xs0[c]]];
+                if (xmax & 1)
+                    out[xmax - 1] = map_fade_blend[(src2[xs1[cols - 1]] << 8) | src1[xs0[cols - 1]]];
+            }
         }
-        yt[1] = xmax * m;
-        val = y0base + vy0 / ymax;
-        if (val >= 0)
-        {
-            m = min(ymax,val);
-        } else {
-            m = 0;
-        }
-        yt[0] = xmax * m;
-        yt += 2;
-        vy0 += ymax - 2 * y0base;
-        vy1 += ymax - 2 * y1base;
-    }
-
-    x0base = a6 << 8;
-    y0base = (32 - a6) << 8;
-    unsigned char* out = outbuf;
-    yt = ytab;
-    for (iy = ymax; iy > 0; iy--)
-    {
-        unsigned char* sbuf2 = &srcbuf2[yt[1]];
-        unsigned char* sbuf1 = &srcbuf1[yt[0]];
-        xt = xtab;
-        for (ix = xmax; ix > 0; ix--)
-        {
-            int px1 = fade_tbl[x0base + sbuf1[xt[0]]];
-            int px2 = fade_tbl[y0base + sbuf2[xt[1]]];
-            *out = ghost_tbl[256 * px2 + px1];
-            out++;
-            xt += 2;
-        }
-        out += a9 - xmax;
-        yt += 2;
+        if (blk == 2 && r * 2 + 1 < ymax)
+            memcpy(out + a9, out, xmax);
     }
 }
 
@@ -416,9 +390,9 @@ void generate_map_fade_ghost_table(const char *fname, unsigned char *palette, un
  */
 void prepare_map_fade_buffers(unsigned char *fade_src, unsigned char *fade_dest, int scanline, int height)
 {
-    struct PlayerInfo* player = get_my_player();
+    struct UserState* ustate = get_local_user_state();
     // render the 3D screen
-    if (get_player_user_state(player)->prefs[UPref_FrontView] != 0)
+    if (ustate->prefs[UPref_FrontView] != 0)
       redraw_frontview();
     else
       redraw_isometric_view();
@@ -454,82 +428,36 @@ void prepare_map_fade_buffers(unsigned char *fade_src, unsigned char *fade_dest,
     }
 }
 
-static int32_t my_map_fade_turns(void)
-{
-    const struct UserState *ustate = get_player_user_state(get_my_player());
-    return user_state_invalid(ustate) ? 1 : max((int32_t)ustate->prefs[UPref_MapFade], 1);
-}
-
-static float map_fade_progress(void)
-{
-    struct PlayerInfo* player = get_my_player();
-    const float turns = (float)(my_map_fade_turns() - 1);
-    if (turns <= 0.0f)
-        return 1.0f;
-    float frac = is_feature_on(Ft_DeltaTime) ? (float)game.process_turn_time : 0.0f;
-    if (frac < 0.0f) frac = 0.0f;
-    if (frac > 1.0f) frac = 1.0f;
-    float progress = (turns - (float)player->instance_remain_turns + frac) / turns;
-    if (progress < 0.0f) progress = 0.0f;
-    if (progress > 1.0f) progress = 1.0f;
-    return progress;
-}
-
-long map_fade_in(long palette_fade_step)
+static void draw_map_fade(TbBool fading_in)
 {
     SYNCDBG(6,"Starting");
     int real_w = MyScreenWidth/pixel_size;
     int real_h = MyScreenHeight/pixel_size;
-    if (palette_fade_step == 0)
+    const TbBool starting = !local_state.map_fade_prepared;
+    if (starting)
     {
         ensure_map_fade_buffers(real_w, real_h);
         if ((map_fade_src == NULL) || (map_fade_dest == NULL) || (map_fade_ghost_table == NULL))
         {
             ERRORLOG("Failed to allocate map fade buffers for %dx%d", real_w, real_h);
-            return 32;
+            return;
         }
         prepare_map_fade_buffers(map_fade_src, map_fade_dest, real_w, real_h);
         generate_map_fade_ghost_table("data/mapfadeg.dat", engine_palette, map_fade_ghost_table);
+        local_state.map_fade_prepared = true;
     }
-    const int32_t turns = my_map_fade_turns();
-    const float display_step = 32.0f * map_fade_progress();
-    RendererSubmitMapFadeStep((int)palette_fade_step, display_step,
-        (float)turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, 1, map_fade_ghost_table);
+    // 0 shows the dungeon, 32 the parchment
+    const int32_t turns = local_state.map_fade_turns;
+    const float progress = local_map_fade_progress();
+    const float display_step = 32.0f * (fading_in ? progress : 1.0f - progress);
+    RendererSubmitMapFadeStep(starting, display_step,
+        (float)turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, map_fade_ghost_table);
+    // Software-only CPU blend
     if (lbDisplay.WScreen != NULL)
     {
         map_fade(lbDisplay.WScreen, map_fade_dest, map_fade_src, pixmap.fade_tables, map_fade_ghost_table,
             (long)(display_step + 0.5f), real_w, real_h, RendererScreenWidth(), turns);
     }
-    return (turns - (int32_t)get_my_player()->instance_remain_turns) * 32 / turns;
-}
-
-long map_fade_out(long palette_fade_step)
-{
-    SYNCDBG(6,"Starting");
-    int real_w = MyScreenWidth/pixel_size;
-    int real_h = MyScreenHeight/pixel_size;
-    if (palette_fade_step == 32)
-    {
-        ensure_map_fade_buffers(real_w, real_h);
-        if ((map_fade_src == NULL) || (map_fade_dest == NULL) || (map_fade_ghost_table == NULL))
-        {
-            ERRORLOG("Failed to allocate map fade buffers for %dx%d", real_w, real_h);
-            return 0;
-        }
-        prepare_map_fade_buffers(map_fade_src, map_fade_dest, real_w, real_h);
-        generate_map_fade_ghost_table("data/mapfadeg.dat", engine_palette, map_fade_ghost_table);
-    }
-    const int32_t turns = my_map_fade_turns();
-    const float display_step = 32.0f * (1.0f - map_fade_progress());
-    RendererSubmitMapFadeStep((int)palette_fade_step, display_step,
-        (float)turns / PARCHMENT_MAP_FADE_ORIGINAL_TURNS, 0, map_fade_ghost_table);
-    // Software-only CPU blend
-    if (lbDisplay.WScreen != NULL)
-    {
-        map_fade(lbDisplay.WScreen, map_fade_dest, map_fade_src, pixmap.fade_tables, map_fade_ghost_table,
-          (long)(display_step + 0.5f), real_w, real_h, RendererScreenWidth(), turns);
-    }
-    return (int32_t)get_my_player()->instance_remain_turns * 32 / turns;
 }
 
 long dummy_sound_line_of_sight(long a1, long a2, long a3, long a4, long a5, long a6)
@@ -621,7 +549,7 @@ void redraw_creature_view(void)
 {
     SYNCDBG(6,"Starting");
     struct PlayerInfo* player = get_my_player();
-    update_explored_flags_for_power_sight(player);
+    update_explored_flags_for_viewed_power_sights(player);
     struct Thing* thing = thing_get(get_displayed_player()->controlled_thing_idx);
     TRACE_THING(thing);
     if (thing_exists(thing))
@@ -633,7 +561,7 @@ void redraw_creature_view(void)
         smooth_screen_area(lbDisplay.WScreen, ewnd.x, ewnd.y,
             ewnd.width, ewnd.height, RendererScreenWidth());
     }
-    remove_explored_flags_for_power_sight(player);
+    remove_explored_flags_for_viewed_power_sights(player);
     GameUI_DrawFrame(player);
     struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     if (!creature_control_invalid(cctrl)) {
@@ -676,7 +604,7 @@ void redraw_isometric_view(void)
     TbGraphicsWindow ewnd;
     memset(&ewnd, 0, sizeof(TbGraphicsWindow));
     struct Camera* render_cam = get_local_active_camera(player);
-    update_explored_flags_for_power_sight(player);
+    update_explored_flags_for_viewed_power_sights(player);
     engine(player,render_cam);
     // Todo : De-global.
     if (smooth_on && (lbDisplay.WScreen != NULL))
@@ -685,7 +613,7 @@ void redraw_isometric_view(void)
         smooth_screen_area(lbDisplay.WScreen, ewnd.x, ewnd.y,
             ewnd.width, ewnd.height, RendererScreenWidth());
     }
-    remove_explored_flags_for_power_sight(player);
+    remove_explored_flags_for_viewed_power_sights(player);
     GameUI_DrawFrame(player);
     SYNCDBG(8,"Finished");
 }
@@ -695,9 +623,9 @@ void redraw_frontview(void)
     SYNCDBG(6,"Starting");
     struct PlayerInfo* player = get_my_player();
     struct Camera* render_cam = get_local_active_camera(player);
-    update_explored_flags_for_power_sight(player);
+    update_explored_flags_for_viewed_power_sights(player);
     draw_frontview_engine(render_cam);
-     remove_explored_flags_for_power_sight(player);
+     remove_explored_flags_for_viewed_power_sights(player);
     GameUI_DrawFrame(player);
 }
 
@@ -764,23 +692,27 @@ static void process_dungeon_top_pointer_graphic(const struct PlayerInfo *player)
 {
     struct Thing *thing;
     struct Dungeon* dungeon = get_dungeon(player->id_number);
-    struct PlayerStateConfigStats* plrst_cfg_stat = get_player_state_stats(player->work_state);
-    const struct UserState *ustate = get_player_user_state(player);
+    const struct UserState *ustate = get_player_user_state_prediction(player);
+    struct PlayerStateConfigStats* plrst_cfg_stat = get_player_state_stats(ustate->work_state);
     if (dungeon_invalid(dungeon) || user_state_invalid(ustate)) {
         set_pointer_graphic(MousePG_Invisible);
         return;
     }
     if (is_observer_camera_active()) {
-        set_pointer_graphic(MousePG_Arrow);
+        if (ustate->work_state == PSt_CreatrQuery || ustate->work_state == PSt_CreatrInfo) {
+            set_pointer_graphic(MousePG_Query);
+        } else {
+            set_pointer_graphic(MousePG_Arrow);
+        }
         return;
     }
     // During fade
-    if (player->instance_num == PI_MapFadeFrom) {
+    if (get_local_map_fade() != PVT_None) {
         set_pointer_graphic(MousePG_Invisible);
         return;
     }
     // Mouse over panel map
-    if (is_my_player(player) && ((game.operation_flags & GOF_ShowGui) != 0)
+    if (is_my_player(player) && local_state.show_gui
      && mouse_is_over_panel_map(local_state.minimap_pos_x, local_state.minimap_pos_y)) {
         if (game.small_map_state == 2) {
             set_pointer_graphic(MousePG_Invisible);
@@ -812,7 +744,7 @@ static void process_dungeon_top_pointer_graphic(const struct PlayerInfo *player)
     }
     int32_t i;
     int32_t dig_graphic = MousePG_Pickaxe;
-    if (player->roomspace_highlight_mode == drag_placement_mode) {
+    if (ustate->roomspace_highlight_mode == drag_placement_mode) {
         dig_graphic = MousePG_Pickaxe2;
     }
     short thing_under_hand;
@@ -822,7 +754,7 @@ static void process_dungeon_top_pointer_graphic(const struct PlayerInfo *player)
           i = ustate->secondary_cursor_state;
         else
           i = ustate->primary_cursor_state;
-        if ((player->instance_num == PI_Grab) || (player->instance_num == PI_Drop) || (player->instance_num == PI_Whip) || (player->instance_num == PI_WhipEnd) || (is_my_player(player) && local_state.local_thing_under_hand > 0) || (!power_hand_is_empty(player) && (i != CSt_DoorKey))) {
+        if ((player->instance_num == PI_Grab) || (player->instance_num == PI_Drop) || (player->instance_num == PI_Whip) || (player->instance_num == PI_WhipEnd) || power_hand_is_hovering(player) || (!power_hand_is_empty(player) && (i != CSt_DoorKey))) {
             i = CSt_PowerHand;
         } else
         if ((i == CSt_PowerHand) && power_hand_is_empty(player)) {
@@ -837,7 +769,7 @@ static void process_dungeon_top_pointer_graphic(const struct PlayerInfo *player)
             set_pointer_graphic(MousePG_LockMark);
             break;
         case CSt_PowerHand:
-            thing_under_hand = player->thing_under_hand;
+            thing_under_hand = ustate->thing_under_hand;
             if (is_my_player(player) && local_state.local_thing_under_hand > 0) {
                 thing_under_hand = local_state.local_thing_under_hand;
             }
@@ -947,7 +879,7 @@ static void process_dungeon_top_pointer_graphic(const struct PlayerInfo *player)
 void process_pointer_graphic(void)
 {
     struct PlayerInfo* player = get_my_player();
-    SYNCDBG(6,"Starting for view %d, player state %s, instance %d",(int)get_player_view_type(player),player_state_code_name(player->work_state),(int)player->instance_num);
+    SYNCDBG(6,"Starting for view %d, player state %s, instance %d",(int)get_player_view_type(player),player_state_code_name(get_player_user_state(player)->work_state),(int)player->instance_num);
     switch (get_local_view_type(player)) {
     case PVT_DungeonTop:
         // This case is complicated
@@ -996,14 +928,12 @@ void redraw_display(void)
     } else {
         lens_mode = 0;
     }
-    if ((player->instance_num == PI_MapFadeTo) && !is_observer_camera_active()) {
+    const unsigned char map_fade = get_local_map_fade();
+    if (map_fade == PVT_None)
+        local_state.map_fade_prepared = false;
+    if (map_fade != PVT_None) {
         parchment_loaded = 0;
-        local_state.palette_fade_step_map = map_fade_in(local_state.palette_fade_step_map);
-    } else
-    if ((player->instance_num == PI_MapFadeFrom) && !is_observer_camera_active())
-    {
-        parchment_loaded = 0;
-        local_state.palette_fade_step_map = map_fade_out(local_state.palette_fade_step_map);
+        draw_map_fade(map_fade == PVT_MapFadeIn);
     } else
     if ((view_type == PVT_CreatureContrl) || (view_type == PVT_CreaturePasngr))
     {
@@ -1030,16 +960,18 @@ void redraw_display(void)
     {
         char text[sizeof(player->mp_message_text) + 4];
         snprintf(text, sizeof(text), ">%s_", player->mp_message_text);
+        int chat_units_per_px = font_size_units_per_px(chat_font_size);
+        int chat_line_spacing = chat_units_per_px * CHAT_LINE_SPACING_PERCENT / 100;
         long pos_x = 148*units_per_pixel/16;
-        long pos_y = 8*units_per_pixel/16;
+        long pos_y = 28*units_per_pixel/16 - chat_line_spacing;
         if (game.armageddon_cast_turn != 0)
         {
             if ( (bonus_timer_enabled()) || (script_timer_enabled()) || display_variable_enabled() )
             {
-                pos_y = ((pos_y << 3) + ((LbTextLineHeight()*units_per_pixel/16) * (game.active_messages_count << (MyScreenHeight < 400))));
+                pos_y = (8*units_per_pixel/16 << 3) + chat_line_spacing * game.active_messages_count;
             }
         }
-        LbTextDrawResized(pos_x, pos_y, tx_units_per_px, text);
+        LbTextDrawResized(pos_x, pos_y, chat_units_per_px, text);
     }
     if (draw_spell_cost) {
         int32_t cursor_x;
@@ -1161,6 +1093,7 @@ void redraw_display(void)
         LbTextSetWindow(0/pixel_size, 0/pixel_size, MyScreenWidth/pixel_size, MyScreenHeight/pixel_size);
     }
     draw_eastegg();
+    observer_draw_faded_cursor();
   //show_onscreen_msg(8, "Physical(%d,%d) Graphics(%d,%d) Lens(%d,%d)", (int)RendererPhysicalWidth(), (int)lbDisplay.PhysicalScreenHeight, (int)RendererScreenHeight(), (int)RendererScreenWidth(), (int)eye_lens_width, (int)eye_lens_height);
     SYNCDBG(7,"Finished");
 }

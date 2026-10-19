@@ -84,7 +84,7 @@ struct EffectElementConfigStats {
     unsigned char unanimated;
     short lifespan;
     short lifespan_random;
-    short sprite_idx;
+    unsigned short sprite_idx;
     short sprite_size_min;
     short sprite_size_max;
     unsigned char animate_once;
@@ -96,7 +96,7 @@ struct EffectElementConfigStats {
     TbBool movable;
     unsigned char through_walls;
     unsigned char size_change; /**< See enum ThingSizeChange. */
-    char fall_acceleration;
+    int8_t fall_acceleration;
     short inertia_floor;
     short inertia_air;
     unsigned short subeffect_model;

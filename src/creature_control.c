@@ -155,7 +155,7 @@ struct Thing *create_and_control_creature_as_controller(struct PlayerInfo *playe
     struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     cctrl->creature_state_flags |= TF2_Spectator;
     cctrl->max_speed = calculate_correct_creature_maxspeed(thing);
-    set_player_mode(player, PVT_CreatureContrl);
+    set_user_view_type(get_player_primary_user(player), PVT_CreatureContrl);
     set_start_state(thing);
     // Preparing light object
     struct InitLight ilght;
@@ -175,14 +175,10 @@ struct Thing *create_and_control_creature_as_controller(struct PlayerInfo *playe
     {
         ERRORLOG("Cannot allocate light to new hero");
     }
-    if (is_my_player_number(thing->owner))
-    {
-        if (thing->class_id == TCls_Creature)
-        {
-            struct CreatureModelConfig* crconf = creature_stats_get_from_thing(thing);
-            SYNCDBG(7,"Possessing creature '%s', eye_effect=%d", crconf->name, crconf->eye_effect);
-            setup_eye_lens(crconf->eye_effect);
-        }
+    if ((thing->class_id == TCls_Creature) && is_my_player(player)) {
+        struct CreatureModelConfig* crconf = creature_stats_get_from_thing(thing);
+        SYNCDBG(7,"Possessing creature '%s', eye_effect=%d", crconf->name, crconf->eye_effect);
+        setup_eye_lens(crconf->eye_effect);
     }
     return thing;
 }

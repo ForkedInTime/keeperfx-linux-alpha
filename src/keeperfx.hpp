@@ -210,6 +210,7 @@ extern struct StartupParameters start_params;
 short setup_game(void);
 void game_loop(void);
 void update(void);
+void update_gameplay_delta_time(void);
 
 TbBool can_thing_be_queried(struct Thing *thing, PlayerNumber plyr_idx);
 TbBool all_dungeons_destroyed(const struct PlayerInfo *win_player);
@@ -220,6 +221,7 @@ void toggle_hero_health_flowers(void);
 
 TbBool toggle_computer_player(PlayerNumber plyr_idx);
 void PaletteSetUserPalette(NetUserId user, unsigned char *pal);
+void PaletteSetPlayerPalette(const struct PlayerInfo *player, unsigned char *pal);
 void clear_creature_pool(void);
 void reset_creature_max_levels(void);
 void reset_script_timers_and_flags(void);

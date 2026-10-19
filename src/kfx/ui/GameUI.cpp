@@ -15,10 +15,10 @@
 #include "gui_tooltips.h"          /* draw_tooltip */
 #include "power_hand.h"            /* draw_power_hand */
 #include "gui_boxmenu.h"           /* gui_draw_all_boxes */
-#include "player_data.h"           /* struct PlayerInfo, PVT_MapScreen/MapFadeIn/MapFadeOut */
-#include "player_instances.h"      /* PI_MapFadeTo, PI_MapFadeFrom */
-#include "game_legacy.h"           /* game, GOF_ShowGui */
-#include "bflib_basics.h"          /* flag_is_set, TbBool */
+#include "kfx/renderer/RendererManager.h"
+#include "player_data.h"           /* struct PlayerInfo, PVT_MapScreen, local_state */
+#include "gui_parchment.h"         /* get_local_map_fade */
+#include "bflib_basics.h"          /* TbBool */
 #include "local_camera.h"
 #include "observer.h"
 
@@ -37,14 +37,7 @@ bool GameUI::IsActiveForCurrentView(const struct PlayerInfo* player) const
     if (!player) {
         return false;
     }
-    unsigned char view_type = get_local_view_type(player);
-    if (view_type == PVT_MapScreen || view_type == PVT_MapFadeIn || view_type == PVT_MapFadeOut) {
-        return false;
-    }
-    if (!is_observer_camera_active() && (player->instance_num == PI_MapFadeTo || player->instance_num == PI_MapFadeFrom)) {
-        return false;
-    }
-    return true;
+    return (get_local_view_type(player) != PVT_MapScreen) && (get_local_map_fade() == PVT_None);
 }
 
 void GameUI::DrawFrame(struct PlayerInfo* player)
@@ -54,7 +47,7 @@ void GameUI::DrawFrame(struct PlayerInfo* player)
         return;
     }
 
-    TbBool show_sidebar = flag_is_set(game.operation_flags, GOF_ShowGui);
+    TbBool show_sidebar = local_state.show_gui;
 
     if (show_sidebar) {
         draw_whole_status_panel();
@@ -65,8 +58,10 @@ void GameUI::DrawFrame(struct PlayerInfo* player)
     }
     
     message_draw();
-    draw_tooltip();
     draw_power_hand();
+    RendererBeginOverlayCapture(OVERLAY_CAPTURE_TOOLTIP);
+    draw_tooltip();
+    RendererEndOverlayCapture(OVERLAY_CAPTURE_TOOLTIP);
     gui_draw_all_boxes();
 }
 

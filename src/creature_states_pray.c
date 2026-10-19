@@ -678,8 +678,7 @@ long process_sacrifice_award(struct Coord3d *pos, ThingModel model, PlayerNumber
 void process_sacrifice_creature(struct Coord3d *pos, ThingModel model, PlayerNumber owner, TbBool partial)
 {
     long award = process_sacrifice_award(pos, model, owner);
-    if (is_my_player_number(owner))
-    {
+    if (is_my_player_number(owner)) {
       switch (award)
       {
       case SacR_AngryWarn:
@@ -879,7 +878,7 @@ void script_set_sacrifice_recipe(const int action, const int param, ThingModel* 
         {
             break;
         }
-        if (memcmp(victims, sac->victims, MAX_SACRIFICE_VICTIMS * sizeof(char)) == 0)
+        if (memcmp(victims, sac->victims, MAX_SACRIFICE_VICTIMS * sizeof(ThingModel)) == 0)
         {
             sac->action = action;
             sac->param = param;
@@ -904,7 +903,8 @@ void script_set_sacrifice_recipe(const int action, const int param, ThingModel* 
     }
 
     struct SacrificeRecipe* sac = get_unused_sacrifice_recipe_slot();
-    if (!sac)  // Properly check for NULL
+    // A full table gives back slot 0, the reserved one, never NULL.
+    if (sac <= &game.conf.rules[0].sacrifices.sacrifice_recipes[0])
     {
         ERRORLOG("No free sacrifice rules");
         return;

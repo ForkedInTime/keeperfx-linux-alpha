@@ -607,7 +607,7 @@ void gui_area_big_room_button(struct GuiButton *gbtn)
 {
     RoomKind rkind = gbtn->content.lval;
     const struct PlayerInfo *player = get_displayed_player();
-    const struct UserState *ustate = get_player_user_state(player);
+    const struct UserState *ustate = get_player_user_state_prediction(player);
 
     struct Dungeon* dungeon = get_players_dungeon(player);
 
@@ -639,7 +639,7 @@ void gui_area_big_room_button(struct GuiButton *gbtn)
     {
         boxsize = 1;
     }
-    if ((player->work_state == PSt_BuildRoom) && (boxsize > 1))
+    if ((ustate->work_state == PSt_BuildRoom) && (boxsize > 1))
     {
         snprintf(gui_textbuf, sizeof(gui_textbuf), "%ld", (long)roomst->cost * boxsize);
     }
@@ -647,9 +647,9 @@ void gui_area_big_room_button(struct GuiButton *gbtn)
     {
         snprintf(gui_textbuf, sizeof(gui_textbuf), "%ld", (long)roomst->cost);
     }
-    if (player->render_roomspace.total_roomspace_cost <= dungeon->total_money_owned)
+    if (ustate->render_roomspace.total_roomspace_cost <= dungeon->total_money_owned)
     {
-        if ((player->work_state == PSt_BuildRoom) && (ustate->chosen_room_kind == game.chosen_room_kind)
+        if ((ustate->work_state == PSt_BuildRoom) && (ustate->chosen_room_kind == game.chosen_room_kind)
           && ((get_gameturn() % (2 * gui_blink_rate)) < gui_blink_rate))
         {
             draw_gui_panel_sprite_rmleft(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx, 44);
@@ -807,6 +807,7 @@ void gui_choose_special_spell(struct GuiButton *gbtn)
 
 void gui_area_big_spell_button(struct GuiButton *gbtn)
 {
+    const struct UserState* ustate = get_player_user_state_prediction(get_my_player());
     unsigned short flg_mem = RendererGetDrawFlags();
 
     int units_per_px = (gbtn->width * 16 + 126 / 2) / 126;
@@ -855,7 +856,7 @@ void gui_area_big_spell_button(struct GuiButton *gbtn)
     snprintf(text, sizeof(text), "%ld", (long)price);
     if (dungeon->total_money_owned >= price)
     {
-        if ((player->work_state == powerst->work_state) && ((get_gameturn() % (2 * gui_blink_rate)) >= gui_blink_rate)) {
+        if ((ustate->work_state == powerst->work_state) && ((get_gameturn() % (2 * gui_blink_rate)) >= gui_blink_rate)) {
             draw_gui_panel_sprite_rmleft(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx, 44);
         } else {
             draw_gui_panel_sprite_left(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx);
@@ -1173,7 +1174,7 @@ void gui_area_big_trap_button(struct GuiButton *gbtn)
 {
     int manufctr_idx = gbtn->content.lval;
     const struct PlayerInfo *player = get_displayed_player();
-    const struct UserState *ustate = get_player_user_state(player);
+    const struct UserState *ustate = get_player_user_state_prediction(player);
 
     struct Dungeon* dungeon = get_players_dungeon(player);
     struct ManufactureData* manufctr = get_manufacture_data(manufctr_idx);
@@ -1221,8 +1222,8 @@ void gui_area_big_trap_button(struct GuiButton *gbtn)
         if (amount <= 0) {
             draw_gui_panel_sprite_left(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx + 1);
         } else
-        if ((((manufctr->tngclass == TCls_Trap) && (ustate->chosen_trap_kind == manufctr->tngmodel) && (player->work_state == PSt_PlaceTrap))
-        || ((manufctr->tngclass == TCls_Door) && (ustate->chosen_door_kind == manufctr->tngmodel) && (player->work_state == PSt_PlaceDoor)))
+        if ((((manufctr->tngclass == TCls_Trap) && (ustate->chosen_trap_kind == manufctr->tngmodel) && (ustate->work_state == PSt_PlaceTrap))
+        || ((manufctr->tngclass == TCls_Door) && (ustate->chosen_door_kind == manufctr->tngmodel) && (ustate->work_state == PSt_PlaceDoor)))
         && ((get_gameturn() % (2 * gui_blink_rate)) < gui_blink_rate) )
         {
             draw_gui_panel_sprite_rmleft(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx, 44);
