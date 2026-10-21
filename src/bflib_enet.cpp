@@ -1299,6 +1299,7 @@ struct NetSP *InitEnetSP()
     {
             .init = &bf_enet_init,
             .exit = &bf_enet_exit,
+            .disconnect = &host_destroy,
             .host = &bf_enet_host,
             .join = &bf_enet_join,
             .update = &bf_enet_update,
