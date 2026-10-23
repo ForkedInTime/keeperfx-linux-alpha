@@ -97,6 +97,10 @@ bool RendererSoftware::ensure_present_target()
 
 void RendererSoftware::destroy_present_target()
 {
+    if (m_video_texture != nullptr) { SDL_DestroyTexture(m_video_texture); m_video_texture = nullptr; }
+    m_video_w = 0;
+    m_video_h = 0;
+    m_video_pending = false;
     if (m_texture != nullptr) { SDL_DestroyTexture(m_texture); m_texture = nullptr; }
     if (m_renderer != nullptr) { SDL_DestroyRenderer(m_renderer); m_renderer = nullptr; }
     m_tex_w = 0;
@@ -134,15 +138,61 @@ bool RendererSoftware::CanDraw() const
     return lbDisplay.WScreen != NULL;
 }
 
+// A true-colour movie frame cannot go through the 8-bit draw surface, so it
+// gets a texture of its own, which the next PresentFrame() draws instead of
+// that surface. The software backend presents on the game thread, the thread
+// that owns m_renderer, so the upload can happen here.
+bool RendererSoftware::present_rgb24(const struct RendererPresentImageDesc* desc)
+{
+    if (desc->src == nullptr || desc->src_w <= 0 || desc->src_h <= 0 ||
+        desc->kind != PRESENT_KIND_OPAQUE || SwDisplaySurfaceGet() == NULL || !ensure_present_target())
+        return false;
+    if (m_video_texture == nullptr || m_video_w != desc->src_w || m_video_h != desc->src_h)
+    {
+        if (m_video_texture != nullptr) { SDL_DestroyTexture(m_video_texture); m_video_texture = nullptr; }
+        m_video_w = 0;
+        m_video_h = 0;
+        m_video_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGB24,
+                                            SDL_TEXTUREACCESS_STREAMING, desc->src_w, desc->src_h);
+        if (m_video_texture == nullptr)
+        {
+            ERRORLOG("SDL_CreateTexture failed for a %dx%d movie frame: %s", desc->src_w, desc->src_h, SDL_GetError());
+            return false;
+        }
+        // Filmed footage, not pixel art: scaled smoothly, unlike the draw surface.
+        SDL_SetTextureScaleMode(m_video_texture, SDL_SCALEMODE_LINEAR);
+        m_video_w = desc->src_w;
+        m_video_h = desc->src_h;
+    }
+    const int pitch = (desc->src_pitch > 0) ? desc->src_pitch : desc->src_w * 3;
+    if (!SDL_UpdateTexture(m_video_texture, NULL, desc->src, pitch))
+    {
+        ERRORLOG("Movie frame upload failed: %s", SDL_GetError());
+        return false;
+    }
+    m_video_dst_x = desc->dst_x;
+    m_video_dst_y = desc->dst_y;
+    m_video_dst_w = desc->dst_w;
+    m_video_dst_h = desc->dst_h;
+    m_video_pending = true;
+    return true;
+}
+
 // Nearest-neighbour scale of desc's source into its destination rect.
 // OPAQUE also clears everything outside the rect; TRANSPARENT skips
 // uncovered pixels (coverage 0, or index 0 when there is no coverage map).
 bool RendererSoftware::PresentImage(const struct RendererPresentImageDesc* desc)
 {
+    if (desc != nullptr && desc->format == PRESENT_FORMAT_RGB24)
+        return present_rgb24(desc);
     TbPixel* screen = SwTargetWScreen();
     if (desc == nullptr || desc->src == nullptr || screen == nullptr ||
         desc->format != PRESENT_FORMAT_INDEXED8 || desc->src_w <= 0 || desc->src_h <= 0)
         return false;
+    // An opaque present owns the whole screen, so a movie frame still waiting
+    // for PresentFrame() would only cover it.
+    if (desc->kind == PRESENT_KIND_OPAQUE)
+        m_video_pending = false;
 
     if (desc->palette == PRESENT_PALETTE_EMBEDDED)
     {
@@ -368,7 +418,32 @@ void RendererSoftware::PresentFrame()
     GetSDLWindowSystem()->GetPresentRect(&px, &py, &pw, &ph);
     const SDL_FRect dst = { (float)px, (float)py, (float)pw, (float)ph };
     SDL_RenderClear(m_renderer);
-    SDL_RenderTexture(m_renderer, m_texture, NULL, (pw > 0 && ph > 0) ? &dst : NULL);
+    if (m_video_pending && m_video_texture != nullptr)
+    {
+        // The movie frame replaces the draw surface, through the same mapping
+        // from draw-surface coordinates to the window.
+        float bx = 0.0f, by = 0.0f, bw = 0.0f, bh = 0.0f;
+        if (pw > 0 && ph > 0)
+        {
+            bx = (float)px; by = (float)py; bw = (float)pw; bh = (float)ph;
+        }
+        else
+        {
+            int ow = 0, oh = 0;
+            SDL_GetCurrentRenderOutputSize(m_renderer, &ow, &oh);
+            bw = (float)ow; bh = (float)oh;
+        }
+        const float sx = bw / (float)m_tex_w;
+        const float sy = bh / (float)m_tex_h;
+        const SDL_FRect vdst = { bx + m_video_dst_x * sx, by + m_video_dst_y * sy,
+                                 m_video_dst_w * sx, m_video_dst_h * sy };
+        SDL_RenderTexture(m_renderer, m_video_texture, NULL, &vdst);
+        m_video_pending = false;
+    }
+    else
+    {
+        SDL_RenderTexture(m_renderer, m_texture, NULL, (pw > 0 && ph > 0) ? &dst : NULL);
+    }
     SDL_RenderPresent(m_renderer);
     LbMouseOnEndSwap();
 }

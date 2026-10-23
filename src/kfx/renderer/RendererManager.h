@@ -90,11 +90,15 @@ TbBool RendererIsFrameOpen(void);
                                         sub-rect present (e.g. the parchment overhead map) that owns
                                         every pixel in its own rect and none outside it */
 
-// Source pixel format for RendererPresentImageDesc::format. Only INDEXED8
-// exists today (every present source -- FMV frames, splash bitmaps, the
-// parchment background -- is 8-bit indexed); true-colour formats are future
-// work, not scaffolded here.
+// Source pixel format for RendererPresentImageDesc::format. Splash bitmaps and
+// the parchment background are 8-bit indexed. Movies are not: every shipped
+// one is H.264, and squeezing those into 256 colours dithers and bands them
+// badly, so they are presented as RGB24 where the backend can take it.
+// RGB24 is packed R,G,B with src_pitch bytes per row, PRESENT_KIND_OPAQUE only.
+// A backend that cannot present a format returns false from
+// RendererPresentImage(); the caller then falls back to INDEXED8.
 #define PRESENT_FORMAT_INDEXED8  0
+#define PRESENT_FORMAT_RGB24     1
 
 struct RendererPresentImageDesc {
     int dst_x, dst_y, dst_w, dst_h;

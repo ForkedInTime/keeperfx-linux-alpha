@@ -50,12 +50,22 @@ public:
 private:
     bool ensure_present_target();
     void destroy_present_target();
+    bool present_rgb24(const struct RendererPresentImageDesc* desc);
 
     SDL_Renderer* m_renderer = nullptr;
     SDL_Texture*  m_texture  = nullptr;
     int           m_tex_w    = 0;
     int           m_tex_h    = 0;
     int           m_vsync    = -1; // SDL_SetRenderVSync value; -1 = unset
+
+    // A true-colour movie frame bypasses the 8-bit draw surface: it is uploaded
+    // here and drawn by the next PresentFrame() in place of that surface,
+    // scaled by the GPU with linear filtering. One frame at a time.
+    SDL_Texture*  m_video_texture = nullptr;
+    int           m_video_w       = 0;
+    int           m_video_h       = 0;
+    bool          m_video_pending = false;
+    int           m_video_dst_x = 0, m_video_dst_y = 0, m_video_dst_w = 0, m_video_dst_h = 0;
 
     SoftwareUIRenderer        m_ui_renderer;
     SoftwareTextRenderer      m_text_renderer;
