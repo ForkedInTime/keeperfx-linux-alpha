@@ -187,7 +187,7 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges --invert-grep --grep='^Linux-Snapshot-Of:' upstream/master..HEAD`
-> — 408 commits on top of the team's master, snapshot commits excluded; 17 of them are the team's own fixes, taken ahead of a
+> — 411 commits on top of the team's master, snapshot commits excluded; 17 of them are the team's own fixes, taken ahead of a
 > sync, and keep their authors. The sections below are the line items.</sub>
 
 <details>
@@ -203,9 +203,12 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   until you opt in. It replaces the fork's own GPU present layer from June (8-bit frame uploaded,
   palette applied in a shader), which had no place in upstream's new renderer architecture; the software path now presents
   through SDL exactly as upstream's does.
-- **Front-end movies in any codec.** The intro, logo stings and outro are not limited to 8-bit Smacker:
-  any source ffmpeg decodes is converted to a 256-colour frame and played through the same path. Plus a
-  no-AI "vintage cleanup" of all five movies that keeps the original 80s-CG character while removing
+- **Front-end movies in any codec, in full colour.** The intro, logo stings and outro are not limited
+  to 8-bit Smacker: anything ffmpeg decodes plays, and with the default software renderer it plays in
+  full colour, scaled smoothly to the screen. Upstream's present API takes 8-bit images only, so the
+  fork adds a full-colour format to it (between 1.4.0.5698 and 1.4.0.6010 the alphas played movies in
+  216 dithered colours for want of it). The opt-in OpenGL renderer still plays them in 256 colours. Plus
+  a no-AI "vintage cleanup" of all five movies that keeps the original 80s-CG character while removing
   blocking/banding on a big screen.
 - **Your own music — any filenames, any format.** Upstream (since August 2026) plays the files in `music/`
   by their position in the folder, and only those of one format: FLAC if there is any, otherwise WAV, OGG,
