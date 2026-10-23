@@ -122,6 +122,9 @@ struct movie_t {
 	std::vector<uint8_t> m_idx;         // quantised 8-bit indices
 	uint8_t m_pal8_palette[256 * 4];    // fixed palette, stored B,G,R,A per entry
 	bool m_pal8_palette_built = false;
+	// Set once the renderer turns an RGB24 frame down; from then on frames go
+	// through the 8-bit conversion below instead.
+	bool m_truecolor_refused = false;
 	SwrContext * m_resampler = nullptr;
 	time_point m_video_start;
 	AVRational m_time_base;
@@ -394,16 +397,9 @@ struct movie_t {
 		m_pal8_palette_built = true;
 	}
 
-	// Convert m_frame (any pixel format) into a pal8 view in `out`.
-	// `out` borrows our member buffers; valid until the next call.
+	// Convert m_frame (any pixel format) into m_rgb, packed RGB24.
 	// Throws when the frame cannot be converted: play_smk() logs it and skips the movie.
-	void convert_frame_to_pal8(AVFrame & out) {
-		static const uint8_t bayer8[64] = {
-			 0,32, 8,40, 2,34,10,42,  48,16,56,24,50,18,58,26,
-			12,44, 4,36,14,46, 6,38,  60,28,52,20,62,30,54,22,
-			 3,35,11,43, 1,33, 9,41,  51,19,59,27,49,17,57,25,
-			15,47, 7,39,13,45, 5,37,  63,31,55,23,61,29,53,21
-		};
+	void convert_frame_to_rgb24() {
 		const int w = m_frame->width;
 		const int h = m_frame->height;
 		m_sws = sws_getCachedContext(m_sws, w, h, (AVPixelFormat)m_frame->format,
@@ -432,6 +428,21 @@ struct movie_t {
 			}
 		}
 		sws_scale(m_sws, m_frame->data, m_frame->linesize, 0, h, m_rgb->data, m_rgb->linesize);
+	}
+
+	// Convert m_frame (any pixel format) into a pal8 view in `out`.
+	// `out` borrows our member buffers; valid until the next call.
+	// Throws when the frame cannot be converted: play_smk() logs it and skips the movie.
+	void convert_frame_to_pal8(AVFrame & out) {
+		static const uint8_t bayer8[64] = {
+			 0,32, 8,40, 2,34,10,42,  48,16,56,24,50,18,58,26,
+			12,44, 4,36,14,46, 6,38,  60,28,52,20,62,30,54,22,
+			 3,35,11,43, 1,33, 9,41,  51,19,59,27,49,17,57,25,
+			15,47, 7,39,13,45, 5,37,  63,31,55,23,61,29,53,21
+		};
+		convert_frame_to_rgb24();
+		const int w = m_frame->width;
+		const int h = m_frame->height;
 		if (!m_pal8_palette_built) { build_pal8_palette(); }
 		if ((int)m_idx.size() < w * h) { m_idx.resize(w * h); }
 		for (int y = 0; y < h; ++y) {
@@ -457,24 +468,64 @@ struct movie_t {
 		out.data[1] = m_pal8_palette;
 	}
 
+	// Where on screen a frame of m_frame's size goes, from the movie flags.
+	void set_present_rect(struct RendererPresentImageDesc & desc) const {
+		const bool scaling_mode = (m_flags & (SMK_FullscreenFit | SMK_FullscreenStretch | SMK_FullscreenCrop)) != 0;
+		if (scaling_mode) {
+			compute_scaled_video_rect(*m_frame, m_flags, RendererScreenWidth(), RendererScreenHeight(),
+				&desc.dst_x, &desc.dst_y, &desc.dst_w, &desc.dst_h);
+		} else {
+			const int dst_w = (m_flags & SMK_PixelDoubleWidth) ? 2 * m_frame->width : m_frame->width;
+			const int dst_h = (m_flags & (SMK_PixelDoubleLine | SMK_InterlaceLine)) ? 2 * m_frame->height : m_frame->height;
+			desc.dst_x = (RendererPhysicalWidth() - dst_w) >> 1;
+			desc.dst_y = (RendererPhysicalHeight() - dst_h) >> 1;
+			desc.dst_w = dst_w;
+			desc.dst_h = dst_h;
+		}
+	}
+
 	void output_video_frame() {
+		LbScreenWaitVbi(); // this is a no-op today
+
+		// Every shipped movie is H.264. Offered in full colour first, as the
+		// GL present path played them up to 1.4.0.5660; 256 colours with a
+		// fixed palette and an ordered dither is the fallback for a renderer
+		// that cannot take it. Both conversions can throw, so each runs before
+		// its frame is opened.
+		if (!m_truecolor_refused) {
+			convert_frame_to_rgb24();
+			if (!RendererBeginFrame()) {
+				return;
+			}
+			struct RendererPresentImageDesc rgb_desc = {};
+			rgb_desc.src = m_rgb->data[0];
+			rgb_desc.src_pitch = m_rgb->linesize[0];
+			rgb_desc.src_w = m_rgb->width;
+			rgb_desc.src_h = m_rgb->height;
+			rgb_desc.format = PRESENT_FORMAT_RGB24;
+			set_present_rect(rgb_desc);
+			const bool presented = RendererPresentImage(&rgb_desc);
+			RendererEndFrame();
+			if (presented) {
+				RendererPresentFrame();
+				return;
+			}
+			m_truecolor_refused = true;
+			SYNCLOG("The renderer takes no true-colour images; movies play in 256 colours");
+		}
 		// FFMpeg used to provide m_frame->palette_has_changed but it has been deprecated
 		// Assume the palette has changed every frame as there is no way for us to know anymore
 		// A non-PAL8 source (anything but Smacker) is converted to an indexed frame with
-		// a fixed palette first; the renderer's present path only takes indexed8 with
-		// an embedded palette. Read through vf from here on, not m_frame.
+		// a fixed palette first. Read through vf from here on, not m_frame.
 		const AVFrame * vf = m_frame;
 		AVFrame conv;
 		if (m_frame->format != AV_PIX_FMT_PAL8) {
 			convert_frame_to_pal8(conv);
 			vf = &conv;
 		}
-		LbScreenWaitVbi(); // this is a no-op today
-		
 		if (!RendererBeginFrame()) {
 			return;
 		}
-		const bool scaling_mode = (m_flags & (SMK_FullscreenFit | SMK_FullscreenStretch | SMK_FullscreenCrop)) != 0;
 		struct RendererPresentImageDesc present_desc = {};
 		present_desc.src = vf->data[0];
 		present_desc.src_pitch = vf->linesize[0];
@@ -482,17 +533,7 @@ struct movie_t {
 		present_desc.src_h = vf->height;
 		present_desc.palette = PRESENT_PALETTE_EMBEDDED;
 		present_desc.embedded_palette = vf->data[1];
-		if (scaling_mode) {
-			compute_scaled_video_rect(*vf, m_flags, RendererScreenWidth(), RendererScreenHeight(),
-				&present_desc.dst_x, &present_desc.dst_y, &present_desc.dst_w, &present_desc.dst_h);
-		} else {
-			const int dst_w = (m_flags & SMK_PixelDoubleWidth) ? 2 * vf->width : vf->width;
-			const int dst_h = (m_flags & (SMK_PixelDoubleLine | SMK_InterlaceLine)) ? 2 * vf->height : vf->height;
-			present_desc.dst_x = (RendererPhysicalWidth() - dst_w) >> 1;
-			present_desc.dst_y = (RendererPhysicalHeight() - dst_h) >> 1;
-			present_desc.dst_w = dst_w;
-			present_desc.dst_h = dst_h;
-		}
+		set_present_rect(present_desc);
 
 		RendererPresentImage(&present_desc);
 		RendererEndFrame();

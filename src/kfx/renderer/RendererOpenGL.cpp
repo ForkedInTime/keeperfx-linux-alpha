@@ -831,7 +831,10 @@ void RendererOpenGL::EndFrame()
 
 bool RendererOpenGL::PresentImage(const struct RendererPresentImageDesc* desc)
 {
-    if (m_impl == nullptr || !m_impl->imgpresent.IsReady())
+    // The image pass samples its source through the palette, so it takes
+    // indexed images only; a movie offered as RGB24 falls back to 8-bit.
+    if (m_impl == nullptr || !m_impl->imgpresent.IsReady() ||
+        desc == nullptr || desc->format != PRESENT_FORMAT_INDEXED8)
         return false;
     m_impl->imgpresent.Submit(desc);
     return true;
