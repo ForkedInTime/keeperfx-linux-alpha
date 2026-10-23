@@ -151,13 +151,14 @@ If you enjoy this, support **the upstream project** — that's where the game is
 
 ## What the Tux Edition adds on top of upstream
 
-**Upstream supports Linux — as source code.** `linux.mk` is theirs and it works; you can compile KeeperFX
-on Linux today. What you can't do is *download* it. Their release pipeline cross-compiles to Windows with
-MinGW, and every release from 2024 to the current **v1.4.0** ships exactly one file:
+**Upstream supports Linux — as source code.** Their CMake build compiles natively on Linux, and their CI
+builds a Linux binary to test pull requests; you can compile KeeperFX on Linux today. What you can't do
+is *download* it. Their release pipeline cross-compiles to Windows with MinGW, and every release from 2024
+to the current **v1.4.0** ships exactly one file:
 `keeperfx_1_4_0_complete.7z`, a Windows package. Their download page lists Linux as *"Not available yet —
 coming soon"*, and there's an open pull request to build an AppImage on their CI
 ([#4990](https://github.com/dkfans/keeperfx/pull/4990)) — good news, and we'll happily stand down the day
-it lands. Until then the Linux path ends at a compiler: no build, no installer, no launcher.
+it lands. Until then the Linux path ends at a compiler: no released build, no installer, no launcher.
 
 **This edition is that missing half, and only that half.** Every week a bot merges the team's latest
 `master` here — with its Windows-only parts stripped out, proven not to change the game — builds and
@@ -167,8 +168,8 @@ maintains: a ready-to-run **AppImage, Flatpak and Arch package**, a native Qt la
 Wine, and the Linux-specific fixes, hardening and performance work below.
 
 > **At a glance — everything here is a curated Linux layer, not a rewrite of the game.** We don't chase
-> upstream's headline count; the team ships the *game*, and our job is the platform work they don't do.
-> That layer is real, and every line of it is traceable to a commit in this repo:
+> upstream's headline count; the team ships the *game*, and our job is the platform work they don't do,
+> plus the bugs we find on the way. That layer is real, and every line of it is traceable to a commit in this repo:
 >
 > [![This page last updated](https://img.shields.io/github/last-commit/ForkedInTime/keeperfx-linux-alpha/alpha?path=README.md&style=flat-square&label=this%20page%20last%20updated&color=2ea44f)](https://github.com/ForkedInTime/keeperfx-linux-alpha/commits/alpha/README.md)
 >
@@ -176,39 +177,44 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > |---|---|---|
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
 > | 🧹 | **Linux-only source** — every Windows-only file and `#ifdef _WIN32` branch is stripped from the team's code before it is merged (281 files, ~101,000 lines at the switch), [proven](packaging/linux-only/README.md) not to change what Linux compiles; a guard workflow keeps it from coming back | the whole tree |
-> | 🧮 | **64-bit & Windows-assumption fixes** — the game was written for 32-bit Windows: level-script argument slots, the software rasteriser's carries (creature shadows), signed game-turn arithmetic, movie-recorder and high-score file layouts, campaign progress written by earlier Linux builds, a network timeout; plus mod files in any letter case, `\` paths, Korean code page 949, an API-server SIGPIPE | ~17 fixes |
-> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008, and map scripts that can read files but not change them | ~35 fixes |
+> | 🧮 | **64-bit & Windows-assumption fixes** — the game was written for 32-bit Windows: level-script argument slots, the software rasteriser's carries (creature shadows), signed game-turn arithmetic, movie-recorder and high-score file layouts, campaign progress and save titles written by earlier Linux builds, the light table in saved games, 64-bit config flags (the hand's), a network timeout; plus mod files in any letter case, `\` paths, Korean code page 949, an API-server SIGPIPE | ~20 fixes |
+> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008, map scripts that can read files but not change them, and chat and replays that can no longer act on your machine | ~40 fixes |
+> | 🎮 | **Gameplay bugs found in players' games** — workers quitting a room they cross or step off, endless scavenger re-enrolment, imps and the computer repeating trips that cannot succeed, trap-crate and hatchery counts, rebirth, doors, explosions, abyss kills, the Call to Arms charge bar, and script commands that missed the creatures already on the map | ~25 fixes |
 > | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 8 wins |
-> | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland, artwork regenerated from upstream's graphics repository on every build | 5 items |
+> | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland, artwork (and the game's text) regenerated from upstream's sources on every build | 5 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
 > | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges --invert-grep --grep='^Linux-Snapshot-Of:' upstream/master..HEAD`
-> — 328 commits of ours on top of theirs, on top of 27 merges of their work (snapshot commits excluded). The sections below are the line items.</sub>
+> — 408 commits on top of the team's master, snapshot commits excluded; 17 of them are the team's own fixes, taken ahead of a
+> sync, and keep their authors. The sections below are the line items.</sub>
 
 <details>
 <summary><b>📋 Full breakdown — every change, area by area</b> &nbsp;<sub>(click to expand)</sub></summary>
 <br>
 
 **Display & media**
-- **Upstream's OpenGL renderer, built for Linux (opt-in).** In September 2026 upstream added an
-  experimental OpenGL backend — world, UI, sprites, shadows and lens effects drawn by the GPU — but only
-  wired it into their Windows build. This fork compiles it into the Linux binary: set `RENDERER=OPENGL`
-  in `keeperfx.cfg` to try it. `SOFTWARE` stays the default and is what every install runs until you opt
-  in. It replaces the fork's own GPU present layer from June (8-bit frame uploaded, palette applied in a
-  shader), which had no place in upstream's new renderer architecture; the software path now presents
+- **Upstream's OpenGL renderer, in a Linux build you can download (opt-in).** In September 2026 upstream
+  added an experimental OpenGL backend — world, UI, sprites, shadows and lens effects drawn by the GPU.
+  Their CMake build compiles it everywhere, but the only build they release is for Windows. This fork
+  compiles it into the Linux binary: set `RENDERER=OPENGL` in `keeperfx.cfg` to try it. Upstream's
+  shipped config now selects `OPENGL`; here `SOFTWARE` stays the default and is what every install runs
+  until you opt in. It replaces the fork's own GPU present layer from June (8-bit frame uploaded,
+  palette applied in a shader), which had no place in upstream's new renderer architecture; the software path now presents
   through SDL exactly as upstream's does.
 - **Front-end movies in any codec.** The intro, logo stings and outro are not limited to 8-bit Smacker:
   any source ffmpeg decodes is converted to a 256-colour frame and played through the same path. Plus a
   no-AI "vintage cleanup" of all five movies that keeps the original 80s-CG character while removing
   blocking/banding on a big screen.
-- **Your own music — any filenames, any format.** Upstream demands exactly `keeper02.ogg` … `keeper07.ogg`
-  and plays nothing otherwise. Here the game uses whatever audio is in `music/`: name the files what you
-  like (`Track 02.flac`, `02.wav`, or the original names) in **OGG, FLAC, WAV or MP3**. Files carrying a
-  track number are placed by it; the rest are used in alphabetical order. Existing installs are untouched —
-  `keeperNN` names are still looked up first and still win. And when something doesn't play, `keeperfx.log`
-  now names every file the game skipped and why, instead of failing silently.
+- **Your own music — any filenames, any format.** Upstream (since August 2026) plays the files in `music/`
+  by their position in the folder, and only those of one format: FLAC if there is any, otherwise WAV, OGG,
+  then MP3. Here the game uses whatever audio is in `music/`: name the files what you like
+  (`Track 02.flac`, `02.wav`, or the original names) in **OGG, FLAC, WAV or MP3**, mixed if you like.
+  Files carrying a track number are placed by it; the rest are used in alphabetical order. Existing
+  installs are untouched — `keeperNN` names are still looked up first and still win. And when
+  something doesn't play, `keeperfx.log` now names every file the game skipped and why, instead of
+  failing silently.
 - **The artwork tracks upstream, not their last release.** Upstream keeps the game's sprites, fonts,
   textures and land views in a separate repository and regenerates them on every build of theirs; this
   edition used to take them from their last *stable* package while building the engine from their
@@ -216,7 +222,8 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   the in-game Load/Save scrollbar (six new sprites) drew nothing and logged a missing sprite on every
   menu. Every release build now regenerates the artwork the way upstream does, so the scrollbar, the
   coloured message icons, the multiplayer bullfrog colours, the font fixes and the floor next to the
-  new Abyss slab all ship.
+  new Abyss slab all ship. The game's text had the same gap — every message added since July showed
+  as nothing — and is now compiled from upstream's translations on every release build too.
 - **A real window icon and desktop identity.** The game window came up with a generic placeholder icon in
   the taskbar and dock. It now sets its own icon *and* a matching desktop entry — Wayland ignores the icon
   a window asks for and instead matches the window's app ID to an installed `.desktop` file, so both halves
@@ -243,17 +250,17 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 
   ![High score table, a custom campaign, before and after](docs/assets/highscore-campaign-before-after.png)
   ![High score table, a custom map pack, before and after](docs/assets/highscore-mappack-before-after.png)
-- **Your saved games survive an engine update.** A save is a raw copy of the engine's internal
-  state, so a single field added anywhere inside it makes every earlier save unreadable — the
-  bytes are intact, they simply mean something different to the newer engine. Upstream added one
-  four-byte field once and every save in existence stopped loading, silently. Three things now
-  stand in the way: loading an incompatible save **says so and returns you to the menu** instead
-  of the game quitting outright; **the engine that wrote your saves is kept** when you update
-  (three releases deep, on all three install methods) so those campaigns stay playable; and the
-  build **refuses to release** at all if the save format has moved without someone deciding it
-  should. Saves are never modified or deleted by any of this — a save always opens in the version
-  that wrote it. A save damaged on disk (cut short by a full drive, say) is refused before anything
-  is loaded, rather than half-loading into the game you are playing.
+- **Your saved games survive an engine update.** Until October 2026 a save was a raw copy of the
+  engine's internal state, so a single field added anywhere inside it made every earlier save
+  unreadable. Upstream's new save format ends that: a save now describes its own layout and is read
+  field by field, and a save that cannot be loaded is greyed out and explained. Around it, this
+  edition adds: **the engine that wrote your older saves is kept** when you update (three releases
+  deep, on all three install methods) so those campaigns stay playable; saves from earlier Linux
+  builds are **listed under their titles** (upstream's code expects the shorter headers 32-bit
+  Windows writes, and shows a file name); saving into the slot of a save this build cannot read
+  **moves the old save to the trash** instead of writing over it; and the build **refuses to
+  release** if the format's field tables change without someone accepting it, since a field
+  missing from them would never be saved and nothing else would notice.
 - **Your campaign progress survives the October 2026 change to how it is stored.** Progress — the
   *Continue* button, how far each campaign has got, the creatures you carry between levels — lives in
   its own file, apart from saved games. The KeeperFX team moved it to one file per campaign and convert
@@ -261,6 +268,8 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   Linux build wrote it 160 bytes longer, so it would have been skipped and the progress silently lost.
   This edition converts the Linux layout too (checked against a file written by stable 1.4.0.5660),
   and leaves the old file in place so a stable build that still reads it keeps its own *Continue*.
+  High scores likewise: the 64-bit Linux layout is read alongside upstream's, and written as long as
+  a stable build that reads only that layout shares the game folder.
 
 **Native Linux launcher** *(the KeeperFX team's `keeperfx-launcher-qt`, made to run natively)*
 - The team's Qt settings launcher compiles cross-platform but was written Windows-first (it launched the game
@@ -321,6 +330,26 @@ they can be proven safe under replay testing; and a wider `-march=x86-64-v2` bui
 reverted because GCC's auto-vectorizer miscompiles a loop in the 25-year-old pathfinding code. Correctness
 first.)
 
+**Gameplay bugs fixed here** *(mostly found in players' logs; the changelog has the measurements)*
+- **Rooms and workers:** a worker crossing a slab of another room (a bridge through a training room) or
+  stepping off its own room's edge quit or trained for nothing; a creature once dropped into training was
+  taken out of its scavenger room every 20 turns for the rest of the game; creatures heading for a room
+  that merges into its neighbour lost their way.
+- **Imps, the workshop and the hatchery:** imps fetched crates for traps they could not reach, over and
+  over, and could take whatever replaced a removed trap for it; the workshop tab's placeable-trap count
+  drifted from the crates there were; shrinking a full hatchery broke its chicken count, and a creature
+  whose chicken was eaten on the way left hungry or ate what took its place.
+- **Creatures and fights:** the computer dumped creatures its training room could not take on its heart;
+  a creature reborn at its lair kept the state it died in; magic doors left boulders with 1–7 health;
+  explosions missed what followed a thing they removed; abyss push kills were never credited; Call to
+  Arms swept a black strip across the view; another keeper losing a spell cleared your selection of it;
+  a creature's route to its pay came from leftover memory.
+- **Map scripts:** `SET_CREATURE_CONFIGURATION` missed the creatures already on the map and zeroed values
+  left out; `MOVE_CREATURE` for `ALL_PLAYERS` spawned a stray effect; removing a sacrifice recipe from a
+  full table doubled the last one; Lua lost `os.date` (Pandaemonium's second level stopped setting
+  itself up); `DESCRIPTION_GEO` boxes with a 0 or missing value were drawn at random places; an
+  objective at a destroyed heart had no location.
+
 **Stability & security fixes** *(genuine upstream bugs fixed locally, plus faults in this fork's own Linux layer; the security ones reported upstream)*
 - **Files that came along for the ride are no longer treated as content.** Archives built on macOS or
   Windows carry a small hidden companion file beside every real one, and campaigns, mods and map packs
@@ -354,6 +383,12 @@ first.)
   message index when given a chat-icon argument (a `ScriptValue` union overlap on 64-bit), crashing workshop
   campaigns like *Tempest Keeper* the moment their script ran. *(reported upstream:
   [dkfans/keeperfx#4969](https://github.com/dkfans/keeperfx/issues/4969))*
+- **Chat and replays can't act on your machine** — a command typed in chat runs on every machine that
+  sees it, replays included, and nothing checked who sent it: a shared replay holding `!game.save 1`
+  overwrote the viewer's own save, and any player could speak — and issue commands — as another, or
+  start a lobby's game as if they were the host. Commands that touch this machine's files, settings or
+  process now run only when typed on it, a chat message must come from the player it names, and a
+  damaged or hostile replay file is refused instead of crashing the game.
 - **Map scripts can read files, not change them** — level and campaign Lua arrives with downloaded maps
   and Workshop items, and upstream's sandbox still let one line of it overwrite or delete any file you own
   (or load a native library shipped beside it). Here scripts can only read: writes and deletes are refused
@@ -363,7 +398,9 @@ first.)
   malicious or buggy campaign/map/mod could trigger (script index checks, `.lif`/`.slx`/texture/palette
   file-load size bounds, PNG sprite & movie buffers) plus more union-aliasing and an unbounded WAV parse.
   All fixed. *(reported upstream:
-  [#4970](https://github.com/dkfans/keeperfx/issues/4970))*
+  [#4970](https://github.com/dkfans/keeperfx/issues/4970))* Since then: a map's box tooltip containing
+  `%s` crashed the game (map and config text is never used as a format now), and a long
+  `SACRIFICED[...]` name passed from Lua overflowed the stack.
 - **Audio on case-sensitive filesystems** — sound banks, music and movies now resolve the real on-disk
   filename case, so mixed-case files referenced by mods/campaigns actually play on Linux.
 
@@ -521,11 +558,13 @@ The native launcher is its own repo:
 
 ## 🔧 Why this fork builds with `linux.mk` only
 
-Upstream has a CMake build; this fork does not carry it. It was never what CI, the AppImage or the AUR
-package were built with, and as a Linux build it did not work: its presets are MinGW, MSVC and clang-cl, its
-dependencies come from vcpkg, and the Linux configuration — the last time it was measured — stopped at the
-link step for want of `libswscale`, which `bflib_fmvids.cpp` needs. The Steam Deck developer bundle that
-builds through it is meant to be driven from a Windows PC.
+Upstream builds with CMake, and in August 2026 deleted its own `linux.mk` (#5083); this fork kept
+`linux.mk` and does not carry the CMake build. CMake was never what CI, the AppImage or the AUR package
+were built with. Upstream's CI does compile it natively on Linux for its pull-request test builds, but its
+presets are MinGW, MSVC and clang-cl plus a Steam Deck developer bundle driven from a separate PC, its
+Windows dependencies come from vcpkg, and on this fork's tree — the last time it was measured — it stopped
+at the link step for want of `libswscale`, which this fork's movie player (`bflib_fmvids.cpp`) needs and
+upstream's does not.
 
 So the Linux-only filter removes the whole CMake tree, with vcpkg, the MinGW toolchain and the Deck bundle
 ([`packaging/linux-only/remove.list`](packaging/linux-only/remove.list)). `linux.mk` is the build — CI, the
@@ -533,7 +572,7 @@ AppImage, the Flatpak and the AUR package all use it — and the weekly sync now
 by itself: sources the team adds or deletes are added to or dropped from it in the sync's own merge commit.
 
 None of that is a criticism of upstream: KeeperFX is a Windows project and their CMake serves their
-platform. If it ever produces a working Linux binary, bringing it back is one deleted line in
+platform. If it ever becomes the better way to build this edition, bringing it back is one deleted line in
 `remove.list` — the next snapshot then includes it.
 
 ## How the Tux Edition stays current with upstream
@@ -578,7 +617,7 @@ After the sync PR is merged, a release is cut, and publishing it is the whole jo
 the game package (`full.7z`), the portable tarball and a small update patch from the previous release of
 each channel, and attaches them all to the release; a stable release also updates the AUR recipe. Each
 build layers the KeeperFX team's current data package over ours, so their new content arrives on its own
-rather than waiting to be noticed, and the artwork itself is regenerated from the team's FXGraphics repository on every build, so sprites that arrive alongside new code arrive with it. The Flatpak is rebuilt monthly and after each stable (it self-updates
+rather than waiting to be noticed, and the artwork itself is regenerated from the team's FXGraphics repository on every build, and the game's text from their translations, so sprites and messages that arrive alongside new code arrive with it. The Flatpak is rebuilt monthly and after each stable (it self-updates
 its game package on launch, so it catches up in between). Existing installs are offered the new build by
 the launcher's built-in updater, which downloads the patch when one fits and the full package otherwise.
 
@@ -598,19 +637,21 @@ Never `git merge upstream/master` directly: that brings the Windows content back
 
 ### Can I switch between stable and alpha without losing my saved games?
 
-Yes, and you can switch back. Your save files are never modified or deleted — but **a save opens
-in the version that wrote it**, so they do not travel between channels.
+Yes, and you can switch back. Switching never modifies or deletes a save file — but a save made
+before the October 2026 save format **opens only in the version that wrote it**, and a build from
+before that change cannot read the newer saves at all. While one channel is on each side of it,
+saves do not travel between them.
 
 In practice: a campaign tells you it needs the latest alpha, you switch to alpha, play it, then
-switch back to stable — and your stable saves are exactly where you left them. The reverse is
-equally true: progress you make on alpha stays on alpha, because stable cannot read it either.
-What you cannot do is start a campaign on one channel and continue it on the other. Campaign
+switch back to stable — and your stable saves are exactly where you left them. What you cannot do,
+across that change, is start a campaign on one channel and continue it on the other. Campaign
 progress — the *Continue* button — is stored apart from saved games and carries over when you update.
 
-This is not a policy, it is the save format: a save is a raw copy of the engine's internal state,
-so it only makes sense to an engine laid out the same way. When a save cannot be loaded the game
-tells you so and returns you to the menu, and the engine that *can* read it is kept when you
-update — so the campaign is a version switch away, not lost.
+This is not a policy, it is the save format: an older save is a raw copy of the engine's internal
+state, so it only makes sense to an engine laid out the same way. Saves in the new format describe
+their own layout, so they keep loading in later versions. When a save cannot be loaded the game
+tells you so, and the engine that *can* read it is kept when you update — so the campaign is a
+version switch away, not lost.
 
 ### How do I play a campaign my current version can no longer load?
 
