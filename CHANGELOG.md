@@ -4,6 +4,23 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
+## 1.4.0.6013 — 2026-10-23 — alpha
+
+- **Movies play in full colour again.** Every movie the game ships — the intro, the logo stings, the
+  torture-room and outro films — is modern H.264 video. Up to stable 1.4.0.5660 they played in full
+  colour and were scaled smoothly to the screen. When the team's new renderer arrived with the
+  16 September sync, the fork's display layer that did this went with it, and from 1.4.0.5698-alpha
+  on every frame was squeezed into 216 fixed colours with a dither pattern, then enlarged with
+  uneven pixels: speckled dark scenes, banded light, a cross-hatch over everything on a big screen.
+  Found by a player on the first evening of 1.4.0.6010. The team's renderer now takes a full-colour
+  image too, and the software renderer draws movie frames on a texture of their own, smoothly
+  scaled. Measured on the same intro frames at 3440x1440: 30–43 distinct colours in the middle of
+  the picture in 1.4.0.6010, 27,000–61,000 now (stable 1.4.0.5660: 31,000–82,000), and side by side
+  the frames match 5660's. With `RENDERER=OPENGL` movies still play in 256 colours for now; the log
+  says so once.
+- Same save format as 1.4.0.6010: its saves load here. Coming from an earlier version, read the
+  1.4.0.6010 notes below first.
+
 ## 1.4.0.6010 — 2026-10-22 — alpha
 
 > **Saved games from earlier versions cannot be loaded by this build — for the last time.** With the
