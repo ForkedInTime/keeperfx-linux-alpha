@@ -185,8 +185,10 @@ policy "$BASELINE_DIR" "$work/now" "$work/result.json"
     echo
     echo "The save format's tables in this tree differ from ${BASELINE_DIR}:"
     echo
-    diff -u "${BASELINE_DIR}/schema.txt" "$work/now/schema.txt" | sed -n '3,60p' | sed 's/^/    /'
-    diff -u "${BASELINE_DIR}/save_codec.h" "$work/now/save_codec.h" | sed -n '3,20p' | sed 's/^/    /'
+    # diff exits 1 when the files differ, which they do here; under pipefail
+    # that would end the script before the policy verdict below.
+    diff -u "${BASELINE_DIR}/schema.txt" "$work/now/schema.txt" | sed -n '3,60p' | sed 's/^/    /' || true
+    diff -u "${BASELINE_DIR}/save_codec.h" "$work/now/save_codec.h" | sed -n '3,20p' | sed 's/^/    /' || true
     echo
     echo "Upstream's policy check (${POLICY}) on the change:"
     print_findings "$work/result.json"
