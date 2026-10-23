@@ -4,13 +4,17 @@ This tracks the changes in *this* fork on top of the KeeperFX team's `master`.
 Version numbers follow the engine build (`<major>.<minor>.<release>.<build>`), with
 `alpha` appended on the alpha channel and nothing appended on the stable one.
 
-## Unreleased — alpha
+## 1.4.0.6010 — 2026-10-22 — alpha
 
-> **Saved games from earlier versions will not load in this build.** A 64-bit fix below and the
-> team's changes merged in this round both change the size of the saved game state
-> (`sizeof(struct Game)` 53383086 → 53384602). Finish anything in progress on the current version
-> first, or keep it alongside. The release notes repeat this automatically. **Campaign progress — the
-> Continue button and where each campaign is up to — carries over** (see below).
+> **Saved games from earlier versions cannot be loaded by this build — for the last time.** With the
+> team's new save format (below) a saved game describes its own layout and is read field by field, so
+> saves made with this build keep loading in later ones. Saves from 1.4.0.5762-alpha, from stable
+> 1.4.0.5660 and from every earlier build are kept on disk and listed greyed out under their titles;
+> they still open in the version that wrote them, and saving into one of their slots moves the old
+> save to the trash instead of writing over it. Finish a level in progress on your current version
+> first, or replay it from its start. The release notes repeat this automatically. **Campaign
+> progress — Continue, completed levels, bonus levels and the creatures carried to the next level —
+> carries over, and so do high scores** (see below).
 
 **No more Windows in this repository.**
 - **The team's Windows content is gone, and the weekly sync cannot bring it back.** Their Visual Studio
@@ -45,6 +49,105 @@ hatcheries, the abyss, possession and camera stutter with VSync. Two of these ne
 - The new multiplayer matchmaking passed curl a 4-byte timeout where curl reads 8 bytes on 64-bit
   Linux, leaving half of it undefined.
 
+**The team's changes through 19 October** (48 commits, 13–19 October). The big one is the **new save
+format**: saved games, the continue link and campaign progress describe their own layout and are read
+field by field, so a change to the engine no longer makes every older save unreadable — after this
+one last time (the box above). Among the rest: hold Backspace to rewind a replay, and replays skip the
+intro cinematic; claimed rooms merge with adjacent rooms of the same kind; in multiplayer you pick your
+colour in the lobby, lobby buttons respond at once, disconnect messages are clearer, and spectators are
+shared among the players, switch view with Space or a click on a name, and can sync again; a faster
+software parchment-map fade; a destroyed heart reveals the map after its explosion, not before;
+tooltips no longer hide behind the hand; possession no longer slides or turns the creature north, and
+the hand's light is off while possessing; chickens no longer breathe fire; the computer no longer
+reuses, as defenders, creatures it has just dropped; Shift+M recording shows a timer;
+`CHAT_FONT_SIZE` in `keeperfx.cfg`; `USE_SPECIAL_STEAL_HERO` and alternate player names in script
+locations. It also brings fixes of theirs this fork had already taken early, among them a
+temple that counted a creature leaving it twice, and so shielded fewer creatures from enemy scavenging
+than were praying in it, and drag and shaped room tools that could start one slab outside the shape.
+Some of it needed work here:
+- **The hand can pick creatures up.** The team's new config check limits `long` settings to 32 bits, as
+  on Windows. On 64-bit Linux the hand's, Slap's and Pick Up Object's "what can it touch" flags are such a
+  setting and go past 32 bits, so they were refused at every level start and the hand picked up
+  nothing. Those settings take their full 64-bit values again, as in every earlier Linux build.
+- **Campaign progress still carries over.** The new code again imports the old `fx1contn.sav` only in
+  the 32-bit layout (67,241 bytes). Every Linux build wrote 67,401, stable 1.4.0.5660 included, so a
+  5660 player would have lost Continue and the progress percentage, and the campaign, its bonus
+  levels, carried creatures and flags would have started over. The 64-bit import is back, the
+  old file is still kept for stable, and Continue falls back to it only while that campaign has no
+  progress file of its own.
+- **Saves from earlier Linux builds are listed under their titles**, not as `fx1g0003.sav`. The new
+  code reads a save's title after a 12-byte header; every save 64-bit Linux builds wrote before
+  1.4.0.5751, stable 1.4.0.5660 included, has 24-byte ones. Checked against a save stable 5660 wrote.
+- **The message for a save that cannot be loaded is not blank.** The download's game text came from
+  the team's July release, so every message added since showed as nothing: that one, and the newer
+  spectator and lobby messages. Every release now compiles the text from the team's translations, as
+  it already regenerates the artwork.
+- **A save in a deep folder loads.** The new loader cut a save's path to 144 bytes, so with a long
+  home directory or a Flatpak data directory the file read as missing and its slot was disabled.
+- **A merged room keeps the creatures heading for it.** Creatures on their way to a room that merges
+  into its neighbour, or that last worked there, still pointed at the absorbed room, whose number then
+  goes to the next room built.
+
+**Ten of the team's fixes from the week after, taken early:** creatures stop fighting when their
+keepers ally; creatures no longer ask for a lair while you cannot build one; moving a library's books
+no longer turns that spell off; navigation is updated when a neighbouring slab changes; possession
+camera fixes; rewinding a replay restores the maps and event boxes; no crash when the host leaves after
+a failed join; a possible wrong slab display; a creature's previous work room survives changes to its
+current one; and the hand's pickup priority. Next to the books fix, ours: another keeper losing a spell
+— claiming or robbing an enemy library, or a neutral one shrinking — no longer clears your own
+selection of it.
+
+**Creatures, rooms and imps.** Most of these were found in players' logs from stable 1.4.0.5660.
+- **Workers keep working in their own room.** A worker crossing a slab of another room between spots —
+  a bridge through a training room, the training room beside the workshop — quit: about a hundred
+  "is not valid ROOM_ROLE_TRAIN_EXP" lines in one log, most of them imps dropped in to train. On copies
+  of that player's saves: 9 and 37 such quits on 5660, none with the fix; in a U-shaped training room
+  around a bridge, all 8 trainees gone within 30 seconds before, all 8 reaching level 2 after. A worker
+  stepping off its room's edge for a moment no longer pays the training fee for no experience.
+- **A creature dropped into training once and scavenging later** was taken out of its scavenger room
+  every 20 turns and enrolled again, for the rest of the game: a computer keeper's vampire on original
+  level 20 did it 382 times in one session.
+- **The computer's creatures the training room cannot take** (level 10, or training it cannot afford)
+  go to the room they were picked for, not onto its heart: 355 errors in one level 20 log; on a staged
+  level 20, 69 in about 4000 turns before, none after.
+- **Imps and traps.** An imp that finds no route on to an empty trap passes over it for 1000 turns
+  instead of fetching a crate for it about every 130 turns (one log: a single trap failing 63 times over
+  17,000 turns; staged, 37 failed deliveries in about 5000 turns before, 5 after); arming the trap
+  clears the pause, and saved games keep it. An imp whose trap is sold or destroyed on the way no
+  longer takes whatever is given the trap's place for it (a possessed imp would have "re-armed" it).
+  The workshop tab's count of placeable traps is worked out from the crates and traps themselves,
+  instead of a running tally that crept up and offered traps there were no crates for.
+- **Hatcheries.** Shrinking a full hatchery left more chickens than it holds while counting fewer (8 in
+  a room for 5, then 7 counted as 1 of 2); the count now matches the room. A hungry creature whose
+  chicken is eaten on the way chooses another, instead of leaving hungry or eating whatever took the
+  chicken's place.
+- **A creature reborn at its lair starts afresh**, instead of carrying on in the state it died in (a
+  vampire killed at a door came back still "in door combat").
+- **Fights.** A magic door that holds a boulder uses it up instead of leaving it 1–7 health; an
+  explosion or poison cloud hits everything on a subtile even when one hit removes another thing; a
+  creature pushed into the abyss credits its pusher with the kill again (only a fall ending within 15
+  turns of the push counted, and the fall takes at least 28). **Call to Arms** no longer sweeps a
+  black strip across the view after each cast: its charge bar ran past full, since the spell's
+  duration is 1.
+- A creature going for its pay no longer chooses its route from leftover memory, which can differ
+  between machines (a possible multiplayer or replay divergence). A script objective at a destroyed
+  dungeon heart points where it stood.
+
+**Multiplayer and replays.**
+- **Chat and replays can no longer act on your machine.** A command typed in chat runs on every
+  machine that sees it, replays included, and none checked who typed it: a replay containing
+  `!game.save 1` overwrote the viewer's own save, a recorded `!game.load` could crash the viewer, and
+  one player's `!game.save N` overwrote slot N on every machine in the game. Commands acting on this
+  machine — its files, its settings, quitting — now run only when typed on it, never for another
+  player's chat or a replay's. Gameplay commands replay as before.
+- **A chat message must come from the player it names.** Any peer could speak as another: issue
+  console commands as the host's player (which pass the cheat check when the host allows cheats), or
+  start the game from the lobby as if the host had chosen a level.
+- A damaged or hostile replay file is refused instead of crashing the game or reading past a buffer.
+  Old replays are trimmed however long the install path (from about 125 characters nothing was
+  removed); a size limit of 4 GB or more no longer stops recording at once; a resync read as you stop
+  a replay is no longer applied to the next one.
+
 **64-bit fixes.** KeeperFX was built for 32-bit Windows, where a `long` is 4 bytes; on 64-bit Linux
 it is 8, and these behaved differently from Windows:
 - **Creature shadows and other textured polygons in the software renderer** (the default) sampled the
@@ -59,10 +162,13 @@ it is 8, and these behaved differently from Windows:
   first minute of a level moves the sight instead of closing it. Lua's `unsummon_duration` reads 0 for a
   creature that is not summoned.
 - **Movie recording (Shift+M)** wrote files nothing could open and crashed on the second frame.
-- **High-score files** in Windows' 72-byte layout are read as well as the 80-byte one Linux builds
-  write. Saving keeps the 80-byte layout for now, because stable 1.4.0.5660 shares the game folder
-  and reads only that one: given a 72-byte file it would replace the whole table with Bullfrog's
-  defaults the next time a player switched back.
+- **High-score files** in the team's new format and in Windows' 72-byte layout are read as well as
+  the 80-byte one Linux builds write. Saving keeps the 80-byte layout for now, because stable
+  1.4.0.5660 shares the game folder and reads only that one: given anything else it would replace the
+  whole table with Bullfrog's defaults the next time a player switched back.
+- **The light table in saved games** was twice its saved size: saving copied 256 bytes into a 128-byte
+  field, over the light counters and 100 bytes of game state after them, in the running game and in
+  the file, and loading put dynamic lights in the wrong shadow-cache columns.
 
 **Mods and maps made on Windows.** Windows does not care about upper/lower case in file names or which
 slash is used; Linux does. Now handled the Windows way:
@@ -83,10 +189,30 @@ contains uses any of that; the game's own Lua, including how it saves and restor
 unaffected. It closes the one-line attacks, not every route: the full write-up is in
 `src/lua_readonly_io.c`.
 
+**Map scripts.**
+- Lua scripts keep `os.date`, `os.time`, `os.clock` and `os.difftime`, which the team's sandbox had
+  removed: the Pandaemonium campaign's second level builds its welcome message with `os.date`, so its
+  setup stopped there — no start money, creature limit, rooms, traps, allies or triggers. Multiplayer
+  still replaces them with its "not synchronised" error.
+- `SET_CREATURE_CONFIGURATION`: `INERTIA` and `FALLACCELERATION` reach the creatures already on the map
+  (a map places its creatures before its script runs, so they never did), and `HEALTH` and `BASESPEED`
+  reach neutral ones; leaving out `INERTIA`'s air value or the height of `SIZE` and `THINGSIZE` keeps
+  the current value instead of setting 0; a missing `LairEnemy` is no longer stack garbage (a random
+  lair enemy, and a possible multiplayer divergence). A creature rescued from the abyss keeps its own
+  fall acceleration.
+- `MOVE_CREATURE` for `ALL_PLAYERS` no longer spawns a stray effect at both ends of the move; removing
+  a sacrifice recipe from a full table no longer leaves the last one in two slots; `DESCRIPTION_GEO`
+  boxes on a campaign's land view are drawn where they are told, and a level without a description no
+  longer shows the previous one's text.
+- A box tooltip (`SET_BOX_TOOLTIP` or Lua) containing `%s` no longer crashes the game when a possessed
+  creature picks the box up: map and config text is never used as a format any more. A long
+  `SACRIFICED[...]` name from Lua or the API no longer overflows the stack.
+
 **Saved games.**
 - A damaged save (truncated by a full disk, a block of the wrong size) is refused before anything is
-  loaded, instead of half-loading into the running game; a read error part-way leaves the level, as
-  upstream always did. The Load menu also restores the pause state it found.
+  loaded, instead of half-loading into the running game; the team's new save code now checks and
+  decodes a save before it touches the game. A refused load from the in-game menu restores the pause
+  state it found.
 - Esc closes the delete-save confirmation instead of leaving it over the game with "Yes" still armed.
 - A save named in capitals (`FX1G0003.SAV`, from a DOS or GOG install) can be deleted; the trash never
   overwrites a file already in it, and an incomplete copy never costs the original.
@@ -96,8 +222,20 @@ unaffected. It closes the one-line attacks, not every route: the full write-up i
 rather than an empty button. A movie in a pixel format the converter cannot handle is skipped instead
 of crashing. The game's API server no longer exits silently when a client disconnects (SIGPIPE).
 `TRASH_MAX_COUNT`/`TRASH_MAX_DAYS` moved out of the spots upstream edits every sync, which removes one
-of the files that conflicted in five of the last seven syncs — the next sync now conflicts in two files
-instead of four.
+of the files that conflicted in five of the last seven syncs. With the OpenGL renderer, a level load
+finishing at the wrong moment no longer leaves the old or a mixed tileset. The API's `get_level_info`
+no longer crashes the game for a level outside the campaign. Undefined behaviour is gone from reading
+the FPS setting, from the creature job tables (jobs 33 and up aliased jobs 1 and up) and from a
+navigation mesh with a missing link.
+
+**Quieter logs.** These are ordinary play and no longer warnings: an imp finding a box it may pick up
+(59 lines in one level 20 log), selling nothing, placing a trap with none left, an original-format level
+without a `.lgtfx` file, a hurt imp with nowhere to flee resting where it stands, a destroyed heart's
+last update, a slapped or spell-casting creature not yet free to fight, an imp's backwards move whose
+route closes on the way, a player who has already lost, and the doors of a level started after another
+(whose navigation was also rebuilt for nothing). A room with too many things to put back warns when one
+is lost, instead of losing it silently; the out-of-range creature-state warning names the states around
+it; the hatchery-capacity and door-combat messages print their values in order.
 
 **Packaging.**
 - **AUR:** what is published is exactly what the checksums were computed from (a script edited after
@@ -114,6 +252,11 @@ instead of four.
 - `linux.mk` checks the prebuilt dependencies against pinned SHA-256s and never caches a failed
   download. The fonts are generated by one script instead of five copies. The monthly Flatpak finds
   its stable release past 20 alphas.
+- The release guard checks the save format's field tables with the team's own tool and policy check,
+  instead of the size of the game state: a field missing from the tables would never be saved, and
+  nothing else would notice. The team's save tests run with ours. A failing step in the sync or
+  sanitizer builds no longer passes as green, and re-running an AUR publish whose only change is the
+  launcher pin no longer fails.
 
 ## 1.4.0.5762 — 2026-09-28 — alpha
 
