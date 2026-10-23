@@ -1452,7 +1452,9 @@ short creature_going_to_safety_for_toking(struct Thing *thing)
     struct Coord3d locpos = {};
     if (!get_flee_position(thing, &locpos))
     {
-        ERRORLOG("Couldn't get a flee position for %s index %d",thing_model_name(thing),(int)thing->index);
+        // No lair and no route to the heart (a locked door, an island): it rests where it
+        // stands. Not a fault, which is how the combat flee path logs it too.
+        SYNCDBG(8,"Couldn't get a flee position for %s index %d",thing_model_name(thing),(int)thing->index);
         internal_set_thing_state(thing, CrSt_ImpToking);
         return 1;
     }

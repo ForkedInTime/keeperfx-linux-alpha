@@ -154,7 +154,7 @@ long process_temple_cure(struct Thing *creatng)
 // This is state-movecheck function of a creature
 CrCheckRet process_temple_function(struct Thing *thing)
 {
-    struct Room* room = get_room_thing_is_on(thing);
+    struct Room* room = get_room_creature_works_on(thing);
     if (!room_still_valid_as_type_for_thing(room, get_room_role_for_job(Job_TEMPLE_PRAY), thing))
     {
         remove_creature_from_work_room(thing);
