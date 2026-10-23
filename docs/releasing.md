@@ -206,28 +206,30 @@ uploaded.
 
 ## The save-format guard
 
-A saved game is a raw memory dump of `struct Game`, and the engine loads one
-only if its length equals `sizeof(struct Game)` for the running build. That
-number is therefore the save format version, and a field added anywhere inside
-any struct it reaches invalidates every save in existence — with no warning, and
-nothing in the diff that looks like a save-format change. It happened on
-2026-08-19 (`+ GameTurn last_turn_damaged` in `struct Thing`, ×12288 things) and
-cost five campaigns in progress.
+Until upstream #5424 (synced 2026-10-19) a saved game was a raw memory dump of
+`struct Game`, loaded only if its length matched the running build, so a field
+added to any struct it reached invalidated every save in existence. It happened
+on 2026-08-19 and cost five campaigns in progress.
 
-`build-linux-alpha.yml` now measures the size of the build it is about to ship
-and compares it with `packaging/ci/save-format-baseline`; a mismatch fails the
-release build. The same check runs on the weekly upstream-sync PR, which is the
-direction the break came from. Run it yourself before tagging:
+A save now describes its own layout and is read field by field: a field the
+file lacks takes its default, one the build dropped is skipped. What can still
+lose players' games is a format major-version bump, a renamed field without an
+alias, a narrowed type, or a struct member missing from the field tables (it is
+simply never saved). `packaging/ci/check-save-format.sh` compares what the
+tables say with the committed copy in `packaging/ci/save-format/` and, on a
+difference, prints upstream's own policy verdict on whether older saves still
+load. `build-linux-alpha.yml` runs it on every release build and the weekly sync
+runs it on its pull request. Run it yourself before tagging:
 
 ```bash
 packaging/ci/check-save-format.sh
 ```
 
-If it fails, read `packaging/ci/save-format-baseline` — the choice is to keep the
-new state out of `struct Game`, or to accept the break by editing that file in
-the same commit. Accepting it is a user-visible decision: it belongs in the
-changelog, and the release body gets an automatic "saves from earlier versions
-cannot be loaded" warning, written by the release build off that file's history.
+If it fails, read `packaging/ci/save-format-baseline`, then accept the change
+with `--update` in the commit that makes it, saying what the policy check said.
+A break is a user-visible decision: it belongs in the changelog, and the release
+body gets an automatic "saves from earlier versions cannot be loaded" warning,
+written by the release build (`--release-note <previous tag>`).
 
 ## Build system
 

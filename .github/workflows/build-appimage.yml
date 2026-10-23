@@ -227,6 +227,13 @@ jobs:
           # and the campaign land views into pkg/ at the repo root. "-f Makefile" is
           # required: a bare make is forwarded to linux.mk by the GNUmakefile.
           make -f Makefile pkg-gfx -j"$(nproc)"
+          # The game's text is compiled from upstream's translations the same way:
+          # fxdata/gtext_*.dat and the campaign and level texts in the payload are
+          # upstream's last stable release's, so every string added since -- the
+          # save-format messages of #5424 among them -- showed as nothing. pkg-languages
+          # builds them from lang/*.po with upstream's po2ngdat (fetched prebuilt) into
+          # pkg/fxdata, pkg/campgns and pkg/levels.
+          make -f Makefile pkg-languages -j"$(nproc)"
           echo "regenerated $(find pkg -type f | wc -l) files, $(du -sh pkg | cut -f1)"
 
       - name: Assemble the AppDir (launcher + engine + payload data)
@@ -298,10 +305,11 @@ jobs:
           mkdir -p "$P"
           cp -rf pkg/. "$P/"
           cp -f ../bin/keeperfx "$P/keeperfx"
-          # The artwork regenerated from FXGraphics (previous step) goes on AFTER
-          # upstream's release data, being newer than that release. It carries no
-          # movies, so the re-encoded .smk files restored above are untouched.
-          for d in data ldata campgns; do
+          # The artwork regenerated from FXGraphics and the text compiled from lang/
+          # (previous step) go on AFTER upstream's release data, being newer than that
+          # release. They carry no movies, so the re-encoded .smk files restored above
+          # are untouched.
+          for d in data ldata campgns fxdata levels; do
             if [ -d "../pkg/$d" ]; then
               mkdir -p "$P/$d"
               cp -rf "../pkg/$d/." "$P/$d/"

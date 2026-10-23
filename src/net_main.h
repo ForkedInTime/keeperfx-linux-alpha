@@ -46,6 +46,7 @@ extern "C" {
 #define MAX_NET_PEERS (MAX_NET_USERS - 1)
 #define SERVER_ID 0
 #define SOLO_HUMAN_ID 0 /* human player's user id in non-multiplayer, when relevant */
+#define OBSERVER_USER MAX_NET_CONNECTIONS /* dummy user for observers */
 #define NET_MSG_BUFFER_SIZE 5000
 #define INVALID_USER_ID 23456
 
@@ -53,7 +54,8 @@ typedef int NetUserId;
 
 enum NetDropReason {
     NETDROP_MANUAL,
-    NETDROP_ERROR,
+    NETDROP_DISCONNECT,
+    NETDROP_TIMEOUT,
 };
 
 enum NetMessageType {
@@ -73,6 +75,7 @@ enum NetMessageType {
     NETMSG_SPECTATOR_BOOTSTRAP,
     NETMSG_SPECTATOR_READY,
     NETMSG_SPECTATOR_CHAT,
+    NETMSG_SPECTATOR_NOTICE,
 };
 
 enum NetConnectionRole {
@@ -92,6 +95,7 @@ struct NetSP
 {
     TbError (*init)(NetDropCallback drop_callback);
     void (*exit)();
+    void (*disconnect)();
     TbError (*host)(const char *session, void *options);
     TbError (*join)(const char *session, void *options);
     void (*update)(enum NetJoinRejection (*new_user)(NetUserId *assigned_id, enum NetConnectionRole role));
@@ -126,6 +130,8 @@ struct NetUser {
     uint32_t connected_at;
     enum NetSpectatorState spectator_state;
     uint8_t spectator_icon;
+    TbBool spectator_resync_requested;
+    uint32_t spectator_resync_requested_at;
 };
 
 struct NetFrame {
@@ -138,6 +144,7 @@ struct NetFrame {
 struct NetState {
     const struct NetSP *sp;
     struct NetUser users[MAX_NET_CONNECTIONS];
+    TbBool users_timed_out[MAX_NET_CONNECTIONS];
     struct NetFrame *exchg_queue;
     char password[32];
     NetUserId my_id;

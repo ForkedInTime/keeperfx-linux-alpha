@@ -1406,6 +1406,44 @@ TbBool update_room_contents(struct Room *room)
     return true;
 }
 
+/**
+ * Points the room ids creatures keep besides their work room at the room another one was merged into.
+ * change_work_room_of_creatures_working_in_room() moves the workers; a creature still on its way to
+ * the absorbed room (target_room_id) or about to go back to it (last_work_room_id) kept that room's
+ * index, which free_room_structure() hands to the next room built. This edition's.
+ */
+static void redirect_creature_room_ids(const struct Room *oldroom, const struct Room *newroom)
+{
+    for (long ci = 1; ci < CREATURES_COUNT; ci++)
+    {
+        struct CreatureControl* cctrl = creature_control_get(ci);
+        if (!creature_control_exists(cctrl))
+            continue;
+        if (cctrl->target_room_id == oldroom->index)
+            cctrl->target_room_id = newroom->index;
+        if (cctrl->last_work_room_id == oldroom->index)
+            cctrl->last_work_room_id = newroom->index;
+    }
+}
+
+static TbBool merge_room_into(struct Room *linkroom, struct Room *oldroom)
+{
+    if (!add_slab_list_to_room_tiles_list(linkroom, oldroom->slabs_list)) {
+        return false;
+    }
+    recount_and_reassociate_room_slabs(linkroom);
+    set_room_efficiency(linkroom);
+    update_room_total_capacity(linkroom);
+    link_room_health(linkroom, oldroom);
+    change_work_room_of_creatures_working_in_room(oldroom, linkroom);
+    redirect_creature_room_ids(oldroom, linkroom);
+    delete_room_flag(oldroom);
+    oldroom->slabs_count = 0;
+    oldroom->slabs_list = 0;
+    oldroom->slabs_list_tail = 0;
+    free_room_structure(oldroom);
+    return true;
+}
 
 /**
  * Checks if a room slab of given kind at given subtile could link to any of rooms at adjacent slabs.
@@ -1457,26 +1495,8 @@ struct Room* link_adjacent_rooms_of_type(PlayerNumber owner, MapSubtlCoord x, Ma
         {
             if ((room->owner == owner) && (room->kind == rkind))
             {
-                if (room != linkroom)
-                {
-                    if (!add_slab_list_to_room_tiles_list(linkroom, room->slabs_list))
-                    {
-                        return INVALID_ROOM;
-                    }
-                    // Update slabs in the new list
-                    recount_and_reassociate_room_slabs(linkroom);
-                    update_room_total_capacity(linkroom);
-                    link_room_health(linkroom,room);
-                    // Make sure creatures working in the room won't leave
-                    change_work_room_of_creatures_working_in_room(room, linkroom);
-                    // Get rid of the old room ensign
-                    delete_room_flag(room);
-                    // Clear list of slabs in the old room
-                    room->slabs_count = 0;
-                    room->slabs_list = 0;
-                    room->slabs_list_tail = 0;
-                    // Delete the old room
-                    free_room_structure(room);
+                if ((room != linkroom) && !merge_room_into(linkroom, room)) {
+                    return INVALID_ROOM;
                 }
             }
         }
@@ -2869,7 +2889,7 @@ TbBool find_random_valid_position_for_thing_in_room_avoiding_object_excluding_ro
     // if the above fails, do a more thorough check
     if (room->used_capacity <= room->total_capacity)
     {
-        SYNCLOG("Could not find valid random point in %s %d for %s. Attempting thorough check.",room_code_name(room->kind),room->index,thing_model_name(thing));
+        SYNCDBG(7,"Could not find valid random point in %s %d for %s. Attempting thorough check.",room_code_name(room->kind),room->index,thing_model_name(thing));
         k = 0;
         for (i = room->slabs_list; (i != 0); i = get_next_slab_number_in_room(i))
         {
@@ -2983,6 +3003,23 @@ long find_random_valid_position_for_item_in_different_room_avoiding_object(struc
     }
     ERRORLOG("Found %d matching rooms but couldn't find position within any",(int)matching_rooms);
     return 0;
+}
+
+static void remove_lair_totem_with_owner(struct Room *room, struct Thing *lairtng)
+{
+    struct Thing* creatng = thing_get(lairtng->lair.belongs_to);
+    struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
+    if (!thing_is_creature(creatng) || (cctrl->lairtng_idx != lairtng->index)) {
+        ERRORLOG("Lair totem %d belongs to thing %d which doesn't have it as its lair, deleting it",(int)lairtng->index,(int)lairtng->lair.belongs_to);
+        destroy_object(lairtng);
+        return;
+    }
+    if (cctrl->lair_room_id != room->index) {
+        ERRORLOG("Lair totem %d is in %s index %d but its owner expects room index %d, deleting it",(int)lairtng->index,room_code_name(room->kind),(int)room->index,(int)cctrl->lair_room_id);
+        delete_lair_totem(lairtng);
+        return;
+    }
+    creature_remove_lair_totem_from_room(creatng, room);
 }
 
 void kill_room_contents_at_subtile(struct Room *room, PlayerNumber plyr_idx, MapSubtlCoord stl_x, MapSubtlCoord stl_y, SlabCodedCoords slbnum)
@@ -3198,23 +3235,8 @@ void kill_room_contents_at_subtile(struct Room *room, PlayerNumber plyr_idx, Map
     if (room_role_matches(room->kind, RoRoF_LairStorage))
     {
         thing = find_lair_totem_at(stl_x, stl_y);
-        if (!thing_is_invalid(thing))
-        {
-            if (thing->lair.belongs_to)
-            {
-                struct Thing *tmptng;
-                struct CreatureControl *cctrl;
-                tmptng = thing_get(thing->lair.belongs_to);
-                cctrl = creature_control_get_from_thing(tmptng);
-                if (cctrl->lairtng_idx == thing->index) {
-                    creature_remove_lair_totem_from_room(tmptng, room);
-                } else {
-                    ERRORLOG("Lair thing thinks it belongs to a creature, but the creature disagrees.");
-                }
-            } else
-            {
-                ERRORLOG("Lair thing %d has no owner!",(int)thing->index);
-            }
+        if (!thing_is_invalid(thing)) {
+            remove_lair_totem_with_owner(room, thing);
         }
     }
 }
@@ -3601,25 +3623,8 @@ static void change_ownership_or_delete_object_thing_in_room(struct Room *room, s
     else if (room_role_matches(room->kind,RoRoF_LairStorage) && thing_is_lair_totem(thing))
     {
         // Lair - owns creature lairs
-        if (objst->related_creatr_model)
-        {
-            if (thing->lair.belongs_to)
-            {
-                struct Thing *tmptng;
-                struct CreatureControl *cctrl;
-                tmptng = thing_get(thing->lair.belongs_to);
-                cctrl = creature_control_get_from_thing(tmptng);
-                if (cctrl->lairtng_idx == thing->index) {
-                    creature_remove_lair_totem_from_room(tmptng, room);
-                } else {
-                    ERRORLOG("Lair totem thinks it belongs to a creature, but the creature disagrees.");
-                }
-            } else
-            {
-                ERRORLOG("Lair totem %d has no owner!",(int)thing->index);
-            }
-            return;
-        }
+        remove_lair_totem_with_owner(room, thing);
+        return;
     }
     else if (room_role_matches(room->kind, RoRoF_KeeperStorage) && thing_is_dungeon_heart(thing))
     {
@@ -3833,9 +3838,24 @@ void redraw_room_map_elements(struct Room *room)
     {
         MapSlabCoord slb_x = slb_num_decode_x(i);
         MapSlabCoord slb_y = slb_num_decode_y(i);
+        struct SlabMap* slb = get_slabmap_direct(i);
         i = get_next_slab_number_in_room(i);
         // Per-slab code start
-        redraw_slab_map_elements(slb_x, slb_y);
+        TbBool borders_same_kind = false;
+        for (int n = 0; n < AROUND_EIGHT_LENGTH; n++) {
+            MapSlabCoord adjacent_slb_x = slb_x + my_around_eight[n].delta_x;
+            MapSlabCoord adjacent_slb_y = slb_y + my_around_eight[n].delta_y;
+            struct SlabMap* adjacent_slb = get_slabmap_block(adjacent_slb_x, adjacent_slb_y);
+            if ((adjacent_slb->kind == slb->kind) && (adjacent_slb->room_index != room->index) && !slab_kind_is_animated(slb->kind)) {
+                place_single_slab_type_on_map(adjacent_slb->kind, adjacent_slb_x, adjacent_slb_y, slabmap_owner(adjacent_slb));
+                borders_same_kind = true;
+            }
+        }
+        if (borders_same_kind) {
+            place_single_slab_type_on_map(slb->kind, slb_x, slb_y, room->owner);
+        } else {
+            redraw_slab_map_elements(slb_x, slb_y);
+        }
         // Per-slab code end
         k++;
         if (k > game.map_tiles_x*game.map_tiles_y)
@@ -3867,6 +3887,42 @@ void do_room_unprettying(struct Room *room, PlayerNumber plyr_idx)
     }
 }
 
+static struct Room *merge_adjacent_rooms_of_same_kind(struct Room *room)
+{
+    if (room_role_matches(room->kind, RoRoF_KeeperStorage | RoRoF_CrPoolSpawn)) {
+        return room;
+    }
+    struct Room* linkroom = room;
+    int32_t k = 0;
+    SlabCodedCoords i = room->slabs_list;
+    while (i > 0) {
+        MapSlabCoord slb_x = slb_num_decode_x(i);
+        MapSlabCoord slb_y = slb_num_decode_y(i);
+        for (int n = 0; n < SMALL_AROUND_LENGTH; n++) {
+            struct Room* adjacent_room = slab_room_get(slb_x + small_around[n].delta_x, slb_y + small_around[n].delta_y);
+            if (room_is_invalid(adjacent_room) || (adjacent_room == linkroom) || (adjacent_room->owner != linkroom->owner) || (adjacent_room->kind != linkroom->kind)) {
+                continue;
+            }
+            if (linkroom == room) {
+                if (!merge_room_into(adjacent_room, room)) {
+                    return room;
+                }
+                linkroom = adjacent_room;
+            } else if (!merge_room_into(linkroom, adjacent_room)) {
+                return linkroom;
+            }
+        }
+        i = get_next_slab_number_in_room(i);
+        k++;
+        if (k > linkroom->slabs_count) {
+            ERRORLOG("Infinite loop detected when sweeping room slabs");
+            break;
+        }
+    }
+    update_room_central_tile_position(linkroom);
+    return linkroom;
+}
+
 void do_room_integration(struct Room *room)
 {
     SYNCDBG(7,"Starting for %s index %d owned by player %d",room_code_name(room->kind),(int)room->index,(int)room->owner);
@@ -3893,14 +3949,10 @@ void output_room_takeover_message(struct Room *room, PlayerNumber oldowner, Play
     {
         if (is_my_player_number(oldowner)) {
             output_message(SMsg_EntranceLost, 0);
-        } else
-        if (is_my_player_number(newowner))
-        {
+        } else if (is_my_player_number(newowner)) {
             output_message(SMsg_EntranceClaimed, 0);
         }
-    } else
-    if (is_my_player_number(newowner))
-    {
+    } else if (is_my_player_number(newowner)) {
         if (oldowner == game.neutral_player_num) {
             output_message(SMsg_NewRoomTakenOver, 0);
         } else {
@@ -3933,7 +3985,8 @@ long claim_room(struct Room *room, struct Thing *claimtng)
     do_room_unprettying(room, claimtng->owner);
     event_create_event(subtile_coord_center(room->central_stl_x), subtile_coord_center(room->central_stl_y),
         EvKind_RoomTakenOver, claimtng->owner, room->kind);
-    do_room_integration(room);
+    room = merge_adjacent_rooms_of_same_kind(room);
+    do_room_recalculation(room);
     thing_play_sample(claimtng, snd_room_claim, NORMAL_PITCH, 0, 3, 0, 4, FULL_LOUDNESS);
     output_room_takeover_message(room, oldowner, claimtng->owner);
     return 1;
@@ -3965,7 +4018,8 @@ long claim_enemy_room(struct Room *room, struct Thing *claimtng)
     do_room_unprettying(room, claimtng->owner);
     event_create_event(subtile_coord_center(room->central_stl_x), subtile_coord_center(room->central_stl_y),
         EvKind_RoomTakenOver, claimtng->owner, room->kind);
-    do_room_integration(room);
+    room = merge_adjacent_rooms_of_same_kind(room);
+    do_room_recalculation(room);
     output_room_takeover_message(room, oldowner, claimtng->owner);
     return 1;
 }
@@ -3995,10 +4049,11 @@ long take_over_room(struct Room* room, PlayerNumber newowner)
         lua_on_room_owner_change(room, oldowner);
         redraw_room_map_elements(room);
         do_room_unprettying(room, newowner);
-        do_room_integration(room);
         MapCoord ccor_x = subtile_coord_center(room->central_stl_x);
         MapCoord ccor_y = subtile_coord_center(room->central_stl_y);
         event_create_event_or_update_nearby_existing_event(ccor_x, ccor_y, EvKind_RoomLost, oldowner, room->kind);
+        room = merge_adjacent_rooms_of_same_kind(room);
+        do_room_recalculation(room);
         return 1;
     }
     else

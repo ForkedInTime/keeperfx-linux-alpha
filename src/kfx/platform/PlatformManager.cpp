@@ -12,6 +12,7 @@
 #include "kfx/platform/IPlatform.h"
 #include "kfx/platform/PlatformLinux.h"
 #include "kfx/platform/FileFind.h"
+#include "kfx/platform/FileSystemLb.h"
 #include "platform.h"
 #include "bflib_fileio.h"
 #include "cdrom.h"
@@ -21,6 +22,12 @@
 /******************************************************************************/
 
 IWindowSystem* IPlatform::GetWindowSystem() { return GetSDLWindowSystem(); }
+
+IFileSystem* IPlatform::GetFileSystem()
+{
+    static FileSystemLb s_fs;
+    return &s_fs;
+}
 
 IPlatform* GetPlatform()
 {

@@ -31,6 +31,7 @@
 #include "creature_graphics.h"
 #include "creature_senses.h"
 #include "engine_redraw.h"
+#include "engine_render.h"
 #include "front_simple.h"
 #include "game_legacy.h"
 #include "globals.h"
@@ -80,14 +81,17 @@ struct EffectElementConfigStats *get_effect_element_model_stats(ThingModel tngmo
 
 static TbBool any_player_close_enough_to_see(const struct Coord3d *pos)
 {
-    for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++)
     {
+        PlayerNumber plyr_idx = get_net_user_player_number(user);
+        if (plyr_idx < 0)
+            continue;
         struct PlayerInfo *player = get_player(plyr_idx);
         if ( (player_exists(player)) && ((player->allocflags & PlaF_CompCtrl) == 0))
         {
             MapCoord x = 0;
             MapCoord y = 0;
-            const int32_t radius = user_get_visibility_bounds(player->user_id, &x, &y);
+            const int32_t radius = user_get_visibility_bounds(user, &x, &y);
             if (chessboard_distance(x, y, (MapCoord)pos->x.val, (MapCoord)pos->y.val) <= radius)
             {
                 return true;
@@ -127,7 +131,7 @@ struct Thing *create_effect_element(const struct Coord3d *pos, ThingModel eelmod
     thing->solid_size_xy = 1;
     thing->solid_size_z = 1;
 
-    if (eestat->sprite_idx != -1)
+    if (eestat->sprite_idx != ANIMATION_NONE)
     {
         i = UNSYNC_RANDOM(eestat->sprite_size_max  - (int)eestat->sprite_size_min  + 1);
         long n = UNSYNC_RANDOM(eestat->sprite_speed_max - (int)eestat->sprite_speed_min + 1);
@@ -775,7 +779,6 @@ void effect_generate_effect_elements(const struct Thing *thing)
     case 4:
     {
         HitPoints i = effcst->start_health / 2;
-        struct PlayerInfo* player;
         if (thing->health == effcst->start_health)
         {
             memset(temp_pal, 63, PALETTE_SIZE);
@@ -794,8 +797,7 @@ void effect_generate_effect_elements(const struct Thing *thing)
             LbPaletteFade(engine_palette, 8, Lb_PALETTE_FADE_OPEN);
         } else
         {
-            player = get_my_player();
-            PaletteSetUserPalette(player->user_id, engine_palette);
+            PaletteSetUserPalette(get_local_user(), engine_palette);
             LbPaletteStopOpenFade();
         }
         break;
@@ -1090,8 +1092,7 @@ TbBool explosion_affecting_thing(struct Thing *tngsrc, struct Thing *tngdst, con
                 apply_damage_to_thing(tngdst, damage, -1);
                 affected = true;
                 event_create_event_or_update_nearby_existing_event(tngdst->mappos.x.val, tngdst->mappos.y.val,EvKind_HeartAttacked, tngdst->owner, 0);
-                if (is_my_player_number(tngdst->owner))
-                {
+                if (is_my_player_number(tngdst->owner)) {
                     output_message(SMsg_HeartUnderAttack, 400);
                     controller_rumble(50);
                 }

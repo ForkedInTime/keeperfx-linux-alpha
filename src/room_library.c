@@ -112,12 +112,9 @@ EventIndex update_library_object_pickup_event(struct Thing *creatng, struct Thin
         // Only play speech message if new event was created
         if (evidx > 0)
         {
-            if ( (is_my_player_number(picktng->owner)) && (!is_my_player_number(creatng->owner)) )
-            {
+            if ( (is_my_player_number(picktng->owner)) && (!is_my_player_number(creatng->owner)) ) {
                 output_message(SMsg_SpellbookStolen, 0);
-            }
-            else if ( (is_my_player_number(creatng->owner)) && (!is_my_player_number(picktng->owner)) )
-            {
+            } else if ( (is_my_player_number(creatng->owner)) && (!is_my_player_number(picktng->owner)) ) {
                 player = get_my_player();
                 if (picktng->owner == game.neutral_player_num)
                 {
@@ -144,8 +141,7 @@ EventIndex update_library_object_pickup_event(struct Thing *creatng, struct Thin
         // Only play speech message if new event was created
         if (evidx > 0)
         {
-          if (is_my_player_number(creatng->owner) && !is_my_player_number(picktng->owner))
-          {
+          if (is_my_player_number(creatng->owner) && !is_my_player_number(picktng->owner)) {
               player = get_my_player();
               if (creatng->index != player->influenced_thing_idx)
               {
@@ -372,10 +368,7 @@ static void process_player_research(PlayerNumber plyr_idx)
             {
                 dungeon->magic_level[pwkind]++;
             }
-            if (is_my_player_number(plyr_idx))
-            {
-                output_message(SMsg_ResearchedSpell, 0);
-            }
+            output_player_message(plyr_idx, SMsg_ResearchedSpell, 0);
             research_completed = true;
         }
         break;
@@ -387,8 +380,7 @@ static void process_player_research(PlayerNumber plyr_idx)
             rkind = rsrchval->rkind;
             event_create_event(0, 0, EvKind_NewRoomResrch, plyr_idx, rkind);
             dungeon->room_buildable[rkind] |= 3; // Player may build room and may research it again
-            if (is_my_player_number(plyr_idx))
-                output_message(SMsg_ResearchedRoom, 0);
+            output_player_message(plyr_idx, SMsg_ResearchedRoom, 0);
             room = find_room_of_role_with_spare_room_item_capacity(plyr_idx, RoRoF_PowersStorage);
             if (!room_is_invalid(room))
             {
@@ -525,15 +517,21 @@ void reposition_all_books_in_room_on_subtile(struct Room *room, MapSubtlCoord st
                 if (get_gameturn() > 10) //Function is used to place books in rooms before dungeons are intialized
                 {
                     dungeon = get_players_num_dungeon(room->owner);
+                    TbBool stored = false;
                     if (dungeon->magic_level[spl_idx] < 2)
                     {
-                        if (!store_unique_reposition_entry(rrepos, objkind)) {
+                        stored = store_unique_reposition_entry(rrepos, objkind);
+                        if (!stored) {
                             WARNLOG("Too many things to reposition in %s.", room_code_name(room->kind));
                         }
                     }
                     if (!is_neutral_thing(thing))
                     {
-                        remove_power_from_player(spl_idx, room->owner);
+                        // A stored book comes back, so an active power stays on unless it ends up dropped
+                        if (stored)
+                            decrease_power_level_of_player(spl_idx, room->owner);
+                        else
+                            remove_power_from_player(spl_idx, room->owner);
                         dungeon = get_dungeon(room->owner);
                         dungeon->magic_resrchable[spl_idx] = 1;
                     }
@@ -832,7 +830,16 @@ void count_books_in_room(struct Room *room)
         {
             SYNCLOG("No %s capacity available to move, %d items belonging to player %d dropped",
                 room_code_name(room->kind), (int)rrepos.used, (int)room->owner);
-        }      
+        }
+        struct Dungeon* dungeon = get_players_num_dungeon(room->owner);
+        for (int ri = 0; ri < ROOM_REPOSITION_COUNT; ri++)
+        {
+            if ((rrepos.models[ri] == 0) || (rrepos.models[ri] >= game.conf.object_conf.object_types_count))
+                continue;
+            PowerKind pwkind = game.conf.object_conf.object_to_power_artifact[rrepos.models[ri]];
+            if ((pwkind > 0) && (dungeon->magic_level[pwkind] == 0))
+                power_lost_side_effects(pwkind, room->owner);
+        }
     }
     room->capacity_used_for_storage = room->used_capacity;
 }

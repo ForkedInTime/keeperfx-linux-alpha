@@ -77,6 +77,7 @@ enum NetAction {
     NetAct_HostStartLevel     = 0x18,
     NetAct_OpenLandView       = 0x20,
     NetAct_SetAlliance        = 0x28,
+    NetAct_SetPlayerColour      = 0x30,
     NetAct_SetComputerPlayers = 0x38,
 };
 
@@ -95,6 +96,10 @@ static inline unsigned char screen_packet_action(const struct ScreenPacket *nspc
 
 static inline void screen_packet_set_action(struct ScreenPacket *nspck, unsigned char action) {
     nspck->networkstatus_flags = (nspck->networkstatus_flags & NetStat_NonActionMask) | action;
+}
+
+static inline TbBool is_connected_screen_packet(const struct ScreenPacket *nspck) {
+    return (nspck->networkstatus_flags & NetStat_PlayerConnected) != 0;
 }
 
 /******************************************************************************/

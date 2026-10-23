@@ -48,6 +48,7 @@ extern "C" {
 enum PlayerInitFlags {
     PlaF_Allocated               = 0x01,
     PlaF_Placeholder             = 0x02, /**< Human user disconnected, replaced by a computer > */
+    PlaF_Seat                    = 0x04, /**< Playable by a human: includes humans (and placeholders), and lobby-assigned computers > */
     PlaF_CompCtrl                = 0x40,
 };
 
@@ -94,7 +95,6 @@ enum UserInitFlags {
 
 enum UserAdditionalFlags {
     UsrAF_None                      = 0x00,
-    UsrAF_NoThingUnderPowerHand     = 0x01, // Chosen subtile has nothing to interact with with the Power Hand (no creature to slap etc) (But the power hand is active)
     UsrAF_ChosenSubTileIsHigh       = 0x02, // Chosen subtile is at ceiling height (dirt/rock/wall etc)
     UsrAF_FreezePaletteIsActive     = 0x04, // blue_palette is being used during Freeze Spell. TODO: move to LocalState
     UsrAF_LightningPaletteIsActive  = 0x08, // lightning_palette is being used during Lightning Spell. TODO: move to LocalState
@@ -164,8 +164,6 @@ struct CheatSelection
 struct PlayerInfo {
     unsigned char allocflags;
     unsigned char display_flags;
-    NetUserId user_id; // -1 if no user
-    int32_t hand_animationId;
     unsigned int hand_busy_until_turn;
     char player_name[20];
     unsigned char victory_state;
@@ -175,44 +173,33 @@ struct PlayerInfo {
     TbBool unused;
     short controlled_thing_idx;
     GameTurn controlled_thing_creatrn;
-    short thing_under_hand;
     TbBool possession_lock;
     MapCoord zoom_to_pos_x;
     MapCoord zoom_to_pos_y;
     struct Wander wandr_within;
     struct Wander wandr_outside;
-    short hand_thing_idx;
     short cta_flag_idx;
     short influenced_thing_idx;
     GameTurn influenced_thing_creation;
-    PlayerState work_state;
-    PlayerState continue_work_state;
     char mp_message_text[PLAYER_MP_MESSAGE_LEN];
     char mp_pending_message[PLAYER_MP_MESSAGE_LEN];
     char mp_message_text_last[PLAYER_MP_MESSAGE_LEN];
     /** An "instance" is a short, scripted animation. See: enum PlayerInstanceNum */
     unsigned char instance_num;
-    unsigned long instance_remain_turns;
+    uint32_t instance_remain_turns;
     /** Overcharge level while casting keeper powers. */
     int32_t cast_expand_level;
     GameTurn power_of_cooldown_turn;
     int32_t game_version;
     GameTurn display_objective_turn;
     unsigned char hand_idx;
-    struct RoomSpace render_roomspace;
     struct RoomSpace roomspace;
-    unsigned char roomspace_mode;
-    int roomspace_detection_looseness;
-    int roomspace_width;
-    int roomspace_height;
-    unsigned char roomspace_highlight_mode;
-    TbBool roomspace_drag_paint_mode;
-    unsigned char roomspace_l_shape;
-    TbBool roomspace_horizontal_first;
     unsigned char player_type; //enum PlayerTypes
     ThingModel special_digger;
     unsigned short generate_speed;
 };
+
+#define PLAYER_NONE (-1)
 
 /* Game state that exists per human user. Computer-controlled
  * players do not have users.
@@ -221,6 +208,7 @@ struct PlayerInfo {
  * user per client including the host.
  */
 struct UserState {
+    PlayerNumber player_id;
     unsigned char init_flags; // Uses UserInitFlags
     unsigned char additional_flags; // Uses UserAdditionalFlags
     unsigned char input_crtr_control;
@@ -241,8 +229,7 @@ struct UserState {
     TbBool one_click_lock_cursor;
     TbBool ignore_next_PCtr_RBtnRelease;
     TbBool ignore_next_PCtr_LBtnRelease;
-    char swap_to_untag_mode;
-    TbBool interpolated_tagging;
+    int8_t swap_to_untag_mode;
     /** First person (possession) controls. */
     TbBool first_person_dig_claim_mode;
     unsigned short selected_fp_thing_pickup;
@@ -260,6 +247,20 @@ struct UserState {
     unsigned char view_type;
     struct DungeonCamera dungeon_camera;
     UserPreferences prefs;
+    PlayerState work_state;
+    PlayerState continue_work_state;
+    short thing_under_hand;
+    short hand_thing_idx;
+    int32_t hand_animationId;
+    struct RoomSpace render_roomspace;
+    unsigned char roomspace_mode;
+    int roomspace_detection_looseness;
+    int roomspace_width;
+    int roomspace_height;
+    unsigned char roomspace_highlight_mode;
+    TbBool roomspace_drag_paint_mode;
+    unsigned char roomspace_l_shape;
+    TbBool roomspace_horizontal_first;
 };
 
 /******************************************************************************/
@@ -300,17 +301,16 @@ struct LocalCameraState {
  */
 extern struct LocalState {
     unsigned char view_type;
-    TbBool tooltips_restore; /**< Used to store/restore the value of settings.tooltips_on when transitioning to/from the map. */
-    TbBool status_menu_restore; /**< Used to store/restore the current status menu visibility when the map is shown/hidden. */
-    TbBool status_menu_hidden_for_map; /**< The status menu is hidden for the map and status_menu_restore holds its visibility. */
-    TbBool tooltips_hidden_for_map; /**< Tooltips are off for a map fade and tooltips_restore holds the setting. */
     TbBool paused_state_restore; /**< Used to restore pause state after saving */
     TbBool display_needs_update;
     short local_thing_under_hand;
     TbBool swipe_sprite_drawLR; /**< Used to decide whether to draw the swipe sprite left to right (TRUE), or [default] right to left (FALSE). */
     unsigned char *lens_palette;
     unsigned char *main_palette;
-    int32_t palette_fade_step_map;
+    TbBool map_fade_prepared;
+    unsigned char map_fade_view_type;
+    int32_t map_fade_turns;
+    int64_t map_fade_start_time;
     int32_t palette_fade_step_pain;
     int32_t palette_fade_step_possession;
     short engine_window_width;
@@ -331,6 +331,13 @@ extern struct LocalState {
     TbBool observer_camera_active;
     unsigned char observer_camera_view_type;
     unsigned char observer_camera_idx;
+    int32_t fast_forward;
+    long double process_turn_time;
+    float delta_time;
+    uint32_t time_delta;
+    TbBool show_gui;
+    TbBool show_panel;
+    TbBool rewinding;
 } local_state;
 
 extern unsigned short player_colors_map[];
@@ -354,11 +361,12 @@ TbBool is_my_player(const struct PlayerInfo *player);
 struct UserState *get_user_state(NetUserId user);
 struct UserState *get_player_user_state(const struct PlayerInfo *player);
 struct UserState *get_local_user_state(void);
+void set_local_user_state_prediction(const struct UserState *ustate);
+const struct UserState *get_player_user_state_prediction(const struct PlayerInfo *player);
 uint32_t get_local_minimap_zoom(void);
 TbBool user_state_invalid(const struct UserState *ustate);
 int32_t user_zoom_min(const struct UserState *ustate, TbBool front_view);
 TbBool is_my_player_number(PlayerNumber plyr_num);
-TbBool is_player_displayed(PlayerNumber plyr_num);
 TbBool player_allied_with(const struct PlayerInfo *player, PlayerNumber ally_idx);
 TbBool players_are_enemies(PlayerNumber plyr1_idx, PlayerNumber plyr2_idx);
 TbBool players_are_mutual_allies(PlayerNumber plyr1_idx, PlayerNumber plyr2_idx);
@@ -373,9 +381,10 @@ TbBool player_is_roaming(PlayerNumber plyr_num);
 TbBool player_is_keeper(PlayerNumber plyr_num);
 TbBool player_is_neutral(PlayerNumber plyr_num);
 
-void set_player_state(struct PlayerInfo *player, short a1, int32_t a2);
-void set_player_mode(struct PlayerInfo *player, unsigned short nview);
-void reset_player_mode(struct PlayerInfo *player, unsigned short nview);
+void set_user_work_state_kind(struct UserState *ustate, int32_t chosen_kind);
+void set_user_work_state(NetUserId user, short nwrk_state, int32_t chosen_kind);
+void set_user_view_type(NetUserId user, unsigned short nview);
+void reset_user_view_type(NetUserId user, unsigned short nview);
 
 void clear_players(void);
 
@@ -384,6 +393,8 @@ unsigned char get_player_active_camera_index(const struct PlayerInfo *player);
 int32_t get_player_dungeon_yaw(const struct PlayerInfo *player);
 enum LocalViewMode get_dungeon_view_mode(const struct UserState *ustate);
 void rotate_mode_to_dungeon_view(unsigned char mode, TbBool *front_view, TbBool *wibble);
+NetUserId get_player_primary_user(const struct PlayerInfo *player);
+struct PlayerInfo *get_user_player(NetUserId user);
 
 unsigned char get_player_color_idx(PlayerNumber plyr_idx);
 /******************************************************************************/

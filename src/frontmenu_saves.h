@@ -35,12 +35,12 @@ struct CatalogueEntry;
 /******************************************************************************/
 extern struct GuiMenu load_menu;
 extern struct GuiMenu save_menu;
+#define frontend_load_menu_items_visible  6
+extern struct GuiMenu frontend_load_menu;
 extern struct GuiMenu delete_save_menu;
 #define DELETE_SAVE_NAME_LEN 30
 /** Name of the save the delete confirmation is asking about. */
 extern char delete_save_name[DELETE_SAVE_NAME_LEN];
-#define frontend_load_menu_items_visible  6
-extern struct GuiMenu frontend_load_menu;
 /******************************************************************************/
 void gui_load_game(struct GuiButton *gbtn);
 void gui_load_game_maintain(struct GuiButton *gbtn);
@@ -52,7 +52,7 @@ void draw_delete_save_button(struct GuiButton *gbtn);
 void gui_ask_delete_save(struct GuiButton *gbtn);
 void gui_delete_save_confirmed(struct GuiButton *gbtn);
 void gui_delete_save_cancelled(struct GuiButton *gbtn);
-void update_loadsave_input_strings(struct CatalogueEntry *game_catalg);
+void update_loadsave_input_strings(void);
 void frontend_load_game(struct GuiButton *gbtn);
 void frontend_draw_load_game_button(struct GuiButton *gbtn);
 void frontend_load_game_up(struct GuiButton *gbtn);

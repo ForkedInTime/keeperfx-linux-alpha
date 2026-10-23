@@ -262,6 +262,7 @@ enum ChecksumKind {
 #define PCtr_HeldAnyButton (PCtr_LBtnHeld | PCtr_RBtnHeld)
 
 #define INVALID_PACKET (&bad_packet)
+#define RESYNC_COOLDOWN_MS (5 * 60 * 1000)
 
 /******************************************************************************/
 #pragma pack(1)
@@ -274,9 +275,7 @@ extern TbBool unpausing_in_progress;
 
 /**
  * Stores data exchanged between players each turn and used to re-create their input.
- * Version number is only used for replay files; increment it if the packet layout changes.
  */
-#define PACKET_VER 0
 struct Packet {
     GameTurn turn;
     TbBigChecksum checksum; //! Checksum of the entire game state of the previous turn, used solely for desync detection

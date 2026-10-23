@@ -16,78 +16,108 @@
 #include "pre_inc.h"
 
 #include "bflib_dernc.h"
+#include "bflib_fileio.h"
 
 #include "highscores.h"
 #include "globals.h"
 #include "config.h"
 #include "config_campaigns.h"
-
+#include "game_saves.h"
+#include "kfx/save/SaveManager.h"
 
 #include "post_inc.h"
 
+#include <string.h>
+
 /******************************************************************************/
-// The score file is the table written raw, the same file on Windows and Linux.
-_Static_assert(sizeof(struct HighScore) == 72, "high score file entries are 72 bytes");
+// Raw score files from before the KFXS format hold the table as it was in memory.
+_Static_assert(sizeof(struct HighScore) == 72, "the raw score file layout has 72-byte entries");
 
 /**
- * Entry size in the score files of earlier 64-bit Linux builds, where `score` was an
- * 8-byte long: score at 0 (8 bytes), name at 8, lvnum at 72, padding to 80.
+ * Entry size in the raw score files 64-bit Linux builds write (this edition, until
+ * stable reads KFXS), where `score` was an 8-byte long: score at 0 (8 bytes), name
+ * at 8, lvnum at 72, padding to 80.
  */
 #define HISCORE_ENTRY_SIZE_LP64 80
 
-/**
- * Loads a score file written in the earlier 64-bit Linux layout, converting each
- * entry, so those players keep their scores.
- */
-static TbBool load_high_score_table_lp64(const char *fname, long file_len)
+/** Converts a raw score file in the 64-bit Linux layout into the table. */
+static void decode_high_score_table_lp64(const unsigned char *buf, struct HighScore *table, long count)
 {
-    if (campaign.hiscore_table == NULL)
-        return false;
-    unsigned char *buf = (unsigned char *)malloc(file_len);
-    if (buf == NULL)
-        return false;
-    TbBool loaded = (LbFileLoadAt(fname, buf) == file_len);
-    if (loaded)
+    for (long i = 0; i < count; i++)
     {
-        for (unsigned long i = 0; i < campaign.hiscore_count; i++)
-        {
-            const unsigned char *src = buf + i * HISCORE_ENTRY_SIZE_LP64;
-            struct HighScore *hscore = &campaign.hiscore_table[i];
-            int64_t score;
-            memcpy(&score, src, sizeof(score));
-            hscore->score = (score > INT32_MAX) ? INT32_MAX : ((score < INT32_MIN) ? INT32_MIN : (int32_t)score);
-            memcpy(hscore->name, src + 8, HISCORE_NAME_LENGTH);
-            hscore->name[HISCORE_NAME_LENGTH - 1] = '\0';
-            memcpy(&hscore->lvnum, src + 8 + HISCORE_NAME_LENGTH, sizeof(hscore->lvnum));
-        }
-        SYNCMSG("High scores table %s is in the earlier 64-bit layout; converted.", fname);
+        const unsigned char *src = buf + i * HISCORE_ENTRY_SIZE_LP64;
+        struct HighScore *hscore = &table[i];
+        int64_t score;
+        memcpy(&score, src, sizeof(score));
+        hscore->score = (score > INT32_MAX) ? INT32_MAX : ((score < INT32_MIN) ? INT32_MIN : (int32_t)score);
+        memcpy(hscore->name, src + 8, HISCORE_NAME_LENGTH);
+        hscore->name[HISCORE_NAME_LENGTH - 1] = '\0';
+        memcpy(&hscore->lvnum, src + 8 + HISCORE_NAME_LENGTH, sizeof(hscore->lvnum));
     }
-    free(buf);
-    return loaded;
 }
+
 
 static TbBool load_high_score_table(void)
 {
     char* fname = prepare_file_path(FGrp_Save, campaign.hiscore_fname);
-    long arr_size = campaign.hiscore_count * sizeof(struct HighScore);
-    if (arr_size <= 0)
+    if (campaign.hiscore_count <= 0)
     {
         free(campaign.hiscore_table);
         campaign.hiscore_table = NULL;
         return true;
     }
-    if (campaign.hiscore_table == NULL)
-        campaign.hiscore_table = (struct HighScore *)calloc(arr_size, 1);
-    long file_len = LbFileLengthRnc(fname);
-    if ((file_len != arr_size) && (file_len == (long)(campaign.hiscore_count * HISCORE_ENTRY_SIZE_LP64)))
-        return load_high_score_table_lp64(fname, file_len);
-    if (file_len != arr_size)
+    char magic[SAVE_MAGIC_SIZE];
+    TbFileHandle fh = LbFileOpen(fname, Lb_FILE_MODE_READ_ONLY);
+    if (!fh)
         return false;
-    if (campaign.hiscore_table == NULL)
-        return false;
-    if (LbFileLoadAt(fname, campaign.hiscore_table) == arr_size)
+    TbBool is_kfxs = (LbFileRead(fh, magic, sizeof(magic)) == sizeof(magic)) && save_magic_matches(magic, sizeof(magic));
+    LbFileClose(fh);
+    if (is_kfxs)
+    {
+        struct HighScore* table = NULL;
+        uint32_t count = 0;
+        struct SaveError err;
+        if ((SaveManager_ReadHighScores(fname, &table, &count, &err) != SVR_Ok) || (count != (uint32_t)campaign.hiscore_count))
+        {
+            free(table);
+            return false;
+        }
+        free(campaign.hiscore_table);
+        campaign.hiscore_table = table;
         return true;
-    return false;
+    }
+    // Old raw-array format: import once, then rewrite in the new format immediately.
+    // 64-bit Linux builds wrote 80-byte entries; this edition reads those too.
+    long arr_size = campaign.hiscore_count * sizeof(struct HighScore);
+    long lp64_size = campaign.hiscore_count * HISCORE_ENTRY_SIZE_LP64;
+    long file_len = LbFileLengthRnc(fname);
+    if ((file_len != arr_size) && (file_len != lp64_size))
+        return false;
+    struct HighScore* legacy = (struct HighScore *)calloc(campaign.hiscore_count, sizeof(struct HighScore));
+    if (legacy == NULL)
+        return false;
+    if (file_len == lp64_size)
+    {
+        unsigned char *buf = (unsigned char *)malloc(file_len);
+        if ((buf == NULL) || (LbFileLoadAt(fname, buf) != file_len))
+        {
+            free(buf);
+            free(legacy);
+            return false;
+        }
+        decode_high_score_table_lp64(buf, legacy, campaign.hiscore_count);
+        free(buf);
+        SYNCMSG("High scores table %s is in the 64-bit Linux layout; converted.", fname);
+    } else
+    if (LbFileLoadAt(fname, legacy) != arr_size)
+    {
+        free(legacy);
+        return false;
+    }
+    free(campaign.hiscore_table);
+    campaign.hiscore_table = legacy;
+    save_high_score_table();
+    return true;
 }
 
 /**
@@ -124,35 +154,45 @@ static TbBool create_empty_high_score_table(void)
 
 void load_or_create_high_score_table(void)
 {
+  if (campaign.hiscore_fname[0] == '\0')
+  {
+     // No file configured: the path would be the save folder itself. Keep the table in memory only.
+     create_empty_high_score_table();
+     return;
+  }
   if (!load_high_score_table())
   {
      SYNCMSG("High scores table bad; creating new one.");
+     SaveManager_KeepUnreadableFile(prepare_file_path(FGrp_Save, campaign.hiscore_fname));
      create_empty_high_score_table();
      save_high_score_table();
   }
 }
 
 /**
- * Saves the table in the earlier 64-bit Linux layout (see load_high_score_table_lp64).
+ * Saves the table in the 64-bit Linux raw layout (see decode_high_score_table_lp64).
  *
- * Stable and alpha share one game folder, and stable 1.4.0.5660 reads only this
- * layout: given a 72-byte table it decides the file is bad and writes a fresh
- * default table over it, so a player switching back to stable lost every score.
- * Both layouts are read; keep writing this one until the oldest stable a player
- * can switch back to reads the 72-byte layout too.
+ * This edition's stable and alpha share one game folder, and stable 1.4.0.5660
+ * reads only this layout: given a KFXS or 72-byte table it decides the file is bad
+ * and writes a fresh default table over it, so a player switching back to stable
+ * would lose every score. KFXS and both raw layouts are read; keep writing this one
+ * until the oldest stable a player can switch back to reads KFXS too, then return
+ * to SaveManager_WriteHighScores() as upstream does.
  */
 TbBool save_high_score_table(void)
 {
+    if (campaign.hiscore_fname[0] == '\0')
+        return true;
     char* fname = prepare_file_path(FGrp_Save, campaign.hiscore_fname);
-    long fsize = campaign.hiscore_count * HISCORE_ENTRY_SIZE_LP64;
-    if (fsize <= 0)
+    if (campaign.hiscore_count <= 0)
         return true;
     if (campaign.hiscore_table == NULL)
         return false;
+    long fsize = campaign.hiscore_count * HISCORE_ENTRY_SIZE_LP64;
     unsigned char *buf = (unsigned char *)calloc(fsize, 1);
     if (buf == NULL)
         return false;
-    for (unsigned long i = 0; i < campaign.hiscore_count; i++)
+    for (long i = 0; i < campaign.hiscore_count; i++)
     {
         unsigned char *dst = buf + i * HISCORE_ENTRY_SIZE_LP64;
         const struct HighScore *hscore = &campaign.hiscore_table[i];

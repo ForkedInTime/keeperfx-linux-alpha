@@ -354,9 +354,7 @@ TbResult game_action(PlayerNumber plyr_idx, unsigned short gaction, KeepPwrLevel
             const MapSubtlCoord stl_cx = slab_subtile(slb_x,0);
             const MapSubtlCoord stl_cy = slab_subtile(slb_y,0);
             if (tag_blocks_for_digging_in_area(stl_cx & ((stl_cx < 0) - 1), stl_cy & ((stl_cy < 0) - 1), plyr_idx)) {
-                if (is_my_player_number(plyr_idx)) {
-                    play_non_3d_sample(snd_tile_dig);
-                }
+                play_player_sample(plyr_idx, snd_tile_dig);
                 return Lb_SUCCESS;
             }
         }
@@ -807,9 +805,7 @@ short computer_dump_held_things_on_map(struct Computer2 *comp, struct Thing *dro
     if (object_is_gold_pile(droptng))
     {
         drop_gold_coins(pos, droptng->valuable.gold_stored, comp->dungeon->owner);
-        if (is_my_player_number(comp->dungeon->owner)) {
-            play_non_3d_sample(88);
-        }
+        play_player_sample(comp->dungeon->owner, 88);
         destroy_object(droptng);
     } else
     {
@@ -2209,7 +2205,7 @@ TbBool find_next_gold(struct Computer2 *comp, struct ComputerTask *ctask)
     do
     {
         dig_result = tool_dig_to_pos2(comp, &cdig, true, ToolDig_BasicOnly); // actions are simulated
-        SYNCDBG(5,"retval=%d, dig.distance=%ld, dig.calls_count=%ld",
+        SYNCDBG(5,"retval=%d, dig.distance=%" PRId32 ", dig.calls_count=%" PRId32,
             dig_result, cdig.distance, cdig.calls_count);
     } while (dig_result == TDR_DigSlab); // loop until we have reached our destination, or an error has occurred
 
@@ -2681,7 +2677,8 @@ struct Thing *find_creature_for_pickup(struct Computer2 *comp, struct Coord3d *p
                     }
                 } else
                 {
-                    if (grid_distance(thing->mappos.x.stl.num, thing->mappos.y.stl.num, stl_x, stl_y) >= 2)
+                    if ((grid_distance(thing->mappos.x.stl.num, thing->mappos.y.stl.num, stl_x, stl_y) >= 2)
+                      && ((cctrl->dropped_turn + COMPUTER_REDROP_DELAY) < get_gameturn()))
                     {
                         if (best_score) {
                             score = get_creature_thing_score(thing);
@@ -3531,10 +3528,7 @@ long task_sell_traps_and_doors(struct Computer2 *comp, struct ComputerTask *ctas
                         dungeon->doors_sold++;
                         dungeon->manufacture_gold += value;
                         destroy_door(doortng);
-                        if (is_my_player_number(dungeon->owner))
-                        {
-                            play_non_3d_sample(snd_tile_sell);
-                        }
+                        play_player_sample(dungeon->owner, snd_tile_sell);
                         dungeon->camera_deviate_jump = 192;
                         if (value != 0)
                         {
@@ -3572,10 +3566,7 @@ long task_sell_traps_and_doors(struct Computer2 *comp, struct ComputerTask *ctas
                         stl_y = stl_slab_center_subtile(traptng->mappos.y.stl.num);
                         dungeon->traps_sold += remove_traps_around_subtile(stl_x, stl_y, &value);
                         dungeon->manufacture_gold += value;
-                        if (is_my_player_number(dungeon->owner))
-                        {
-                            play_non_3d_sample(snd_tile_sell);
-                        }
+                        play_player_sample(dungeon->owner, snd_tile_sell);
                         dungeon->camera_deviate_jump = 192;
                         if (value != 0)
                         {

@@ -17,6 +17,7 @@
 #include "pre_inc.h"
 #include "config_keeperfx.h"
 #include "game_saves.h"
+#include "save_trash.h"
 
 #include <stdarg.h>
 #include "globals.h"
@@ -39,6 +40,7 @@
 #include "front_simple.h"
 #include "front_input.h"
 #include "gui_draw.h"
+#include "gui_msgs.h"
 #include "scrcapt.h"
 #include "sounds.h"
 #include "vidmode.h"
@@ -67,6 +69,7 @@ uint16_t api_port = 5599;
 uint32_t packetsave_max_kb = 32768;
 TbBool replays_enabled = true;
 uint32_t max_replays[ReplTyp_Count] = {5, 5, 10};
+uint32_t replay_rewind_buffer_kb = 65536;
 unsigned long features_enabled = 0;
 static unsigned char parchment_map_fade_turns = 0;
 unsigned char viewport_mode = VpMode_Original;
@@ -187,6 +190,8 @@ const struct NamedCommand conf_commands[] = {
   {"AUTOMATIC_REPLAYS"             , 52},
   {"MAX_REPLAYS"                   , 53},
   {"REPLAY_MAX_SIZE"               , 54},
+  {"CHAT_FONT_SIZE"                , 55},
+  {"REPLAY_REWIND_BUFFER_SIZE"     , 56},
   {NULL,                   0},
   };
 
@@ -1183,6 +1188,32 @@ static void load_file_configuration(const char *fname, const char *sname, const 
           }
           if (i >= 0) {
               packetsave_max_kb = i;
+          }
+          else {
+              CONFWRNLOG("Invalid \"%s\" value in %s file.", COMMAND_TEXT(cmd_num), config_textname);
+          }
+          break;
+      case 55: // CHAT_FONT_SIZE
+          i = -1;
+          if (get_conf_parameter_single(buf, &pos, len, word_buf, sizeof(word_buf)) > 0)
+          {
+              i = atoi(word_buf);
+          }
+          if (i > 0) {
+              chat_font_size = i;
+          }
+          else {
+              CONFWRNLOG("Invalid \"%s\" value in %s file.", COMMAND_TEXT(cmd_num), config_textname);
+          }
+          break;
+      case 56: // REPLAY_REWIND_BUFFER_SIZE
+          i = -1;
+          if (get_conf_parameter_single(buf, &pos, len, word_buf, sizeof(word_buf)) > 0)
+          {
+              i = atoi(word_buf);
+          }
+          if (i >= 0) {
+              replay_rewind_buffer_kb = i;
           }
           else {
               CONFWRNLOG("Invalid \"%s\" value in %s file.", COMMAND_TEXT(cmd_num), config_textname);

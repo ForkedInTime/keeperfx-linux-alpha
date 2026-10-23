@@ -298,7 +298,6 @@ src/room_util.c \
 src/room_workshop.c \
 src/roomspace.c \
 src/roomspace_detection.c \
-src/roomspace_prediction.c \
 src/scrcapt.c \
 src/slab_data.c \
 src/sounds.c \
@@ -328,7 +327,40 @@ src/front_landview_textbox.c \
 src/logging.c \
 src/net_spectator.c \
 src/observer.c \
-src/lua_readonly_io.c
+src/lua_readonly_io.c \
+src/kernel_memtracker.c \
+src/kfx/platform/FileSystemLb.cpp \
+src/kfx/save/core/save_codec.cpp \
+src/kfx/save/core/save_config_overlay.cpp \
+src/kfx/save/core/save_convert.cpp \
+src/kfx/save/core/save_decode.cpp \
+src/kfx/save/core/save_encode.cpp \
+src/kfx/save/core/save_inspect.cpp \
+src/kfx/save/core/save_migrate.cpp \
+src/kfx/save/core/save_names.cpp \
+src/kfx/save/core/save_recfile.cpp \
+src/kfx/save/core/save_resync.cpp \
+src/kfx/save/core/save_schema.cpp \
+src/kfx/save/core/save_schema_file.cpp \
+src/kfx/save/core/schema/schema_all.c \
+src/kfx/save/core/schema/schema_config.c \
+src/kfx/save/core/schema/schema_dungeon.c \
+src/kfx/save/core/schema/schema_game.c \
+src/kfx/save/core/schema/schema_misc.c \
+src/kfx/save/core/schema/schema_script.c \
+src/kfx/save/core/schema/schema_things.c \
+src/kfx/save/core/schema/schema_world.c \
+src/kfx/save/SaveCatalogue.cpp \
+src/kfx/save/SaveContinue.cpp \
+src/kfx/save/SaveGameFile.cpp \
+src/kfx/save/SaveManager.cpp \
+src/kfx/save/SaveRecordFiles.cpp \
+src/kfx/save/SaveReplayHeader.cpp \
+src/kfx/save/SaveUnionSelectors.cpp \
+src/replay_rewind.c \
+src/roomspace_input.c \
+src/save_trash.c \
+src/legacy_progress_lp64.c
 
 KFX_C_SOURCES = $(filter %.c,$(KFX_SOURCES))
 KFX_CXX_SOURCES = $(filter %.cpp,$(KFX_SOURCES))
@@ -438,15 +470,6 @@ clean:
 print-%:
 	$(info $($*))
 	@:
-
-# Prints sizeof(struct Game), which is the save-file format version whether or
-# not anyone intended it to be -- see packaging/ci/save_format_probe.c. Built
-# with $(KFX_CFLAGS), the same variable the engine's C objects below use, so the
-# number cannot drift from the shipped binary's: a flag or define added to the
-# engine build is added to this one in the same edit. Deliberately NOT in
-# KFX_SOURCES -- it has its own main() and is not part of the game.
-bin/save-format-probe: packaging/ci/save_format_probe.c src/ver_defs.h | bin $(DEPS_EXTRACTED)
-	$(CC) $(KFX_CFLAGS) -o $@ $<
 
 bin/keeperfx: $(KFX_OBJECTS) $(TOML_OBJECTS) $(GLAD_OBJECTS) deps/libcurl/lib/libcurl.a | bin
 	$(CXX) -o $@ $(KFX_OBJECTS) $(TOML_OBJECTS) $(GLAD_OBJECTS) $(KFX_LDFLAGS)

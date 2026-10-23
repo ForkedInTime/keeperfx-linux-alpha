@@ -24,6 +24,7 @@
 #include "bflib_sound.h"
 
 #include "slab_data.h"
+#include "ariadne_update.h"
 #include "room_data.h"
 #include "map_utils.h"
 #include "thing_effects.h"
@@ -194,7 +195,7 @@ TbBool tag_blocks_for_digging_in_area(MapSubtlCoord stl_x, MapSubtlCoord stl_y, 
           add_task_list_entry(plyr_idx, SDDigTask_DigEarth, i);
           task_added = true;
       }
-      if (is_player_displayed(plyr_idx)) {
+      if (is_my_player_number(plyr_idx)) {
           long dx;
           long dy;
           for (dy=0; dy < STL_PER_SLB; dy++)
@@ -246,7 +247,7 @@ TbBool untag_blocks_for_digging_in_area(MapSubtlCoord stl_x, MapSubtlCoord stl_y
         remove_from_task_list(plyr_idx, task_idx);
     }
     num_untagged = 0;
-    if (is_player_displayed(plyr_idx)) {
+    if (is_my_player_number(plyr_idx)) {
         long dx;
         long dy;
         for (dy=0; dy < STL_PER_SLB; dy++)
@@ -929,6 +930,7 @@ void place_slab_object(SlabCodedCoords slb_num, MapSubtlCoord stl_x,MapSubtlCoor
                         ERRORLOG("Cannot create object type %d", tngmodel);
                         continue;
                     }
+                    objtng->move_angle_xy = sobj->orientation;
                     if (thing_is_dungeon_heart(objtng))
                     {
                         struct Dungeon* dungeon = get_dungeon(objtng->owner);
@@ -1752,6 +1754,9 @@ void place_slab_type_on_map_f(SlabKind nslab, MapSubtlCoord stl_x, MapSubtlCoord
 
     if (!keep_blocks_around)
       update_blocks_around_slab(slb_x,slb_y);
+    else
+      update_navigation_triangulation(slab_subtile(slb_x,0) - STL_PER_SLB, slab_subtile(slb_y,0) - STL_PER_SLB,
+          slab_subtile(slb_x,0) + STL_PER_SLB + 2, slab_subtile(slb_y,0) + STL_PER_SLB + 2);
     switch (nslab)
     {
         case SlbT_ROCK:
@@ -2636,8 +2641,9 @@ void pretty_map_remove_flags_and_update(MapSlabCoord slb_x, MapSlabCoord slb_y)
     long m;
     MapSubtlCoord stl_x;
     MapSubtlCoord stl_y;
-    stl_x = slab_subtile_center(slb_x);
-    stl_y = slab_subtile_center(slb_y);
+    // The slab's first subtile: the loop below walks its 3x3 from there.
+    stl_x = slab_subtile(slb_x, 0);
+    stl_y = slab_subtile(slb_y, 0);
     for (m=0; m < STL_PER_SLB*STL_PER_SLB; m++)
     {
         MapSubtlCoord x;
