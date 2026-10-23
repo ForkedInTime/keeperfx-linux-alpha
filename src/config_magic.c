@@ -1452,7 +1452,8 @@ void power_lost_side_effects(PowerKind pwkind, PlayerNumber plyr_idx)
         }
         break;
     }
-    if (game.chosen_spell_type == pwkind)
+    // The chosen power is this machine's panel selection; another keeper losing the same power must not clear it.
+    if ((game.chosen_spell_type == pwkind) && is_my_player_number(plyr_idx))
     {
         set_chosen_power_none();
     }
