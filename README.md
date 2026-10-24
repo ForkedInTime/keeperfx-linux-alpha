@@ -299,6 +299,10 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   the game log side by side, following live, with a Copy button — and errors now offer a **Show log**
   button directly. The news panel lists this fork's releases (version and date, one line each, the
   full changelog one click away) above the KeeperFX team's news.
+- **The game keeps its last five logs.** Every start used to overwrite `keeperfx.log`, so whatever went wrong
+  in one session was gone as soon as the game was started again. The log of the run before now moves to
+  `keeperfx.log.1`, the one before that to `keeperfx.log.2`, and so on up to `keeperfx.log.5`; only the
+  oldest is dropped.
 - **One launcher at a time.** The launcher won't open a second copy of itself (that would let two games fight
   over the same saves).
 - **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for

@@ -2218,13 +2218,40 @@ static short process_command_line(unsigned short argc, char *argv[])
   return (bad_param==0);
 }
 
+/** How many logs of earlier runs are kept beside the current one. */
+#define PREVIOUS_LOGS_KEPT 5
+
+/**
+ * Moves the logs of earlier runs up one place -- keeperfx.log becomes keeperfx.log.1,
+ * keeperfx.log.1 becomes keeperfx.log.2 and so on, and the oldest is dropped -- so that
+ * starting the game no longer wipes the log of the run before. An empty log isn't kept.
+ */
+static void keep_previous_logs(const char *fname)
+{
+    // The same full path LbErrorLogSetup() opens the log as.
+    char path[DISKPATH_SIZE];
+    if ((LbFileMakeFullPath(1, "/", fname, path, sizeof(path)) != 1) || (LbFileLength(path) <= 0))
+        return;
+    char older[DISKPATH_SIZE + 4];
+    char newer[DISKPATH_SIZE + 4];
+    snprintf(older, sizeof(older), "%s.%d", path, PREVIOUS_LOGS_KEPT);
+    for (int i = PREVIOUS_LOGS_KEPT - 1; i > 0; i--)
+    {
+        snprintf(newer, sizeof(newer), "%s.%d", path, i);
+        rename(newer, older); // fails harmlessly while there aren't that many yet
+        snprintf(older, sizeof(older), "%s", newer);
+    }
+    rename(path, older);
+}
+
 static const char* determine_log_filename(unsigned short argument_count, char *argument_values[])
 {
     for (int argument_index = 1; argument_index < argument_count; argument_index++) {
         if (argument_values[argument_index] && (argument_values[argument_index][0] == '-' || argument_values[argument_index][0] == '/')) {
             char* argument_name = argument_values[argument_index] + 1;
             if (strcasecmp(argument_name, "log") == 0 && argument_index + 1 < argument_count) {
-                remove("keeperfx.log");
+                // The run before may have written the usual log; keep it rather than delete it.
+                keep_previous_logs(log_file_name);
                 return argument_values[argument_index + 1];
             }
         }
@@ -2309,6 +2336,7 @@ int LbBullfrogMain(unsigned short argc, char *argv[])
 
     // Determine correct log file based on command line flags
     const char* selected_log_file_name = determine_log_filename(argc, argv);
+    keep_previous_logs(selected_log_file_name);
     LbErrorLogSetup("/", selected_log_file_name, 5);
 
     retval = process_command_line(argc,argv);
