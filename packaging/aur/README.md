@@ -126,6 +126,20 @@ repository secret, `AUR_SSH_PRIVATE_KEY`, whose public half is registered on the
 AUR account owning the package. Run it with **Actions > Publish to AUR > Run
 workflow** and `dry_run: true` to validate without pushing.
 
+**When Arch updates a library the engine links.** Everyone compiles the package
+against the libraries Arch has that day, and its `depends=` holds it to them, so
+when Arch moves one to a new soname (ffmpeg 8 to 9 did) pacman refuses the library
+upgrade, and `yay -Syu` stops, on every machine with the game installed, until the
+package is rebuilt. `.github/workflows/aur-library-watch.yml` compares Arch with
+`packaging/ci/aur-library-baseline.txt` every Wednesday. On a change it test-builds
+the live AUR recipe against current Arch and opens an `aur-libraries` issue. To
+rebuild: **Publish to AUR > Run workflow** from the stable's branch with its tag and
+`rebuild` ticked (only `pkgrel` moves, above the AUR's, and the launcher pin is
+kept); then run **Watch Arch libraries** with `accept` to record the new baseline.
+The stable's branch needs a `publish-aur.yml` that has the `rebuild` option: one cut
+before it existed (1.4.0.5660, `hotfix/1.4.0.5660`) needs it committed there first.
+Run `accept` after every new stable is published too.
+
 **When you change the wrapper or desktop file**, their checksums are pinned, so
 refresh them:
 
