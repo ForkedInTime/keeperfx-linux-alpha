@@ -71,8 +71,19 @@ echo
 echo "== summary of sanitizer findings =="
 if ls "$OUT"/* >/dev/null 2>&1; then
     # One line per distinct finding site, with a count -- the triage list.
-    grep -hE "SUMMARY: (AddressSanitizer|UndefinedBehaviorSanitizer)|runtime error:" "$OUT"/* \
-        | sed 's/^.*runtime error:/runtime error:/' | sort | uniq -c | sort -rn
+    # UBSan lines become "file:line: kind", their values folded to N, or every
+    # shifted value gets a line. Misaligned accesses (the game's packed 1997
+    # structs: thousands of sites, harmless on x86-64) fold to one line per
+    # struct type; the full reports keep their sites.
+    findings=$(grep -hE "SUMMARY: (AddressSanitizer|UndefinedBehaviorSanitizer)|runtime error:" "$OUT"/* \
+        | awk -F': runtime error: ' 'NF == 2 { loc = $1; sub(/:[0-9]+$/, "", loc); msg = $2;
+              if (msg ~ /misaligned address/) { sub(/.*for type /, "", msg); sub(/, which requires.*/, "", msg);
+                  print "misaligned access to a packed " msg; next }
+              gsub(/-?[0-9]+/, "N", msg); print loc ": " msg; next } { print }' \
+        | sort | uniq -c | sort -rn)
+    # Everything else first: the misaligned lines are the long, known tail.
+    printf '%s\n' "$findings" | grep -v "misaligned access to a packed"
+    printf '%s\n' "$findings" | grep "misaligned access to a packed"
     echo "full reports: $OUT/"
 else
     echo "no sanitizer reports -- the pass ran clean"
