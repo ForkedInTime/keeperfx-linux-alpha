@@ -102,13 +102,20 @@ and the engine package second:
 
 | Kind | Directories | Behaviour |
 |---|---|---|
-| Read-only | `campgns` `levels` `lang` `fxdata` `creatrs` `ldata` `multiplayer` | Symlinked whole, refreshed each launch so a pacman upgrade takes effect |
-| Merged | `data` `sound` | Real directories; packaged files linked in **individually** so the user's own Dungeon Keeper files sit beside them. A real file already in place always wins |
+| Read-only | `lang` `fxdata` `creatrs` `ldata` `multiplayer` | Symlinked whole, refreshed each launch so a pacman upgrade takes effect |
+| Merged | `data` `sound` `campgns` `levels` | Real directories; packaged entries linked in **individually** so the user's own Dungeon Keeper files and add-on campaigns and maps sit beside them. `levels/personal` and `levels/legacy` are real directories for the user to drop maps into |
 | User-owned | `mods` `music` | Seeded once with `cp -rn`, never clobbered |
 | Writable state | `save` `scrshots` | Created if absent |
 
-If the user replaces a symlinked directory with a real one, the wrapper leaves
-it alone — it only ever replaces its own symlinks.
+The packaged game always wins where it ships something. The AppImage deploys its
+whole payload into this same directory as real files, so anyone who ran it before
+installing the package has a copy of every packaged file in the way. A copy that
+is byte-identical to the packaged file, or to one already moved aside, is replaced
+by the link. Anything else is moved to `.replaced-by-package/<date-time>/` in the
+game directory, never deleted, with a README.txt saying why, and the wrapper says
+so on stderr. If a copy cannot be moved (a directory the user cannot write to),
+the game still starts and keeps using it. The user's own Dungeon Keeper files are
+never in the way, because the package ships none of them.
 
 ## Maintenance
 
