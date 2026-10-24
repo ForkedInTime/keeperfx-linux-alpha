@@ -368,6 +368,9 @@ int recognize_conf_command(const char *buf,int32_t *pos,long buflen,const struct
     return ccr_unrecognised;
 }
 
+/* long and unsigned long keep 32-bit limits here although they are 64 bits wide on Linux: a field
+ * declared long is 32-bit on Windows, and on 64-bit Linux it can't be told apart from an int64_t
+ * one. The only field that needs more, Castability, is parsed without these limits. */
 static int64_t get_datatype_min(uchar type)
 {
     switch (type)
@@ -692,10 +695,15 @@ int64_t get_named_field_value(const struct NamedField* named_field, const struct
         return *(signed int*)field;
     case dt_uint:
         return *(unsigned int*)field;
-    case dt_long:
-        return *(int32_t *)field;
-    case dt_ulong:
-        return *(uint32_t *)field;
+    /* Read as this platform's long, the size assign_named_field_value() writes. On 64-bit
+     * Linux every 64-bit field is a long; reading 32 bits of it dropped the high half, so
+     * switching one Castability flag ("FLAG 1") wiped the object pickup and slap flags. */
+    case dt_long: {
+        signed long v; memcpy(&v, field, sizeof(v)); return v;
+    }
+    case dt_ulong: {
+        unsigned long v; memcpy(&v, field, sizeof(v)); return (int64_t)v;
+    }
     case dt_longlong: {
         /* Use memcpy to avoid ARM LDRD strict-alignment fault. */
         int64_t v; memcpy(&v, field, sizeof(v)); return v;
