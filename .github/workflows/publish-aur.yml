@@ -26,6 +26,10 @@ on:
         description: 'Build and validate, but do not push to the AUR'
         type: boolean
         default: false
+      rebuild:
+        description: 'Same release, rebuilt: raise pkgrel above the AUR''s and keep the launcher pin (after an Arch library update, see aur-library-watch.yml)'
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -100,7 +104,21 @@ jobs:
           # breaking upgrade never runs for it. Against a live -4, a -1 is a
           # downgrade: pacman would not offer it and the change would silently
           # never reach anyone.
-          if [ "$current_pkgver" != "${{ steps.tag.outputs.pkgver }}" ]; then
+          if [ "${{ inputs.rebuild }}" = "true" ]; then
+            # A rebuild is the release that is already out, offered again so every
+            # machine compiles it against the libraries Arch has now: after a soname
+            # bump pacman refuses the library upgrade until that happens. Only pkgrel
+            # moves, and it has to go above what the AUR has, not above whatever the
+            # recipe on this branch says.
+            [ "$current_pkgver" = "${{ steps.tag.outputs.pkgver }}" ] || {
+              echo "::error::rebuild republishes the release this branch's recipe carries ($current_pkgver), not ${{ steps.tag.outputs.pkgver }}: run it from the stable's branch"; exit 1; }
+            live=$(curl -fsS --max-time 20 'https://aur.archlinux.org/rpc/v5/info?arg[]=keeperfx-tux' \
+              | grep -o '"Version":"[^"]*"' | head -n1 | sed 's/.*:"\(.*\)"/\1/')
+            [ "${live%-*}" = "$current_pkgver" ] || {
+              echo "::error::the AUR has '${live:-nothing}', not $current_pkgver: a rebuild is for the version that is live"; exit 1; }
+            sed -i "s|^pkgrel=.*|pkgrel=$(( ${live##*-} + 1 ))|" PKGBUILD
+            echo "::notice::Rebuild of $current_pkgver: pkgrel ${live##*-} -> $(( ${live##*-} + 1 ))"
+          elif [ "$current_pkgver" != "${{ steps.tag.outputs.pkgver }}" ]; then
             sed -i "s|^pkgrel=.*|pkgrel=1|" PKGBUILD
           else
             echo "::notice::Republishing ${current_pkgver}; keeping pkgrel=$(sed -n 's|^pkgrel=||p' PKGBUILD) rather than resetting to 1"
@@ -109,9 +127,12 @@ jobs:
           # AppImage for this same release is built from the launcher's alpha
           # branch, so the Arch package pins that branch's head. Left alone, the
           # pin stayed at the previous stable's launcher -- v1.4.0.5652 went out
-          # that way, with an engine a month newer than its launcher.
+          # that way, with an engine a month newer than its launcher. A rebuild
+          # keeps the pin it went out with: it is the same release.
           L=$(git ls-remote https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git refs/heads/alpha | cut -f1)
-          if [ -n "$L" ]; then
+          if [ "${{ inputs.rebuild }}" = "true" ]; then
+            echo "keeping _launcher_commit=$(sed -n 's|^_launcher_commit=||p' PKGBUILD)"
+          elif [ -n "$L" ]; then
             sed -i "s|^_launcher_commit=.*|_launcher_commit=$L|" PKGBUILD
           else
             echo "::warning::could not resolve the launcher's alpha head; keeping the committed _launcher_commit"
@@ -131,6 +152,12 @@ jobs:
           # release by the AppImage build, which runs after the release is published.
           # On a fresh release it is therefore legitimately not there yet.
           if ! curl -fsSL --retry 3 -o /tmp/full.7z "$URL"; then
+            # A rebuild is of a release that has been out for weeks: its archive is
+            # there, so a failed download is a failure, not a reason to skip.
+            if [ "${{ inputs.rebuild }}" = "true" ]; then
+              echo "::error::could not download $URL for the rebuild; nothing was published"
+              exit 1
+            fi
             echo "::notice::$URL is not attached yet — re-run this workflow once the AppImage build has uploaded it"
             echo "skip=1" >> "$GITHUB_OUTPUT"
             exit 0

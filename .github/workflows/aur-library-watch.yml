@@ -1,0 +1,157 @@
+# Warns before an Arch library update breaks the AUR stable for everyone.
+#
+# The AUR package is compiled on each user's machine against the libraries Arch had that
+# day, and its depends= hold it to them (packaging/aur/PKGBUILD). When Arch moves one of
+# them to a new soname -- ffmpeg 8 -> 9 did, on 2026-08-12 -- pacman refuses the library
+# upgrade on every machine with the game installed, so `yay -Syu` stops with a dependency
+# error until the package is rebuilt. A stable can stay out for months, so this will
+# happen while it is the current one.
+#
+# Once a week this compares what Arch offers now for the recipe live on the AUR
+# (packaging/ci/aur-library-state.sh) with packaging/ci/aur-library-baseline.txt, what the
+# stable was last built against. On a
+# change it builds the live AUR recipe against current Arch, so the report can say
+# whether a plain rebuild is enough, and opens (or updates) an issue saying what to do:
+#   1. run publish-aur.yml from the stable's branch with the stable's tag and rebuild ticked;
+#   2. run this workflow with accept ticked to record the new baseline.
+# Run step 2 after every stable is published too: its users build against that day's Arch.
+name: Watch Arch libraries for the AUR package
+
+on:
+  schedule:
+    - cron: '17 7 * * 3'   # Wednesdays 07:17 UTC: away from the Monday sync bot
+  workflow_dispatch:
+    inputs:
+      accept:
+        description: 'Record what Arch has now as the baseline (after a rebuild or a new stable went out)'
+        type: boolean
+        default: false
+      test_build:
+        description: 'Build the live AUR recipe against current Arch even if nothing changed'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # accept commits the new baseline
+  issues: write     # the report
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Install tooling
+        run: pacman -Syu --noconfirm --needed git github-cli binutils
+
+      - uses: actions/checkout@v4
+
+      # The recipe users build is the one live on the AUR: the stable's, whose libraries can
+      # differ from this branch's (1.4.0.5660 still links libepoxy; alpha no longer does).
+      - name: Fetch the live AUR recipe
+        run: git clone --depth 1 https://aur.archlinux.org/keeperfx-tux.git /tmp/aur
+
+      - name: Read what Arch offers now
+        id: state
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # The libraries that publish no soname are read from their files, so install them.
+          pacman -S --noconfirm --needed $(packaging/ci/aur-library-state.sh --unpinned /tmp/aur/PKGBUILD)
+          packaging/ci/aur-library-state.sh /tmp/aur/PKGBUILD > /tmp/now.txt
+          cat /tmp/now.txt
+          if diff -u packaging/ci/aur-library-baseline.txt /tmp/now.txt > /tmp/diff.txt; then
+            echo "changed=0" >> "$GITHUB_OUTPUT"
+            echo "Nothing the package depends on has changed."
+          else
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+            cat /tmp/diff.txt
+          fi
+
+      # What users would get from a rebuild: the recipe live on the AUR, built as they build it.
+      - name: Build the live AUR recipe against current Arch
+        id: build
+        if: (steps.state.outputs.changed == '1' && !inputs.accept) || inputs.test_build
+        run: |
+          set -o pipefail
+          cd /tmp/aur
+          # makepkg -s would need sudo; install what the recipe needs as root instead, and
+          # leave out the split package's own outputs.
+          pacman -S --noconfirm --needed $(sed -n -E 's/^[[:space:]]*(make)?depends = //p' .SRCINFO \
+            | sed -E 's/[<>=].*//' | grep -v '^keeperfx-tux' | sort -u)
+          useradd -m builder
+          chown -R builder /tmp/aur
+          if su builder -c 'cd /tmp/aur && makepkg --noconfirm --nocheck -f' > /tmp/build.log 2>&1; then
+            bsdtar -xOf keeperfx-tux-[0-9]*.pkg.tar.zst usr/lib/keeperfx-tux/keeperfx > /tmp/keeperfx
+            chmod +x /tmp/keeperfx
+            missing=$(ldd /tmp/keeperfx | awk '/not found/ { print $1 }' | paste -sd' ' -)
+            if [ -z "$missing" ]; then
+              echo "result=ok" >> "$GITHUB_OUTPUT"
+              echo "The live recipe builds against current Arch and the engine finds every library."
+            else
+              echo "result=missing $missing" >> "$GITHUB_OUTPUT"
+              echo "::error::built, but the engine cannot find: $missing"
+            fi
+          else
+            tail -n 60 /tmp/build.log
+            echo "result=fails" >> "$GITHUB_OUTPUT"
+            echo "::error::the live AUR recipe no longer builds against current Arch"
+          fi
+
+      # always(): a change must be reported even when the test build itself broke.
+      - name: Report
+        if: always() && steps.state.outputs.changed == '1' && !inputs.accept
+        env:
+          RESULT: ${{ steps.build.outputs.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create aur-libraries --color D93F0B --description "Arch changed a library the AUR package links" --force || true
+          stable=$(gh release view --json tagName --jq .tagName 2>/dev/null || echo '<the stable tag>')
+          {
+            echo "Arch has changed a library the AUR package is built against. For a soname dependency pacman"
+            echo "refuses the library update, so \`yay -Syu\` stops; for the others (SDL3, LuaJIT, minizip,"
+            echo "libnatpmp) the update goes through and the game stops starting. Either way, on every machine"
+            echo "with the game installed, until the package is rebuilt."
+            echo
+            echo '```diff'
+            cat /tmp/diff.txt
+            echo '```'
+            echo
+            case "$RESULT" in
+              ok)        echo "**The live recipe builds against current Arch and the engine finds every library, so a rebuild is enough:**" ;;
+              fails)     echo "**The live recipe no longer BUILDS against current Arch: a rebuild alone will not do, the code needs a fix first.** Build log in the run." ;;
+              missing*)  echo "**The live recipe builds, but the engine cannot find: ${RESULT#missing }.** Look before rebuilding." ;;
+              *)         echo "**The test build did not run.**" ;;
+            esac
+            echo
+            echo "1. Actions -> Publish to AUR -> Run workflow, from the stable's branch, tag \`$stable\`, tick **rebuild**."
+            echo "   That branch's publish-aur.yml must have the rebuild option; a stable cut before it was added"
+            echo "   (1.4.0.5660, branch hotfix/1.4.0.5660) needs this repository's publish-aur.yml committed there first."
+            echo "2. Then Actions -> Watch Arch libraries -> Run workflow with **accept**, to record the new baseline."
+            echo
+            echo "Run: $RUN_URL"
+          } > /tmp/body.md
+          issue=$(gh issue list --label aur-libraries --state open --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body-file /tmp/body.md
+          else
+            gh issue create --label aur-libraries --title "AUR stable: Arch changed a library the game links; rebuild needed" --body-file /tmp/body.md
+          fi
+
+      - name: Record the new baseline
+        if: inputs.accept
+        run: |
+          if cmp -s /tmp/now.txt packaging/ci/aur-library-baseline.txt; then
+            echo "The baseline already matches Arch; nothing to record."
+            exit 0
+          fi
+          cp /tmp/now.txt packaging/ci/aur-library-baseline.txt
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add packaging/ci/aur-library-baseline.txt
+          git commit -m "packaging: AUR library baseline as Arch has it on $(date -u +%F)"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push origin "HEAD:refs/heads/${{ github.ref_name }}"
+          issue=$(gh issue list --label aur-libraries --state open --json number --jq '.[0].number // empty')
+          [ -z "$issue" ] || gh issue close "$issue" --comment "New baseline recorded: $(git rev-parse --short HEAD)."
