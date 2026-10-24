@@ -755,7 +755,12 @@ void frontnet_start_update(void)
     {
       net_number_of_enum_players = 0;
       memset(net_player, 0, sizeof(net_player));
-      if ( LbNetwork_EnumeratePlayers(net_session[net_session_index_active], enum_players_callback, 0) )
+      // A host never picks a session from the list, so its index stays -1;
+      // net_session[-1] was read on every lobby update.
+      struct TbNetworkSessionNameEntry *sesn = NULL;
+      if (net_session_index_active >= 0 && net_session_index_active < net_number_of_sessions)
+          sesn = net_session[net_session_index_active];
+      if ( LbNetwork_EnumeratePlayers(sesn, enum_players_callback, 0) )
       {
         ERRORLOG("LbNetwork_EnumeratePlayers() failed");
         return;
