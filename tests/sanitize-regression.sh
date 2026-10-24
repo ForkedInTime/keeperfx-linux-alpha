@@ -34,6 +34,9 @@ trap 'rm -f "$GAMEDIR/keeperfx-sanitize" "$ERR"' EXIT
 # not end the run -- everything is logged and counted instead.
 export ASAN_OPTIONS="detect_leaks=0:abort_on_error=0:log_path=$OUT/asan"
 export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=$OUT/ubsan"
+# Silent: the sound code still runs, through SDL's and OpenAL's null drivers, but
+# a 16-campaign pass no longer plays through the speakers of whoever runs it.
+export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}" ALSOFT_DRIVERS="${ALSOFT_DRIVERS:-null}"
 
 printf '%-12s %-6s %-8s %s\n' CAMPAIGN LEVEL VERDICT REPORTS
 fail=0
