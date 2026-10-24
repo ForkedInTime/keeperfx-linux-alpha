@@ -495,7 +495,8 @@ int LbFileMakeFullPath(const short append_cur_dir,
     }
     buf[namestart] = '\0';
   }
-  if ( strlen(filename)+namestart-1 < len )
+  // The name and its NUL go at buf[namestart]: room for strlen(filename) + 1.
+  if ( strlen(filename)+namestart < len )
   {
     const char *ptr = filename;
     int invlen;

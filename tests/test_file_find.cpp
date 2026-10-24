@@ -309,6 +309,35 @@ int main()
 		remove_tree(root + "/xdg");
 	}
 
+	{
+		// LbFileMakeFullPath(), which makes the log file's path, must stay
+		// inside the buffer it is given. A path of exactly len characters used
+		// to pass its length check and put the NUL at buf[len], one past the
+		// end (an ASan run from a game folder 131 characters deep:
+		// "<folder>/keeperfx.log" is 144, DISKPATH_SIZE).
+		char here[4096];
+		char cwd[4096];
+		const bool moved = (getcwd(here, sizeof(here)) != NULL) && (chdir(root.c_str()) == 0);
+		if (moved && getcwd(cwd, sizeof(cwd)) != NULL) {
+			const std::string name(8, 'n');
+			const std::string full = std::string(cwd) + "/" + name;
+			char buf[4096];
+			std::memset(buf, 'G', sizeof(buf));
+			expect(LbFileMakeFullPath(1, "/", name.c_str(), buf, full.size()) == -1,
+				"a full path of exactly len characters is refused: there is no room for its NUL");
+			expect(buf[full.size()] == 'G', "the byte past a too-small buffer is left alone");
+			std::memset(buf, 'G', sizeof(buf));
+			expect(LbFileMakeFullPath(1, "/", name.c_str(), buf, full.size() + 1) == 1 && full == buf,
+				"a full path one shorter than len fits");
+			expect(buf[full.size() + 1] == 'G', "the byte past a buffer that fits exactly is left alone");
+		} else {
+			expect(false, "could not enter the temporary directory for the LbFileMakeFullPath test");
+		}
+		if (moved && chdir(here) != 0) {
+			expect(false, "could not return to the starting directory");
+		}
+	}
+
 	remove_tree(root + "/levels");
 	remove_tree(root + "/DK [GOG]");
 	remove_tree(root + "/What? Keeper*");
