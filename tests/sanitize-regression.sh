@@ -25,8 +25,9 @@ make -f "$ROOT_DIR/linux.mk" -C "$ROOT_DIR" SANITIZE=1 -j"$(nproc)" >/dev/null |
     echo "sanitized build FAILED" >&2; exit 1; }
 
 rm -rf "$OUT"; mkdir -p "$OUT"
+ERR="$ROOT_DIR/bin/sanitize-stderr.txt"
 ln -sfn "$ROOT_DIR/bin/keeperfx" "$GAMEDIR/keeperfx-sanitize"
-trap 'rm -f "$GAMEDIR/keeperfx-sanitize"' EXIT
+trap 'rm -f "$GAMEDIR/keeperfx-sanitize" "$ERR"' EXIT
 
 # detect_leaks=0: a 1997 game leaks at exit by design; leak noise would bury
 # the findings that matter. halt_on_error=0 on UBSan so one benign wrap does
@@ -45,8 +46,11 @@ for cfg in "$GAMEDIR"/campgns/*.cfg; do
 
     before=$(ls "$OUT" 2>/dev/null | wc -l)
     ( cd "$GAMEDIR" && timeout "$SECS" ./keeperfx-sanitize \
-        -campaign "$name" -level "$level" -nointro >/dev/null 2>&1 )
+        -campaign "$name" -level "$level" -nointro >/dev/null 2>"$ERR" )
     rc=$?
+    # In an ASan build UBSan ignores log_path (GCC 16): its "runtime error:"
+    # reports go to stderr, so stderr is kept whenever it carries one.
+    grep -q "runtime error:" "$ERR" && mv "$ERR" "$OUT/ubsan-stderr.$name"
     after=$(ls "$OUT" 2>/dev/null | wc -l)
 
     # 124 is timeout ending a still-running game: the pass case. ASan aborts
