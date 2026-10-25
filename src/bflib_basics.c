@@ -66,7 +66,7 @@ unsigned long lword (unsigned char *p)
  */
 long saturate_set_signed(long long val,unsigned short nbits)
 {
-  long long maximum_value = (1 << (nbits-1)) - 1;
+  long long maximum_value = (1LL << (nbits-1)) - 1;
   if (val >= maximum_value)
     return maximum_value;
   if (val <= -maximum_value)

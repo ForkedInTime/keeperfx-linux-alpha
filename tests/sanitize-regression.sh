@@ -25,14 +25,18 @@ make -f "$ROOT_DIR/linux.mk" -C "$ROOT_DIR" SANITIZE=1 -j"$(nproc)" >/dev/null |
     echo "sanitized build FAILED" >&2; exit 1; }
 
 rm -rf "$OUT"; mkdir -p "$OUT"
+ERR="$ROOT_DIR/bin/sanitize-stderr.txt"
 ln -sfn "$ROOT_DIR/bin/keeperfx" "$GAMEDIR/keeperfx-sanitize"
-trap 'rm -f "$GAMEDIR/keeperfx-sanitize"' EXIT
+trap 'rm -f "$GAMEDIR/keeperfx-sanitize" "$ERR"' EXIT
 
 # detect_leaks=0: a 1997 game leaks at exit by design; leak noise would bury
 # the findings that matter. halt_on_error=0 on UBSan so one benign wrap does
 # not end the run -- everything is logged and counted instead.
 export ASAN_OPTIONS="detect_leaks=0:abort_on_error=0:log_path=$OUT/asan"
 export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=$OUT/ubsan"
+# Silent: the sound code still runs, through SDL's and OpenAL's null drivers, but
+# a 16-campaign pass no longer plays through the speakers of whoever runs it.
+export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}" ALSOFT_DRIVERS="${ALSOFT_DRIVERS:-null}"
 
 printf '%-12s %-6s %-8s %s\n' CAMPAIGN LEVEL VERDICT REPORTS
 fail=0
@@ -45,8 +49,11 @@ for cfg in "$GAMEDIR"/campgns/*.cfg; do
 
     before=$(ls "$OUT" 2>/dev/null | wc -l)
     ( cd "$GAMEDIR" && timeout "$SECS" ./keeperfx-sanitize \
-        -campaign "$name" -level "$level" -nointro >/dev/null 2>&1 )
+        -campaign "$name" -level "$level" -nointro >/dev/null 2>"$ERR" )
     rc=$?
+    # In an ASan build UBSan ignores log_path (GCC 16): its "runtime error:"
+    # reports go to stderr, so stderr is kept whenever it carries one.
+    grep -q "runtime error:" "$ERR" && mv "$ERR" "$OUT/ubsan-stderr.$name"
     after=$(ls "$OUT" 2>/dev/null | wc -l)
 
     # 124 is timeout ending a still-running game: the pass case. ASan aborts
@@ -64,8 +71,19 @@ echo
 echo "== summary of sanitizer findings =="
 if ls "$OUT"/* >/dev/null 2>&1; then
     # One line per distinct finding site, with a count -- the triage list.
-    grep -hE "SUMMARY: (AddressSanitizer|UndefinedBehaviorSanitizer)|runtime error:" "$OUT"/* \
-        | sed 's/^.*runtime error:/runtime error:/' | sort | uniq -c | sort -rn
+    # UBSan lines become "file:line: kind", their values folded to N, or every
+    # shifted value gets a line. Misaligned accesses (the game's packed 1997
+    # structs: thousands of sites, harmless on x86-64) fold to one line per
+    # struct type; the full reports keep their sites.
+    findings=$(grep -hE "SUMMARY: (AddressSanitizer|UndefinedBehaviorSanitizer)|runtime error:" "$OUT"/* \
+        | awk -F': runtime error: ' 'NF == 2 { loc = $1; sub(/:[0-9]+$/, "", loc); msg = $2;
+              if (msg ~ /misaligned address/) { sub(/.*for type /, "", msg); sub(/, which requires.*/, "", msg);
+                  print "misaligned access to a packed " msg; next }
+              gsub(/-?[0-9]+/, "N", msg); print loc ": " msg; next } { print }' \
+        | sort | uniq -c | sort -rn)
+    # Everything else first: the misaligned lines are the long, known tail.
+    printf '%s\n' "$findings" | grep -v "misaligned access to a packed"
+    printf '%s\n' "$findings" | grep "misaligned access to a packed"
     echo "full reports: $OUT/"
 else
     echo "no sanitizer reports -- the pass ran clean"
