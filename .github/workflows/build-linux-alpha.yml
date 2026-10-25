@@ -1,12 +1,12 @@
-# Builds the KeeperFX Linux Alpha engine on an OLD base (Ubuntu 22.04) so the
-# resulting binary runs on every modern Linux distro — Ubuntu, Fedora, Arch,
-# Steam Deck — not just the machine it was built on. This runs on GitHub's
-# servers; nothing is installed on your computer.
+# Builds the KeeperFX Tux Edition portable engine package (engine + fonts + config)
+# on Ubuntu 24.04: glibc 2.39, so it runs on Ubuntu 24.04 and newer, Fedora, Arch and
+# Steam Deck, not on older LTS releases. This runs on GitHub's servers; nothing is
+# installed on your computer.
 #
 # Triggers:
 #   * when you publish a Release  -> builds and attaches the package to it
 #   * manually (Actions tab -> "Run workflow")
-name: Build Linux Alpha
+name: Build portable engine
 
 on:
   release:
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   build-engine:
-    runs-on: ubuntu-24.04     # ffmpeg 6.x (the engine needs ffmpeg >=5.1); glibc 2.39 -> runs on 24.04+ / Fedora / Arch / Steam Deck. Truly-universal coverage (older LTS) needs the AppImage/Flatpak bundling layer (next milestone).
+    runs-on: ubuntu-24.04     # ffmpeg 6.x (the engine needs ffmpeg >=5.1); glibc 2.39 -> runs on 24.04+ / Fedora / Arch / Steam Deck. The AppImage is built on 24.04 too, so older LTS releases need a source build.
     steps:
       - name: Check out the source
         uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
 
       - name: Stage the portable engine package (engine + fonts + config + version)
         run: |
-          S="dist/keeperfx-linux-alpha"
+          S="dist/keeperfx-tux-edition"
           mkdir -p "$S/fxdata" "$S/creatrs" "$S/mods" "$S/music"
           cp bin/keeperfx "$S/keeperfx"
           sed -n 's/.*VER_STRING  "\(.*\)".*/\1/p' src/ver_defs.h > "$S/version.txt"
@@ -108,20 +108,20 @@ jobs:
           # Our own MusicReadme: the upstream one still says OGG only, which has
           # not been true since the engine gained format and naming freedom.
           cp -r config/music/.   "$S/music/"
-          tar -C dist -czf "keeperfx-linux-alpha-${PKG_VER}-x86_64-portable.tar.gz" keeperfx-linux-alpha
-          ls -la keeperfx-linux-alpha-*-portable.tar.gz
+          tar -C dist -czf "keeperfx-tux-edition-${PKG_VER}-x86_64-portable.tar.gz" keeperfx-tux-edition
+          ls -la keeperfx-tux-edition-*-portable.tar.gz
 
       - name: Upload the build (downloadable from this CI run)
         uses: actions/upload-artifact@v4
         with:
-          name: keeperfx-linux-alpha-portable
-          path: keeperfx-linux-alpha-*-x86_64-portable.tar.gz
+          name: keeperfx-tux-edition-portable
+          path: keeperfx-tux-edition-*-x86_64-portable.tar.gz
 
       - name: Attach the build to the release (only when triggered by a release)
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: keeperfx-linux-alpha-*-x86_64-portable.tar.gz
+          files: keeperfx-tux-edition-*-x86_64-portable.tar.gz
 
       # When the save format changed, players find out by loading a campaign and
       # not finding it. The release body is the one place they read before

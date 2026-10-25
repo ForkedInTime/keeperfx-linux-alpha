@@ -150,7 +150,7 @@ release — same engine tag, next `pkgrel` — without cutting a new stable:
 4. Run **Publish to AUR** by hand on that branch (`workflow_dispatch`, ref
    `hotfix/1.4.0.5660`, tag `v1.4.0.5660`) — a dry run first:
    ```bash
-   gh workflow run publish-aur.yml --repo ForkedInTime/keeperfx-linux-alpha \
+   gh workflow run publish-aur.yml --repo ForkedInTime/keeperfx-tux-edition \
      --ref hotfix/1.4.0.5660 -f tag=v1.4.0.5660 -f dry_run=true
    ```
    then again with `dry_run=false`.

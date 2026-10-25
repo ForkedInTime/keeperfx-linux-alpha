@@ -1,4 +1,4 @@
-# Builds the KeeperFX Linux Alpha Flatpak and attaches it to the latest release.
+# Builds the KeeperFX Tux Edition Flatpak and attaches it to the latest release.
 #
 # Decoupled from the per-release AppImage build on purpose: the Flatpak is slow to
 # build (~12 min) and currently sees little use, while the AppImage + in-launcher
@@ -409,16 +409,16 @@ jobs:
         run: |
           flatpak-builder --user --force-clean --repo=fp-repo fp-build \
             packaging/io.github.forkedintime.KeeperFXLinuxAlpha.yml
-          flatpak build-bundle fp-repo "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.flatpak" \
+          flatpak build-bundle fp-repo "$GITHUB_WORKSPACE/KeeperFX-Tux-Edition-x86_64.flatpak" \
             io.github.forkedintime.KeeperFXLinuxAlpha \
             --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
-          ls -la "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.flatpak"
+          ls -la "$GITHUB_WORKSPACE/KeeperFX-Tux-Edition-x86_64.flatpak"
 
       - name: Upload the Flatpak (downloadable from this CI run)
         uses: actions/upload-artifact@v4
         with:
-          name: KeeperFX-Linux-Alpha-Flatpak
-          path: KeeperFX-Linux-Alpha-x86_64.flatpak
+          name: KeeperFX-Tux-Edition-Flatpak
+          path: KeeperFX-Tux-Edition-x86_64.flatpak
 
       # Same-repo upload: the default GITHUB_TOKEN is scoped to this repo, so this
       # needs no PAT. This is the whole reason the workflow lives here.
@@ -428,4 +428,4 @@ jobs:
         run: |
           TAG="${{ steps.stable.outputs.tag }}"
           echo "Attaching Flatpak to release $TAG"
-          gh release upload "$TAG" KeeperFX-Linux-Alpha-x86_64.flatpak --clobber
+          gh release upload "$TAG" KeeperFX-Tux-Edition-x86_64.flatpak --clobber

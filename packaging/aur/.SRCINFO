@@ -1,7 +1,7 @@
 pkgbase = keeperfx-tux
 	pkgver = 1.4.0.5652
 	pkgrel = 2
-	url = https://github.com/ForkedInTime/keeperfx-linux-alpha
+	url = https://github.com/ForkedInTime/keeperfx-tux-edition
 	arch = x86_64
 	license = GPL-2.0-or-later
 	makedepends = git
@@ -29,8 +29,8 @@ pkgbase = keeperfx-tux
 	options = !strip
 	options = !debug
 	options = !lto
-	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=v1.4.0.5652
-	source = keeperfx-tux-1.4.0.5652-full.7z::https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/download/v1.4.0.5652/keeperfx-linux-alpha-x86_64-full.7z
+	source = keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-tux-edition.git#tag=v1.4.0.5652
+	source = keeperfx-tux-1.4.0.5652-full.7z::https://github.com/ForkedInTime/keeperfx-tux-edition/releases/download/v1.4.0.5652/keeperfx-linux-alpha-x86_64-full.7z
 	source = keeperfx-tux-launcher::git+https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git#commit=10fb12a66c5f096938600937bd2dfe59182138a5
 	source = keeperfx-tux.sh
 	source = keeperfx-tux.desktop

@@ -1,7 +1,7 @@
 # KeeperFX Linux — promo drafts (Steam Guide + Steam review + GOG forum post)
 
-Repo: https://github.com/ForkedInTime/keeperfx-linux-alpha
-Latest AppImage: https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest
+Repo: https://github.com/ForkedInTime/keeperfx-tux-edition
+Latest AppImage: https://github.com/ForkedInTime/keeperfx-tux-edition/releases/latest
 
 ---
 
@@ -26,11 +26,11 @@ KeeperFX is a beloved community remake/patch of *Dungeon Keeper 1* — bug fixes
 ### Steps (Desktop / Linux)
 1. **Install DK Gold once** so its files are on disk. On Linux, enable Proton for it: *Properties → Compatibility → Force the use of a specific Steam Play compatibility tool → Proton*, then Install.
 2. **Download the Linux build** (one file):
-   https://github.com/ForkedInTime/keeperfx-linux-alpha/releases/latest/download/KeeperFX-Linux-Alpha-x86_64.AppImage
+   https://github.com/ForkedInTime/keeperfx-tux-edition/releases/latest/download/KeeperFX-Tux-Edition-x86_64.AppImage
 3. Make it runnable and launch it:
    ```
-   chmod +x KeeperFX-Linux-Alpha-x86_64.AppImage
-   ./KeeperFX-Linux-Alpha-x86_64.AppImage
+   chmod +x KeeperFX-Tux-Edition-x86_64.AppImage
+   ./KeeperFX-Tux-Edition-x86_64.AppImage
    ```
 4. The launcher opens, **auto-detects your Steam copy** of DK Gold, and copies the game data it needs. If it can't find it, point it at your Steam install folder
    (`.../steamapps/common/Dungeon Keeper Gold`).
@@ -40,7 +40,7 @@ KeeperFX is a beloved community remake/patch of *Dungeon Keeper 1* — bug fixes
 - Do the above in **Desktop Mode** (hold Power → Switch to Desktop).
 - If the AppImage complains about `libfuse.so.2`, run it without FUSE:
   ```
-  ./KeeperFX-Linux-Alpha-x86_64.AppImage --appimage-extract-and-run
+  ./KeeperFX-Tux-Edition-x86_64.AppImage --appimage-extract-and-run
   ```
 - To play from **Gaming Mode**: in Desktop Mode, right-click the AppImage → *Add to Steam* (or Steam → Add a Non-Steam Game), then launch it from your Library like any game. Controller/touch work through the desktop session.
 
@@ -48,7 +48,7 @@ KeeperFX is a beloved community remake/patch of *Dungeon Keeper 1* — bug fixes
 Any legit copy works — GOG or an old CD. See the project's README for GOG/Lutris/Heroic/innoextract instructions.
 
 ### Links
-- Download & full README: https://github.com/ForkedInTime/keeperfx-linux-alpha
+- Download & full README: https://github.com/ForkedInTime/keeperfx-tux-edition
 - Upstream KeeperFX (the actual game, Windows): https://keeperfx.net
 
 Enjoy, Keepers. 🐧👑
@@ -75,7 +75,7 @@ Hey all —
 
 KeeperFX is fantastic but ships Windows-only, so I put together an **unofficial, native Linux build** of it for those of us on Linux and the Steam Deck. No Wine, no Proton — a single AppImage that runs the engine natively and uses your own DK Gold files (GOG copy works great).
 
-- Download & instructions: https://github.com/ForkedInTime/keeperfx-linux-alpha
+- Download & instructions: https://github.com/ForkedInTime/keeperfx-tux-edition
 - One file: download the AppImage, `chmod +x`, run. The launcher auto-detects your GOG/Steam/CD install and copies what it needs.
 - GOG users: if the launcher doesn't auto-find it, point it at your installed DK folder (or unpack the GOG offline installer with `innoextract` — no Wine needed).
 
