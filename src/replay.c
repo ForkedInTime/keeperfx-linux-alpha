@@ -64,6 +64,10 @@ static TbBool replay_map_mismatch;
 static size_t pending_resync_len;
 static TbBigChecksum replay_expected_checksum;
 static TbBool replay_checksum_pending;
+// playback: the live turn stamp of the turn read last, and the game turn it was read on
+static GameTurn replay_last_read_stamp;
+static GameTurn replay_last_read_gameturn;
+static TbBool replay_last_read_valid;
 extern TbBool IMPRISON_BUTTON_DEFAULT;
 extern TbBool FLEE_BUTTON_DEFAULT;
 /******************************************************************************/
@@ -503,6 +507,7 @@ TbBool replay_restore_reader_pos(const struct ReplayReaderPos *pos)
     pending_resync = NULL;
     pending_resync_len = 0;
     replay_checksum_pending = false;
+    replay_last_read_valid = false;
     return restore_packet_decoder_state(&pos->dec);
 }
 
@@ -1365,6 +1370,7 @@ void close_packet_file(void)
     free(pending_resync);
     pending_resync = NULL;
     pending_resync_len = 0;
+    replay_last_read_valid = false;
     if ( replay.fopened )
     {
         LbFileClose(replay.fp);
@@ -1675,6 +1681,76 @@ void load_packets_for_turn(GameTurn nturn)
         replay.turns_fastforward--;
     replay_expected_checksum = tot_chksum;
     replay_checksum_pending = replay.checksum_verify && !turn_has_quit_packet();
+    struct Packet first;
+    memcpy(&first, pckt_buf, sizeof(first));
+    replay_last_read_stamp = first.turn;
+    replay_last_read_gameturn = get_gameturn();
+    replay_last_read_valid = true;
+}
+
+/**
+ * Whether the pass that ended the pause playback is resuming from is missing from the recording.
+ * Nothing is recorded while the game is paused. A pause that ends locally (the pause key, leaving
+ * a menu with Escape) leaves the next pass unpaused, so it is recorded and the paused turn holds
+ * two entries. A pause that ends through a packet, as after saving a game, ends inside a paused
+ * pass, so the turn holds one entry and the next one already belongs to the next turn. Reading it
+ * now would play all later input one turn early, and report every turn after it out of sync.
+ */
+TbBool replay_pause_ended_unrecorded(void)
+{
+    if (!replay.load_enable || !replay.fopened || !replay_last_read_valid
+     || (replay_last_read_gameturn != get_gameturn()) || (replay.pckt_gameturn >= replay.turns_stored))
+        return false;
+    NetUserId users[MAX_NET_USERS];
+    const int nusers = packet_saved_users(users);
+    // Only the save and load menus end a pause through a packet, and multiplayer disables both
+    // (maintain_loadsave); multiplayer recordings keep reading as they always have.
+    if (nusers != 1)
+        return false;
+    unsigned char pckt_buf[PACKET_TURN_MAX_SIZE+4];
+    TbBigChecksum chksum;
+    TbBool has_records;
+    struct PacketDecoderState records_state;
+    // read the next turn's stamp, then put the reader back where it was
+    struct PacketDecoderState dec;
+    save_packet_decoder_state(&dec);
+    struct Packet codec_prev[MAX_NET_USERS];
+    memcpy(codec_prev, packet_codec_prev, sizeof(codec_prev));
+    const unsigned int file_pos = replay.file_pos;
+    const TbBool reserved = packet_dec_reserved;
+    const TbBool read = read_turn(pckt_buf, nusers, &chksum, &has_records, &records_state);
+    struct Packet next;
+    memcpy(&next, pckt_buf, sizeof(next));
+    memcpy(packet_codec_prev, codec_prev, sizeof(packet_codec_prev));
+    replay.file_pos = file_pos;
+    packet_dec_reserved = reserved;
+    if (!restore_packet_decoder_state(&dec))
+    {
+        // as for any other read failure: reading on from here would play the wrong turns
+        ERRORLOG("Cannot return to turn %u of Packet File; replay aborted at turn %u",
+            (unsigned)replay.pckt_gameturn, (unsigned)get_gameturn());
+        erstat_inc(ESE_CantReadPackets);
+        disable_packet_mode();
+        return true;
+    }
+    return read && (next.turn != replay_last_read_stamp);
+}
+
+/**
+ * Reads the input for the next pass of playback: the next stored turn, or none when the live
+ * game resumed from a pause in a pass it did not record (see replay_pause_ended_unrecorded).
+ * @param resuming Whether a pause was in force when the pass began.
+ */
+void replay_read_next_pass(TbBool resuming)
+{
+    if (resuming && replay_pause_ended_unrecorded())
+    {
+        // play that pass with no input and keep the next turn's for its own turn
+        clear_packets();
+        return;
+    }
+    load_packets_for_turn(replay.pckt_gameturn);
+    replay.pckt_gameturn++;
 }
 
 void verify_replay_checksum(void)

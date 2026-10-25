@@ -32,6 +32,7 @@
 #include "player_data.h"
 #include "observer.h"
 #include "engine_redraw.h"
+#include "packets.h"
 #include "replay.h"
 #include "thing_data.h"
 #include "thing_list.h"
@@ -588,8 +589,16 @@ void replay_rewind_step(void)
     SoundDisabled = true;
     while ((get_gameturn() < target) && replay.load_enable && !quit_game && !exit_keeper)
     {
-        load_packets_for_turn(replay.pckt_gameturn);
-        replay.pckt_gameturn++;
+        // End a recorded pause on the next pass, as playback does (get_packet_load_game_inputs).
+        // Left paused, the world never reached the target and this loop read the rest of the file.
+        const TbBool resuming = flag_is_set(game.operation_flags, GOF_Paused);
+        if (resuming)
+        {
+            clear_users_button_state();
+            process_pause_packet(0, 0);
+            clear_flag(game.operation_flags, GOF_Paused);
+        }
+        replay_read_next_pass(resuming);
         update();
     }
     SoundDisabled = sound_disabled;
