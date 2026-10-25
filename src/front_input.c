@@ -2724,6 +2724,9 @@ static short get_observer_inputs(void)
 
 static short get_packet_load_game_inputs(void)
 {
+    // Taken before the menu check, which clears the pause itself when a menu the viewer opened
+    // over a recorded pause closes.
+    const TbBool resuming = flag_is_set(game.operation_flags, GOF_Paused);
     set_replay_playback_paused(a_menu_window_is_active());
     if (replay_playback_is_paused())
     {
@@ -2736,8 +2739,7 @@ static short get_packet_load_game_inputs(void)
         }
         clear_flag(game.operation_flags, GOF_Paused);
         replay_rewind_capture();
-        load_packets_for_turn(replay.pckt_gameturn);
-        replay.pckt_gameturn++;
+        replay_read_next_pass(resuming);
     }
     gui_process_inputs();
     get_interface_inputs();

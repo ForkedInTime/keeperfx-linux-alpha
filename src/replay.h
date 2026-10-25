@@ -126,6 +126,8 @@ void restore_users_from_packet_save(void);
 TbBool setup_auto_replay_save(void);
 TbBool open_new_packet_file_for_save(void);
 void load_packets_for_turn(GameTurn nturn);
+TbBool replay_pause_ended_unrecorded(void);
+void replay_read_next_pass(TbBool resuming);
 void verify_replay_checksum(void);
 TbBool open_packet_file_for_load(char *fname, struct CatalogueEntry *centry);
 short save_packets(void);
