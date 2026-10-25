@@ -83,7 +83,10 @@ menu entry, **“KeeperFX (play directly)”**, skips the launcher and starts th
 every day *after* setup, but on a fresh install it will simply stop and list the files it's missing.
 
 Updates arrive with your normal `yay -Syu` — the AUR tracks this project's **stable** releases, so an
-upgrade only ever moves you between stables, never onto an alpha. Prefer to build without an AUR
+upgrade only ever moves you between stables, never onto an alpha. Because the engine is built against
+your system's libraries, an Arch library update can leave it needing a rebuild, and `yay -Syu` would
+stop until it gets one; a weekly check compares Arch with what the current stable was built against
+and flags such a change, so the rebuild (only the package release number moves) can go out. Prefer to build without an AUR
 helper? `git clone` this repo and `makepkg -si` in `packaging/aur/` produces the identical packages —
 same recipe.
 
@@ -178,16 +181,16 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
 > | 🐧 | **Ready-to-run Linux builds** — one-file AppImage, Flatpak, and an Arch/AUR package, plus the native Qt launcher (upstream ships source only — no Linux binary in any release) | the whole platform |
 > | 🧹 | **Linux-only source** — every Windows-only file and `#ifdef _WIN32` branch is stripped from the team's code before it is merged (281 files, ~101,000 lines at the switch), [proven](packaging/linux-only/README.md) not to change what Linux compiles; a guard workflow keeps it from coming back | the whole tree |
 > | 🧮 | **64-bit & Windows-assumption fixes** — the game was written for 32-bit Windows: level-script argument slots, the software rasteriser's carries (creature shadows), signed game-turn arithmetic, movie-recorder and high-score file layouts, campaign progress and save titles written by earlier Linux builds, the light table in saved games, 64-bit config flags (the hand's), a network timeout; plus mod files in any letter case, `\` paths, Korean code page 949, an API-server SIGPIPE | ~20 fixes |
-> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing AddressSanitizer pass that found four memory faults upstream has shipped since as far back as 2008, map scripts that can read files but not change them, and chat and replays that can no longer act on your machine | ~40 fixes |
-> | 🎮 | **Gameplay bugs found in players' games** — workers quitting a room they cross or step off, endless scavenger re-enrolment, imps and the computer repeating trips that cannot succeed, trap-crate and hatchery counts, rebirth, doors, explosions, abyss kills, the Call to Arms charge bar, and script commands that missed the creatures already on the map | ~25 fixes |
-> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the creature-list corruption **root-fixed** | ~7 fixes |
+> | 🛡️ | **Correctness & security hardening** — a multi-agent Linux audit (out-of-bounds writes from crafted maps/mods, union byte-aliasing, format-string bugs) plus a standing sanitizer pass (AddressSanitizer and UndefinedBehaviorSanitizer) that found six memory faults upstream has shipped since as far back as 2008, map scripts that can read files but not change them, and chat and replays that can no longer act on your machine | ~40 fixes |
+> | 🎮 | **Gameplay bugs found in players' games** — workers quitting a room they cross or step off, endless scavenger re-enrolment, imps and the computer repeating trips that cannot succeed, trap-crate and hatchery counts, rebirth, doors, explosions, abyss kills, the Call to Arms charge bar, script commands that missed the creatures already on the map, and replays that fell a turn behind after a save | ~25 fixes |
+> | 💥 | **Crash fixes** — ultrawide creature-possession, UTF-8 fonts, campaign scripts, clean exit, case-sensitive audio, the startup error dialog without libXrandr, the creature-list corruption **root-fixed** | ~8 fixes |
 > | ⚡ | **Performance** — frame pacing matched to your monitor, cached parchment map view, per-turn CPU busy-spin, sprite/text blit, GUI hot paths, cached instant-load Workshop | 8 wins |
 > | 🎨 | **Graphics & audio** — upstream's OpenGL renderer built into the Linux binary (opt-in), front-end movies in any codec, your own music in any filenames and any of OGG/FLAC/WAV/MP3, a real window icon and desktop identity on X11 *and* Wayland, artwork (and the game's text) regenerated from upstream's sources on every build | 5 items |
 > | 🌐 | **Multiplayer map packs** — the Classic, Modern and Original mappacks now load in every install method | 1 fix |
-> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, music download + recovery, single-instance lock, weekly sync bot | 12+ items |
+> | 🧰 | **Launcher & tooling** — in-launcher Workshop browser + Installed manager, Mod Manager, Play ▾ menu, built-in updater with **separate stable and alpha channels**, side-by-side log viewer, the last five game logs kept, music download + recovery, single-instance lock, weekly sync bot, a weekly Arch library watch | 12+ items |
 >
 > <sub>Count it yourself: `git log --oneline --no-merges --invert-grep --grep='^Linux-Snapshot-Of:' upstream/master..HEAD`
-> — 411 commits on top of the team's master, snapshot commits excluded; 17 of them are the team's own fixes, taken ahead of a
+> — 427 commits on top of the team's master, snapshot commits excluded; 18 of them are the team's own fixes, taken ahead of a
 > sync, and keep their authors. The sections below are the line items.</sub>
 
 <details>
@@ -244,6 +247,10 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   save-name you are typing no longer freezes the menu, in any text field in the game.
 
   ![Deleting a saved game: the skull, the confirmation that names the save, and the list closed up afterwards](docs/assets/save-delete-before-after.png)
+- **The game keeps its last five logs.** Every start used to overwrite `keeperfx.log`, so whatever went wrong
+  in one session was gone as soon as the game was started again. The log of the run before now moves to
+  `keeperfx.log.1`, the one before that to `keeperfx.log.2`, and so on up to `keeperfx.log.5`; only the
+  oldest is dropped.
 - **The High Score Table names the level.** Bullfrog's table printed a level *number*, which reads
   fine in the numbered original campaign and means nothing for a custom map, whose number is whatever
   id its author picked. Each row now shows the level's name, looked up in the campaign or map pack the
@@ -299,10 +306,6 @@ Wine, and the Linux-specific fixes, hardening and performance work below.
   the game log side by side, following live, with a Copy button — and errors now offer a **Show log**
   button directly. The news panel lists this fork's releases (version and date, one line each, the
   full changelog one click away) above the KeeperFX team's news.
-- **The game keeps its last five logs.** Every start used to overwrite `keeperfx.log`, so whatever went wrong
-  in one session was gone as soon as the game was started again. The log of the run before now moves to
-  `keeperfx.log.1`, the one before that to `keeperfx.log.2`, and so on up to `keeperfx.log.5`; only the
-  oldest is dropped.
 - **One launcher at a time.** The launcher won't open a second copy of itself (that would let two games fight
   over the same saves).
 - **Accessibility — launcher size.** Scale the whole launcher UI (100 %, 110 %, 125 % … up to 200 %) for
@@ -356,8 +359,12 @@ first.)
   full table doubled the last one; Lua lost `os.date` (Pandaemonium's second level stopped setting
   itself up); `DESCRIPTION_GEO` boxes with a 0 or missing value were drawn at random places; an
   objective at a destroyed heart had no location.
+- **Replays:** every campaign level records one, and a level saved part-way through replayed a turn
+  behind from the save on ("Out of sync" on every turn, every later move a turn early); rewinding
+  (Backspace) across any pause dropped you to the main menu. The fix is in the reader, so recordings
+  made before it replay in step past their saves too.
 
-**Stability & security fixes** *(genuine upstream bugs fixed locally, plus faults in this fork's own Linux layer; the security ones reported upstream)*
+**Stability & security fixes** *(genuine upstream bugs fixed locally, plus faults in this fork's own Linux layer; two were reported upstream in June 2026, nothing since)*
 - **Files that came along for the ride are no longer treated as content.** Archives built on macOS or
   Windows carry a small hidden companion file beside every real one, and campaigns, mods and map packs
   reach a Linux install as archives. This fork's own directory scanner handed those companions to the game
@@ -376,10 +383,17 @@ first.)
   aborted the game at a level transition. Rooms now sever their workers on deletion, the list head is
   only rewritten when the room agrees, and orphaned creatures detach themselves. The ~18 guarded list
   walks stay as the last line of defence, and the fault exists in upstream KeeperFX to this day.
-- **Four memory faults found by our sanitizer pass** — the engine now builds under AddressSanitizer and
-  every campaign is run through it before a release. Its first runs caught an array overflow on every
-  game start, out-of-bounds reads on every level load and script parse, and a C++ destructor fault on
-  every retired sound message — inherited faults dating from 2008 to 2025, all still present upstream.
+- **Six memory faults found by our sanitizer pass** — the engine builds under AddressSanitizer and
+  UndefinedBehaviorSanitizer, and every campaign is run through it before a stable release. Its first
+  runs caught an array overflow on every game start, out-of-bounds reads on every level load and script
+  parse, and a C++ destructor fault on every retired sound message; later ones a read before the start
+  of the session list on every lobby update of a multiplayer host, and a log path that wrote one byte
+  past its buffer when the game folder's path had a particular length. Inherited faults dating from
+  2008 to 2025, all still present upstream.
+- **The startup error message no longer crashes without libXrandr.** When the game cannot start it says
+  why in a dialog, and SDL's X11 dialog calls an XRandR function without checking the library loaded:
+  on a system without libXrandr (a minimal Fedora, for one) it segfaulted instead of showing the
+  message. The AppImage now carries libXrandr.
 - **Clean exit on quit** — avoids a shutdown segfault caused by the SDL3/Wayland teardown race on systems
   using `sdl2-compat`.
 - **Ultrawide creature-possession crash** — the new C++ lens effect didn't size its buffer for large
@@ -486,8 +500,9 @@ and I own the bug report. Found something sloppy or broken?
   them. Older systems must [build from source](#build-from-source) instead.
 - An OpenGL 3.3-capable GPU **only if you opt into `RENDERER=OPENGL`**. The default software renderer
   presents through SDL and needs nothing in particular.
-- The system's own OpenGL, ALSA, fontconfig and fribidi libraries. Every desktop install has them; the
-  AppImage leaves exactly these to the host on purpose, so a bare container or a server image will not do.
+- The system's own graphics (OpenGL, X11), sound (ALSA) and font (fontconfig, fribidi) libraries. Every
+  desktop install has them; the AppImage leaves these to the host on purpose, so a bare container or a
+  server image will not do.
 
 ## Other ways to install
 
