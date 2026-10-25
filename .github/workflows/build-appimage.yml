@@ -520,6 +520,16 @@ jobs:
             fi
           done
 
+          # SDL3 opens its X11 extension libraries at run time, so linuxdeploy
+          # never sees them. Its message box (the engine's fatal-error dialog)
+          # calls an XRandR function without checking that the library loaded:
+          # on a system without libXrandr the dialog segfaults instead of
+          # showing (SDL 3.4.14, Fedora 41 container). Bundled, it shows.
+          src="$(find /usr/lib/x86_64-linux-gnu -maxdepth 1 -name libXrandr.so.2 | head -1)"
+          [ -n "$src" ] || { echo "::error::expected libXrandr.so.2 on the runner but did not find it"; exit 1; }
+          cp -L "$src" AppDir/usr/lib/libXrandr.so.2
+          echo "bundled run-time-loaded dep: libXrandr.so.2"
+
           # Fail the build if the AppDir still has a dependency it neither bundles
           # nor can assume, rather than shipping it and finding out per-distro.
           # (It used to only warn: the loop ran in a pipeline subshell and the
