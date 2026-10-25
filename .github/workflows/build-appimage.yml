@@ -56,7 +56,7 @@ jobs:
           NAMES=$(gh release view "${{ github.event.release.tag_name }}" \
                     --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' || true)
           echo "$NAMES"
-          if echo "$NAMES" | grep -q 'KeeperFX-Linux-Alpha-x86_64\.AppImage' \
+          if echo "$NAMES" | grep -q 'KeeperFX-Tux-Edition-x86_64\.AppImage' \
              && echo "$NAMES" | grep -q 'keeperfx-linux-alpha-x86_64-full\.7z'; then
             echo "Both assets are already attached -- skipping the rebuild."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -624,14 +624,14 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           ARCH: x86_64
         run: |
-          ./appimagetool-x86_64.AppImage AppDir "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.AppImage"
-          ls -la "$GITHUB_WORKSPACE/KeeperFX-Linux-Alpha-x86_64.AppImage"
+          ./appimagetool-x86_64.AppImage AppDir "$GITHUB_WORKSPACE/KeeperFX-Tux-Edition-x86_64.AppImage"
+          ls -la "$GITHUB_WORKSPACE/KeeperFX-Tux-Edition-x86_64.AppImage"
 
       - name: Upload the AppImage (downloadable from this CI run)
         uses: actions/upload-artifact@v4
         with:
-          name: KeeperFX-Linux-Alpha-AppImage
-          path: KeeperFX-Linux-Alpha-x86_64.AppImage
+          name: KeeperFX-Tux-Edition-AppImage
+          path: KeeperFX-Tux-Edition-x86_64.AppImage
 
       - name: Upload the full.7z update package (downloadable from this CI run)
         uses: actions/upload-artifact@v4
@@ -648,7 +648,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Until the repository was renamed (2026-10-25) the download was called
+          # KeeperFX-Linux-Alpha-x86_64.AppImage, and links to that name live outside
+          # this repo, so the same file is attached under it too. full.7z keeps its old
+          # name for good: every launcher already installed asks for it by that name.
+          ln -f KeeperFX-Tux-Edition-x86_64.AppImage KeeperFX-Linux-Alpha-x86_64.AppImage
           gh release upload "${{ github.event.release.tag_name }}" \
+            KeeperFX-Tux-Edition-x86_64.AppImage \
             KeeperFX-Linux-Alpha-x86_64.AppImage \
             keeperfx-linux-alpha-x86_64-full.7z --clobber
           # Patches attach separately and never block the release: the full payload

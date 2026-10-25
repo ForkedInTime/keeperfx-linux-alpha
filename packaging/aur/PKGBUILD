@@ -33,7 +33,7 @@ pkgver=1.4.0.5652
 # and the channel fixes.
 pkgrel=2
 arch=('x86_64')
-url="https://github.com/ForkedInTime/keeperfx-linux-alpha"
+url="https://github.com/ForkedInTime/keeperfx-tux-edition"
 license=('GPL-2.0-or-later')
 # In a split package, only makedepends (and any pkgbase-level depends) are
 # installed to build with -- a depends= array inside package_*() is metadata for
@@ -56,7 +56,7 @@ makedepends=('git' 'python' 'curl' 'p7zip'
 #         already forced a -march revert.
 options=('!strip' '!debug' '!lto')
 source=(
-  "keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-linux-alpha.git#tag=${_tag}"
+  "keeperfx-tux::git+https://github.com/ForkedInTime/keeperfx-tux-edition.git#tag=${_tag}"
   "keeperfx-tux-${pkgver}-full.7z::${url}/releases/download/${_tag}/keeperfx-linux-alpha-x86_64-full.7z"
   "keeperfx-tux-launcher::git+https://github.com/ForkedInTime/keeperfx-launcher-qt-linux.git#commit=${_launcher_commit}"
   'keeperfx-tux.sh'

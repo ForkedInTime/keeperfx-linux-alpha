@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-03
 **Status:** Approved, ready for implementation
-**Repos:** `ForkedInTime/keeperfx-linux-alpha` (engine), `ForkedInTime/keeperfx-launcher-qt-linux` (launcher)
+**Repos:** `ForkedInTime/keeperfx-tux-edition` (engine; `keeperfx-linux-alpha` until 2026-10-25), `ForkedInTime/keeperfx-launcher-qt-linux` (launcher)
 
 ## Problem
 
