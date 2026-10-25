@@ -3375,7 +3375,7 @@ TbBool creature_look_for_enemy_door_combat(struct Thing *thing)
 
 TbResult creature_retreat_from_combat(struct Thing *figtng, struct Thing *enmtng, CrtrStateId continue_state, long try_opposite_direction)
 {
-    struct Coord3d pos;
+    struct Coord3d pos = figtng->mappos;
     long i;
     TRACE_THING(figtng);
     TRACE_THING(enmtng);

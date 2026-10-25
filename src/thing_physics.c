@@ -589,6 +589,12 @@ long get_thing_height_at(const struct Thing *thing, const struct Coord3d *pos)
 
 }
 
+/**
+ * The height a thing would stand at, at pos. Where it does not fit between floor and ceiling the
+ * result is pos->z, so callers must set pos->z first: a position built from x and y alone hands back
+ * whatever was on the stack, which then decides where creatures go and differs between a live game
+ * and its replay. The thing's own height is what callers use when they have nothing better.
+ */
 long get_thing_height_at_with_radius(const struct Thing *thing, const struct Coord3d *pos, unsigned long radius)
 {
     MapCoord pos_x_beg = max((MapCoord)pos->x.val - radius, 0);
@@ -934,7 +940,7 @@ TbBool move_object_to_nearest_free_position(struct Thing *thing)
         ERRORLOG("Attempt to move non-existing object out of wall.");
         return false;
     }
-    struct Coord3d pos;
+    struct Coord3d pos = thing->mappos;
     MapCoordDelta nav_radius = thing_nav_sizexy(thing) / 2;
 
     MapSubtlCoord start_stl_x = thing->mappos.x.stl.num;

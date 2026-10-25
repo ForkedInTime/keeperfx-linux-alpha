@@ -2090,7 +2090,7 @@ static void ariadne_get_starting_angle_and_side_of_wallhug_for_desireable_move(s
     wallhug_distance_right = size_steps;
     wallhug_distance_left = size_steps;
     arid->hug_side = hug_side;
-    struct Coord3d pos;
+    struct Coord3d pos = thing->mappos;
     int i;
     long hug_angle;
     for (i = 0; i < whsteps; i++)
@@ -2417,7 +2417,7 @@ static long ariadne_push_position_against_wall(struct Thing *thing, const struct
 
 static long ariadne_init_movement_to_current_waypoint(struct Thing *thing, struct Ariadne *arid)
 {
-    struct Coord3d requested_pos;
+    struct Coord3d requested_pos = thing->mappos;
     struct Coord3d fixed_pos;
     long angle;
     long delta_x;
@@ -2474,8 +2474,8 @@ static long ariadne_creature_can_continue_direct_line_to_waypoint(struct Thing *
     pos_dlim.x.val += distance_with_angle_to_coord_x(speed, angle);
     pos_dlim.y.val += distance_with_angle_to_coord_y(speed, angle);
     pos_dlim.z.val = get_thing_height_at(thing, &pos_dlim);
-    struct Coord3d pos_xlim;
-    struct Coord3d pos_ylim;
+    struct Coord3d pos_xlim = thing->mappos;
+    struct Coord3d pos_ylim = thing->mappos;
     {
         MapCoord coord_fix;
         coord_fix = thing->mappos.x.val;
