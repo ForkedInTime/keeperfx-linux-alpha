@@ -143,6 +143,7 @@ static void get_nearest_navigable_point_for_thing(struct Thing *thing, struct Co
       pos1->x.val, pos1->y.val, &px, &py);
     pos2->x.val = px;
     pos2->y.val = py;
+    pos2->z.val = thing->mappos.z.val;
     pos2->z.val = get_thing_height_at(thing, pos2);
     if (thing_in_wall_at(thing, pos2))
         get_nearest_valid_position_for_creature_at(thing, pos2);

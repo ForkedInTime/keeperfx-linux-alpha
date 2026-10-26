@@ -1664,6 +1664,7 @@ TbBool find_random_valid_position_for_thing_in_room(struct Thing *thing, struct 
                 {
                     pos->x.val = subtile_coord_center(stl_x);
                     pos->y.val = subtile_coord_center(stl_y);
+                    pos->z.val = thing->mappos.z.val;
                     pos->z.val = get_thing_height_at_with_radius(thing, pos, navi_radius);
                     if (!thing_in_wall_at_with_radius(thing, pos, navi_radius)) {
                         return true;
@@ -2854,6 +2855,7 @@ TbBool find_random_valid_position_for_thing_in_room_avoiding_object_excluding_ro
                     {
                         pos->x.val = subtile_coord_center(x);
                         pos->y.val = subtile_coord_center(y);
+                        pos->z.val = thing->mappos.z.val;
                         pos->z.val = get_thing_height_at_with_radius(thing, pos, nav_sizexy);
                         if (!thing_in_wall_at_with_radius(thing, pos, nav_sizexy)) {
                             return true;
@@ -2908,6 +2910,7 @@ TbBool find_random_valid_position_for_thing_in_room_avoiding_object_excluding_ro
                         {
                             pos->x.val = subtile_coord_center(astl_x);
                             pos->y.val = subtile_coord_center(astl_y);
+                            pos->z.val = thing->mappos.z.val;
                             pos->z.val = get_thing_height_at_with_radius(thing, pos, nav_sizexy);
                             if (!thing_in_wall_at_with_radius(thing, pos, nav_sizexy)) {
                                 SYNCLOG("Thorough check succeeded where random check failed.");

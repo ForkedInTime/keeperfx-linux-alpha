@@ -1420,7 +1420,7 @@ static TngUpdateRet object_update_call_to_arms(struct Thing *thing)
         if (thing->max_frames - 1 == thing->current_frame)
         {
             struct PowerConfigStats* powerst = get_power_model_stats(PwrK_CALL2ARMS);
-            struct Coord3d pos;
+            struct Coord3d pos = thing->mappos;
             pos.x.val = subtile_coord_center(dungeon->cta_stl_x);
             pos.y.val = subtile_coord_center(dungeon->cta_stl_y);
             pos.z.val = get_thing_height_at(thing, &pos);
@@ -1685,6 +1685,7 @@ static TbBool find_free_position_on_slab(struct Thing* thing, struct Coord3d* po
             {
                 pos->x.val = subtile_coord_center(x);
                 pos->y.val = subtile_coord_center(y);
+                pos->z.val = thing->mappos.z.val;
                 pos->z.val = get_thing_height_at_with_radius(thing, pos, nav_sizexy);
                 if (!thing_in_wall_at_with_radius(thing, pos, nav_sizexy)) {
                     return true;
