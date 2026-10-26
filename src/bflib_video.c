@@ -750,17 +750,18 @@ TbResult LbScreenSetGraphicsWindow(long x, long y, long width, long height)
     long i;
     long right_edge = x + width;
     long bottom_edge = y + height;
-    if (right_edge < x)  //Alarm! Voodoo magic detected!
+    // A negative size: swap the edges. (The XOR swap here used to leave both edges equal.)
+    if (right_edge < x)
     {
-        i = (x ^ right_edge);
-        x = x ^ i;
-        right_edge = x ^ i ^ i;
+        i = x;
+        x = right_edge;
+        right_edge = i;
   }
   if (bottom_edge < y)
   {
-    i = (y^bottom_edge);
-    y = y^i;
-    bottom_edge = y^i^i;
+    i = y;
+    y = bottom_edge;
+    bottom_edge = i;
   }
   if (x < 0)
     x = 0;

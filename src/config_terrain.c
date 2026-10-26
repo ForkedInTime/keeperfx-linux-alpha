@@ -502,6 +502,13 @@ static TbBool load_terrain_config_file(const char *fname, unsigned short flags)
     parse_block_health_block(buf, len, fname, flags);
 
     parse_named_field_blocks(buf, len, fname, flags, &terrain_room_named_fields_set);
+    // RoomKind is 8 bits, so with 256 room kinds every "for (RoomKind k = 0; k < room_types_count; k++)"
+    // loop never ends. NEW_ROOM_TYPE stops at 255 kinds; a [room255] block is dropped the same way.
+    if (game.conf.slab_conf.room_types_count > TERRAIN_ITEMS_MAX - 1)
+    {
+        WARNMSG("%s: [room%d] ignored; room kinds go up to %d.", fname, TERRAIN_ITEMS_MAX - 1, TERRAIN_ITEMS_MAX - 2);
+        game.conf.slab_conf.room_types_count = TERRAIN_ITEMS_MAX - 1;
+    }
 
     //Freeing and exiting
     KfxFree(buf);

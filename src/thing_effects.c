@@ -74,7 +74,7 @@ TbBool thing_is_effect(const struct Thing *thing)
 
 struct EffectElementConfigStats *get_effect_element_model_stats(ThingModel tngmodel)
 {
-    if (tngmodel >= EFFECTSELLEMENTS_TYPES_MAX)
+    if ((tngmodel < 0) || (tngmodel >= EFFECTSELLEMENTS_TYPES_MAX))
         return &game.conf.effects_conf.effectelement_cfgstats[0];
     return &game.conf.effects_conf.effectelement_cfgstats[tngmodel];
 }

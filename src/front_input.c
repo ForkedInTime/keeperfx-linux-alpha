@@ -1999,9 +1999,11 @@ static short get_creature_control_action_inputs(void)
                 TbBool diggable_subtile = false;
                 MapSubtlCoord stl_x = thing->mappos.x.stl.num;
                 MapSubtlCoord stl_y = thing->mappos.y.stl.num;
-                for (unsigned char range = 0; range < shotst->health; range++)
+                for (long range = 0; range < shotst->health; range++)
                 {
                     controlled_continue_looking_excluding_diagonal(thing, &stl_x, &stl_y);
+                    if (slabmap_block_invalid(get_slabmap_for_subtile(stl_x, stl_y)))
+                        break; // looked past the edge of the map
                     diggable_subtile = subtile_is_diggable_for_player(thing->owner, stl_x, stl_y, true);
                     if (diggable_subtile)
                     {

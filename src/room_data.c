@@ -4072,16 +4072,25 @@ long take_over_room(struct Room* room, PlayerNumber newowner)
  */
 void destroy_room_leaving_unclaimed_ground(struct Room *room, TbBool create_rubble)
 {
+    // A room never has more slabs than the map; a fixed buffer means no allocation can fail half way
+    // through (the caller may already have taken the room off its owner's list).
+    static SlabCodedCoords slbs[MAX_TILES_X*MAX_TILES_Y];
     unsigned long k = 0;
     unsigned long count = room->slabs_count;
-    SlabCodedCoords* slbs = malloc(count * sizeof(SlabCodedCoords));
     SlabCodedCoords i = room->slabs_list;
-    while (i != 0)
+    // Copy at most slabs_count entries, then destroy what was copied: a list that disagrees with its count
+    // (a corrupted room) must not overrun the buffer or leave entries unwritten.
+    while ((i != 0) && (k < count) && (k < sizeof(slbs)/sizeof(slbs[0])))
     {
         slbs[k] = i;
         i = get_next_slab_number_in_room(i);
         k++;
     }
+    if ((i != 0) || (k != count))
+    {
+        ERRORLOG("Slabs list of %s index %d does not match its count %lu",room_code_name(room->kind),(int)room->index,count);
+    }
+    count = k;
     for (k = 0; k < count; k++)
     {
         if (room->owner != game.neutral_player_num)
@@ -4097,7 +4106,6 @@ void destroy_room_leaving_unclaimed_ground(struct Room *room, TbBool create_rubb
         }
         delete_room_slab(slb_x, slb_y, 1); // Note that this function might also delete the whole room
     }
-    free(slbs);
 }
 
 void destroy_dungeon_heart_room(PlayerNumber plyr_idx, const struct Thing *heartng)
