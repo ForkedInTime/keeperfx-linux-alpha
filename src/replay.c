@@ -1603,7 +1603,10 @@ TbBool open_new_packet_file_for_save(void)
         replay.fopened = 0;
         return false;
     }
+    // FillEntry sets fields and strings, not the bytes after each string's end; zero them, or the replay
+    // file carries whatever the stack held there.
     struct CatalogueEntry centry;
+    memset(&centry, 0, sizeof(centry));
     SaveManager_FillEntry(&centry, "Packet file");
     struct SaveError err;
     enum SaveResult r = SaveManager_WriteReplayHeader(replay.fp, &centry, &replay.head,

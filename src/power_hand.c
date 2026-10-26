@@ -1751,11 +1751,13 @@ TbBool thing_pickup_is_blocked_by_hand_rule(const struct Thing *thing_to_pick, P
                 && hand_rule.type != HandRule_Unset
                 && eval_hand_rule_for_thing(&hand_rule, thing_to_pick))
             {
+                // A matching BLOCKED_PICKUP rule lifts the default block after a drop; the other rules are
+                // still checked, and any of them that matches blocks the pickup.
                 if (hand_rule.type == HandRule_BlockedPickup)
                 {
                     overwrite_default_block = true;
+                    continue;
                 }
-
                 return true;
             }
         }

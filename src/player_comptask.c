@@ -3614,7 +3614,7 @@ long task_sacrifice_diggers(struct Computer2 *comp, struct ComputerTask *ctask)
     struct Dungeon *dungeon;
     dungeon = comp->dungeon;
     struct Thing *thing;
-    struct Coord3d pos;
+    struct Coord3d pos = {0}; // printed below when no drop position is found
     thing = thing_get(comp->held_thing_idx);
     // If the heart is just being destroyed - dump held thing and finish task
     if (player_cannot_win(dungeon->owner))

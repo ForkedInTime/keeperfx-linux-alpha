@@ -51,6 +51,12 @@ int SaveManager::CountSavedGames()
 bool SaveManager::FillEntry(CatalogueEntry *centry, const char *textname)
 {
     centry->level_num = get_loaded_level_number();
+    // The strings are saved whole (SV_STR): clear them first, or a reused slot keeps the tail of a longer
+    // old name after the new one's end, and a fresh stack entry writes whatever the stack held there.
+    memset(centry->textname, 0, sizeof(centry->textname));
+    memset(centry->campaign_name, 0, sizeof(centry->campaign_name));
+    memset(centry->campaign_fname, 0, sizeof(centry->campaign_fname));
+    memset(centry->player_name, 0, sizeof(centry->player_name));
     snprintf(centry->textname, SAVE_TEXTNAME_LEN, "%s", textname);
     snprintf(centry->campaign_name, LINEMSG_SIZE, "%s", campaign.name);
     const char *cmpgn_pfx = "";
