@@ -414,7 +414,8 @@ static void *expand(void *p, int sz, int newsz)
     if (!s)
         return 0;
 
-    memcpy(s, p, sz);
+    if (p) /* the first expand starts from NULL */
+        memcpy(s, p, sz);
     FREE(p);
     return s;
 }
@@ -687,6 +688,7 @@ static table_t create_table_in_table(context_t *ctx, table_t tab, token_t keytok
             ret.tab = dest;
             /* we make it explicit now, and simply return it. */
             value_init_bool(value_array_get(meta, IDX_IMPLICIT), 0);
+            xfree(newkey);
             return ret;
         }
         xfree(newkey); /* don't need this anymore */
@@ -697,6 +699,7 @@ static table_t create_table_in_table(context_t *ctx, table_t tab, token_t keytok
     /* create a new table entry */
     dest = value_dict_add(tab.tab, newkey);
     meta = value_dict_add(value_array_get(tab.meta, IDX_CHILDREN), newkey);
+    xfree(newkey); /* both dicts keep their own copy of the key */
     if (!dest || !meta || init_meta(meta))
     {
         e_outofmemory(ctx, FLINE);
@@ -742,6 +745,7 @@ static table_t create_keyarray_in_table(context_t *ctx, table_t tab,
     /* make a new array entry */
     VALUE *dest = value_dict_add(tab.tab, newkey);
     VALUE *meta = value_dict_add(value_array_get(tab.meta, IDX_CHILDREN), newkey);
+    xfree(newkey); /* both dicts keep their own copy of the key */
     if (!dest || !meta || init_meta(meta))
     {
         e_outofmemory(ctx, FLINE);
