@@ -385,8 +385,9 @@ const char *get_language_lwrstr(int lang_id)
 TbBool prepare_diskpath(char *buf,long buflen)
 {
     int i = strlen(buf) - 1;
-    if (i >= buflen)
-        i = buflen - 1;
+    // buf[i+1] is written below, so i stays below buflen-1
+    if (i >= buflen - 1)
+        i = buflen - 2;
     if (i < 0)
         return false;
     // Strip trailing path separators and whitespace.

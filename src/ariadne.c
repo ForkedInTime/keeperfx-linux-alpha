@@ -398,7 +398,14 @@ static void edge_points8(long ntri_src, long ntri_dst, int32_t *tipA_x, int32_t 
     }
     else
     {
+        // Only a broken triangulation gets here. Give the callers a defined (degenerate) edge at the
+        // source triangle's first corner rather than whatever their stack held: they feed it to the route.
         ERRORLOG("edge not found %ld->%ld", ntri_src, ntri_dst);
+        pt = get_triangle_point(ntri_src,0);
+        *tipA_x = pt->x << 8;
+        *tipA_y = pt->y << 8;
+        *tipB_x = *tipA_x;
+        *tipB_y = *tipA_y;
     }
 }
 

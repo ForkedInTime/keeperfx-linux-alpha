@@ -155,6 +155,13 @@ long triangle_find8(long pt_x, long pt_y)
     int32_t ntri = triangle_find_cache_get(pt_x, pt_y);
     for (unsigned long k = 0; k < TRIANLGLES_COUNT; k++)
     {
+        // The cache has no triangle, or the walk stepped over an edge with no neighbour: never index Triangles[-1].
+        if (ntri < 0)
+        {
+            ERRORLOG("No triangle to search from at %d,%d",(int)pt_x, (int)pt_y);
+            KFX_C_ZONE_END(ctx_find8);
+            return -1;
+        }
         int eqA = triangle_divide_areas_s8differ(ntri, 0, 1, pt_x, pt_y) > 0;
         int eqB = triangle_divide_areas_s8differ(ntri, 1, 2, pt_x, pt_y) > 0;
         int eqC = triangle_divide_areas_s8differ(ntri, 2, 0, pt_x, pt_y) > 0;
