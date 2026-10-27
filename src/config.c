@@ -1831,6 +1831,9 @@ TbBool parse_credits_block(struct CreditsItem *credits,char *buf,char *buffer_en
 TbBool setup_campaign_credits_data(struct GameCampaign *campgn)
 {
   SYNCDBG(18,"Starting");
+  // A campaign without a CREDITS line has no credits; the empty name would open the land view folder
+  if (campgn->credits_fname[0] == '\0')
+    return false;
   char* fname = prepare_file_path(FGrp_LandView, campgn->credits_fname);
   long filelen = LbFileLengthRnc(fname);
   if (filelen <= 0)
