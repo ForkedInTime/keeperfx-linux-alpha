@@ -192,12 +192,42 @@ long near_coord_filter_battle_drop_point(const struct Coord3d *pos, MaxCoordFilt
     return -1;
 }
 
+/**
+ * Pushes one slab on the fill stack, growing the stack when it is full.
+ * @return False if the stack could not grow.
+ */
+static TbBool fill_stack_push(MapSlabCoord **stack_x, MapSlabCoord **stack_y, long *capacity, long *stack_head,
+    MapSlabCoord slb_x, MapSlabCoord slb_y)
+{
+    if (*stack_head + 1 >= *capacity)
+    {
+        long new_capacity = *capacity * 2;
+        MapSlabCoord* new_x = realloc(*stack_x, new_capacity * sizeof(MapSlabCoord));
+        if (new_x == NULL)
+            return false;
+        *stack_x = new_x;
+        MapSlabCoord* new_y = realloc(*stack_y, new_capacity * sizeof(MapSlabCoord));
+        if (new_y == NULL)
+            return false;
+        *stack_y = new_y;
+        *capacity = new_capacity;
+    }
+    (*stack_head)++;
+    (*stack_x)[*stack_head] = slb_x;
+    (*stack_y)[*stack_head] = slb_y;
+    return true;
+}
+
 void slabs_fill_iterate_from_slab(MapSlabCoord src_slab_x, MapSlabCoord src_slab_y, SlabsFillIterAction f_action, MaxCoordFilterParam param)
 {
     long max_slb_dim_x = (game.map_subtiles_x / STL_PER_SLB);
     long max_slb_dim_y = (game.map_subtiles_y / STL_PER_SLB);
-    MapSlabCoord* stack_x = malloc(max_slb_dim_x * max_slb_dim_y);
-    MapSlabCoord* stack_y = malloc(max_slb_dim_x * max_slb_dim_y);
+    // A slab is marked visited when it is taken off the stack, so it can be pushed once by each of its
+    // neighbours before that, and the stack can hold more entries than the map has slabs: it grows as needed.
+    // The visiting order, and with it what a fill does to the map, is unchanged.
+    long capacity = max_slb_dim_x * max_slb_dim_y;
+    MapSlabCoord* stack_x = malloc(capacity * sizeof(MapSlabCoord));
+    MapSlabCoord* stack_y = malloc(capacity * sizeof(MapSlabCoord));
     char* visited = malloc(max_slb_dim_x * max_slb_dim_y);
     if (stack_x != NULL && stack_y != NULL && visited != NULL)
     {
@@ -206,7 +236,8 @@ void slabs_fill_iterate_from_slab(MapSlabCoord src_slab_x, MapSlabCoord src_slab
         stack_x[0] = src_slab_x;
         stack_y[0] = src_slab_y;
         MapSlabCoord cx, cy;
-        while (stack_head != -1)
+        TbBool pushed = true;
+        while ((stack_head != -1) && pushed)
         {
             cx = stack_x[stack_head];
             cy = stack_y[stack_head];
@@ -216,30 +247,16 @@ void slabs_fill_iterate_from_slab(MapSlabCoord src_slab_x, MapSlabCoord src_slab
             if (!f_action(cx, cy, param)) continue;
 
             if (cx + 1 < max_slb_dim_x && !visited[cx+1 + (cy * max_slb_dim_x)])
-            {
-                stack_head++;
-                stack_x[stack_head] = cx + 1;
-                stack_y[stack_head] = cy;
-            }
+                pushed = pushed && fill_stack_push(&stack_x, &stack_y, &capacity, &stack_head, cx + 1, cy);
             if (cx - 1 >= 0 && !visited[cx-1 + (cy * max_slb_dim_x)])
-            {
-                stack_head++;
-                stack_x[stack_head] = cx - 1;
-                stack_y[stack_head] = cy;
-            }
+                pushed = pushed && fill_stack_push(&stack_x, &stack_y, &capacity, &stack_head, cx - 1, cy);
             if (cy + 1 < max_slb_dim_y && !visited[cx + ((cy+1) * max_slb_dim_x)])
-            {
-                stack_head++;
-                stack_x[stack_head] = cx;
-                stack_y[stack_head] = cy + 1;
-            }
+                pushed = pushed && fill_stack_push(&stack_x, &stack_y, &capacity, &stack_head, cx, cy + 1);
             if (cy - 1 >= 0 && !visited[cx + ((cy-1) * max_slb_dim_x)])
-            {
-                stack_head++;
-                stack_x[stack_head] = cx;
-                stack_y[stack_head] = cy - 1;
-            }
+                pushed = pushed && fill_stack_push(&stack_x, &stack_y, &capacity, &stack_head, cx, cy - 1);
         }
+        if (!pushed)
+            ERRORLOG("Out of memory filling from slab (%d,%d); the fill stopped part way", (int)src_slab_x, (int)src_slab_y);
     }
     free(stack_x);
     free(stack_y);

@@ -5407,6 +5407,7 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
                 DEALLOCATE_SCRIPT_VALUE
                 return;
             }
+            value->longs[2] = number_value;
             break;
         }
         case 21: // Effect
@@ -5422,6 +5423,7 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
             {
                 number_value = k;
             }
+            value->longs[2] = number_value;
             break;
         }
         case 22: // UseFunction
@@ -5437,6 +5439,7 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
                 DEALLOCATE_SCRIPT_VALUE
                 return;
             }
+            value->longs[2] = number_value;
             break;
         }
         case 23: // CreatureType
@@ -5452,6 +5455,7 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
                 DEALLOCATE_SCRIPT_VALUE
                 return;
             }
+            value->longs[2] = number_value;
             break;
         }
         case 24: // CostFormula
@@ -5467,6 +5471,7 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
                 DEALLOCATE_SCRIPT_VALUE
                 return;
             }
+            value->longs[2] = number_value;
             break;
         }
         default:
@@ -5578,7 +5583,7 @@ static void set_power_configuration_process(struct ScriptContext *context)
             powerst->cast_cooldown = context->value->longs[2];
             break;
         case 20: // Spell
-            powerst->cast_cooldown = context->value->longs[2];
+            powerst->spell_idx = context->value->longs[2];
             break;
         case 21: // Effect
             powerst->effect_id = context->value->longs[2];

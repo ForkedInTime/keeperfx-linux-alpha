@@ -2311,7 +2311,7 @@ CreatureJob get_job_for_room_role(RoomRole rrole, unsigned long required_kind_fl
 {
     if (rrole != 0)
     {
-        for (long i = 0; i < game.conf.crtr_conf.jobs_count; i++)
+        for (long i = 1; i < game.conf.crtr_conf.jobs_count; i++)
         {
             struct CreatureJobConfig* jobcfg = &game.conf.crtr_conf.jobs[i];
             if ((jobcfg->job_flags & required_kind_flags) == required_kind_flags)
@@ -2356,7 +2356,7 @@ CreatureJob get_job_which_qualify_for_room_role(RoomRole rrole, unsigned long qu
     if (rrole == RoRoF_None) {
         return Job_NULL;
     }
-    for (long i = 0; i < game.conf.crtr_conf.jobs_count; i++)
+    for (long i = 1; i < game.conf.crtr_conf.jobs_count; i++)
     {
         struct CreatureJobConfig* jobcfg = &game.conf.crtr_conf.jobs[i];
         if ((jobcfg->job_flags & qualify_flags) != 0)
@@ -2392,7 +2392,7 @@ CreatureJob get_job_which_qualify_for_room(RoomKind rkind, unsigned long qualify
 CreatureJob get_jobs_enemies_may_do_in_room_role(RoomRole rrole)
 {
     CreatureJob jobpref = Job_NULL;
-    for (long i = 0; i < game.conf.crtr_conf.jobs_count; i++)
+    for (long i = 1; i < game.conf.crtr_conf.jobs_count; i++)
     {
         struct CreatureJobConfig* jobcfg = &game.conf.crtr_conf.jobs[i];
         // Accept only jobs in given room
@@ -2506,7 +2506,7 @@ CreatureJob get_job_for_creature_state(CrtrStateId crstate_id)
     if (crstate_id == CrSt_Unused) {
         return Job_NULL;
     }
-    for (long i = 0; i < game.conf.crtr_conf.jobs_count; i++)
+    for (long i = 1; i < game.conf.crtr_conf.jobs_count; i++)
     {
         struct CreatureJobConfig* jobcfg = &game.conf.crtr_conf.jobs[i];
         //TODO CREATURE_JOBS Add other job-related states here

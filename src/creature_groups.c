@@ -547,7 +547,7 @@ TbBool create_party(const char *prtname)
 
 TbBool add_member_to_party(int party_id, long crtr_model, CrtrExpLevel exp_level, long carried_gold, long objctv_id, long countdown, PlayerNumber target)
 {
-    if ((party_id < 0) && (party_id >= CREATURE_PARTYS_COUNT))
+    if ((party_id < 0) || (party_id >= CREATURE_PARTYS_COUNT))
     {
         ERRORLOG("Party:%d is not defined", party_id);
         return false;
@@ -574,7 +574,7 @@ TbBool add_member_to_party(int party_id, long crtr_model, CrtrExpLevel exp_level
 
 TbBool delete_member_from_party(int party_id, long crtr_model, CrtrExpLevel exp_level)
 {
-    if ((party_id < 0) && (party_id >= CREATURE_PARTYS_COUNT))
+    if ((party_id < 0) || (party_id >= CREATURE_PARTYS_COUNT))
     {
         ERRORLOG("Party:%d is not defined", party_id);
         return false;

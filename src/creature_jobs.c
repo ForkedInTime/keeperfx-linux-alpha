@@ -34,6 +34,7 @@
 #include "creature_instances.h"
 #include "room_jobs.h"
 #include "room_list.h"
+#include "slab_data.h"
 #include "power_hand.h"
 #include "spdigger_stack.h"
 #include "player_instances.h"
@@ -596,6 +597,22 @@ TbBool creature_can_do_barracking_for_player(const struct Thing *creatng, Player
 }
 
 /**
+ * Returns if the room has a slab surrounded by its own slabs, which a center-only job needs.
+ */
+static TbBool room_has_inner_fill_slab(const struct Room *room)
+{
+    unsigned long n = room->slabs_list;
+    for (long i = room->slabs_count; (i > 0) && (n > 0); i--)
+    {
+        if (slab_is_area_inner_fill(slb_num_decode_x(n), slb_num_decode_y(n))) {
+            return true;
+        }
+        n = get_next_slab_number_in_room(n);
+    }
+    return false;
+}
+
+/**
  * Returns a drop position within room for a creature to do given job.
  * @param pos
  * @param room
@@ -620,7 +637,11 @@ TbBool get_drop_position_for_creature_job_in_room(struct Coord3d *pos, const str
     case JoKF_AssignOnAreaCenter:
         SYNCDBG(9,"Job %s requires dropping at %s center",creature_job_code_name(jobpref),room_code_name(room->kind));
         result = find_random_position_at_area_of_room(pos, room, RoArC_CENTER, thing);
-        result = true;
+        // When every spot tried was blocked, pos is the last one, on a center slab, and the drop moves to the
+        // nearest open subtile. Only a room without a center slab leaves pos unset.
+        if (!result) {
+            result = room_has_inner_fill_slab(room);
+        }
         break;
     case (JoKF_AssignOnAreaBorder|JoKF_AssignOnAreaCenter):
         SYNCDBG(9,"Job %s has no %s area preference",creature_job_code_name(jobpref),room_code_name(room->kind));

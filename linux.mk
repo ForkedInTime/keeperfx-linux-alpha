@@ -446,6 +446,11 @@ KFX_LDFLAGS += -flto=auto
 TOML_CFLAGS += -flto
 endif
 
+# The TOML parser reads every config file, mods' included, so the sanitizer build checks it too.
+ifeq ($(SANITIZE),1)
+TOML_CFLAGS += $(KFX_SAN_FLAGS)
+endif
+
 # All downloaded dependencies must be unpacked before any object is compiled.
 # Otherwise a parallel build (make -jN) can start compiling a source that
 # includes a not-yet-extracted dependency header (e.g. <enet6/enet.h>) and fail

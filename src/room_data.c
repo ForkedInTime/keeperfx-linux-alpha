@@ -2038,6 +2038,7 @@ TbBool find_first_valid_position_for_thing_anywhere_in_room(const struct Thing *
                     {
                         pos->x.val = subtile_coord_center(stl_x);
                         pos->y.val = subtile_coord_center(stl_y);
+                        pos->z.val = thing->mappos.z.val;
                         pos->z.val = get_thing_height_at_with_radius(thing, pos, block_radius);
                         if ( !thing_in_wall_at_with_radius(thing, pos, block_radius) ) {
                           return true;

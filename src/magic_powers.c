@@ -820,6 +820,18 @@ TbBool can_cast_power_at_xy(PlayerNumber plyr_idx, PowerKind pwkind, MapSubtlCoo
 }
 
 /**
+ * Returns the configured cost of a power at an overcharge level.
+ * Strength has one more level than cost (MAGIC_OVERCHARGE_LEVELS+1 against MAGIC_OVERCHARGE_LEVELS), and
+ * callers pass levels up to MAGIC_OVERCHARGE_LEVELS, so the top level costs what the last configured one does.
+ */
+static GoldAmount power_cost_at_level(const struct PowerConfigStats *powerst, KeepPwrLevel power_level)
+{
+    if (power_level > POWER_MAX_LEVEL)
+        power_level = POWER_MAX_LEVEL;
+    return powerst->cost[power_level];
+}
+
+/**
  * Computes price of a power which has price scaled with given amount.
  * @param plyr_idx Casting player index.
  * @param pwkind Keeper power kind.
@@ -831,7 +843,7 @@ GoldAmount compute_power_price_scaled_with_amount(PlayerNumber plyr_idx, PowerKi
     const struct PowerConfigStats *powerst = get_power_model_stats(pwkind);
     if (amount < 0)
         amount = 0;
-    return powerst->cost[power_level] + (powerst->cost[0] * amount);
+    return power_cost_at_level(powerst, power_level) + (powerst->cost[0] * amount);
 }
 
 /**
@@ -868,7 +880,7 @@ GoldAmount compute_power_price(PlayerNumber plyr_idx, PowerKind pwkind, KeepPwrL
         break;
     case Cost_Default:
     default:
-        price = powerst->cost[power_level];
+        price = power_cost_at_level(powerst, power_level);
         break;
     }
     return price;
@@ -892,7 +904,7 @@ GoldAmount compute_lowest_power_price(PlayerNumber plyr_idx, PowerKind pwkind, K
         break;
     default:
         powerst = get_power_model_stats(pwkind);
-        price = powerst->cost[power_level];
+        price = power_cost_at_level(powerst, power_level);
         break;
     }
     return price;

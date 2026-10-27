@@ -429,15 +429,10 @@ long LbFileLengthRnc(const char *fname)
     LbSyncLog("%s: file opened\n", fname);
 #endif
     rnc_header header;
-    if (LbFileRead(handle, &header, sizeof(header)) == -1)
-    {
-#if (BFDEBUG_LEVEL > 19)
-        LbSyncLog("%s: cannot read even %d bytes\n", fname, sizeof(header));
-#endif
-        LbFileClose(handle);
-        return -1;
-    }
-    if (header.signature == RNC_SIGNATURE)
+    // LbFileRead() returns fread()'s count, never -1, so a file shorter than the header (or the
+    // directory an empty CREDITS name opens) left the header unset and the signature test read stack
+    // garbage. Too short to be packed means not packed, as in UnpackM1().
+    if ((LbFileRead(handle, &header, sizeof(header)) == (int)sizeof(header)) && (header.signature == RNC_SIGNATURE))
     {
 #if (BFDEBUG_LEVEL > 19)
         LbSyncLog("%s: file size from RNC header: %u bytes\n", fname, header.packed_size);
