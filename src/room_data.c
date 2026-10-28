@@ -2803,6 +2803,7 @@ TbBool find_random_valid_position_for_thing_in_room_avoiding_object_excluding_ro
     long selected = THING_RANDOM(thing, room->slabs_count);
     unsigned long n = 0;
     long i = room->slabs_list;
+    TbBool excluded_skipped = false;
     // Get the selected index
     while (i != 0)
     {
@@ -2815,13 +2816,18 @@ TbBool find_random_valid_position_for_thing_in_room_avoiding_object_excluding_ro
         do
         {
             i = get_next_slab_number_in_room(i);
+            if (i == slbnum)
+            {
+                excluded_skipped = true;
+            }
         }
         while (i == slbnum);
         n++;
     }
     if (i == 0)
     {
-        if (n < room->slabs_count)
+        // The excluded slab is still in the list and counted in slabs_count, but the walk skips it
+        if (n + (excluded_skipped ? 1 : 0) < room->slabs_count)
         {
             WARNLOG("Number of slabs in %s (%lu) is smaller than count (%u)",room_code_name(room->kind), n, room->slabs_count);
         }
