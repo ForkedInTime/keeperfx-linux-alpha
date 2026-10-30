@@ -123,7 +123,9 @@ short luafunc_crstate_func(FuncIdx func_idx,struct Thing *thing)
     if (lua_isfunction(Lvl_script, -1)) {
         lua_pushThing(Lvl_script, thing);
         short result = 0;
-        CheckLua(Lvl_script, lua_pcall(Lvl_script, 1, 1, 0),"crstate_func");
+        if (!CheckLua(Lvl_script, lua_pcall(Lvl_script, 1, 1, 0),"crstate_func")) {
+            return result; // CheckLua removed the error message, and there is no result to read
+        }
 
         // Retrieve the result returned by the Lua function
         if (lua_isnumber(Lvl_script, -1)) {
@@ -168,7 +170,9 @@ short luafunc_thing_update_func(FuncIdx func_idx,struct Thing *thing)
     if (lua_isfunction(Lvl_script, -1)) {
         lua_pushThing(Lvl_script, thing);
         short result = 0;
-        CheckLua(Lvl_script, lua_pcall(Lvl_script, 1, 1, 0),"thing_update_func");
+        if (!CheckLua(Lvl_script, lua_pcall(Lvl_script, 1, 1, 0),"thing_update_func")) {
+            return result; // CheckLua removed the error message, and there is no result to read
+        }
 
         // Retrieve the result returned by the Lua function
         if (lua_isnumber(Lvl_script, -1)) {
@@ -200,7 +204,9 @@ short luafunc_trap_activation_func(FuncIdx func_idx,struct Thing *trap, struct T
         lua_pushThing(Lvl_script, trap);
         lua_pushThing(Lvl_script, creature);
         short result = true;
-        CheckLua(Lvl_script, lua_pcall(Lvl_script, 2, 1, 0),"trap_activation_func");
+        if (!CheckLua(Lvl_script, lua_pcall(Lvl_script, 2, 1, 0),"trap_activation_func")) {
+            return result; // CheckLua removed the error message, and there is no result to read
+        }
 
         /* Retrieve the result returned by the Lua function */
         if (lua_isboolean(Lvl_script, -1)) {
@@ -235,7 +241,9 @@ short luafunc_shot_hit_thing_func(FuncIdx func_idx, struct Thing *shot, struct T
         lua_pushinteger(Lvl_script, next_stl_x);
         lua_pushinteger(Lvl_script, next_stl_y);
         short result = 1;
-        CheckLua(Lvl_script, lua_pcall(Lvl_script, 5, 1, 0),"hit_thing_func");
+        if (!CheckLua(Lvl_script, lua_pcall(Lvl_script, 5, 1, 0),"hit_thing_func")) {
+            return result; // CheckLua removed the error message, and there is no result to read
+        }
 
         /* Retrieve the result returned by the Lua function */
         if (lua_isnumber(Lvl_script, -1)) {

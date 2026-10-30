@@ -257,6 +257,9 @@ TbBool execute_lua_code_from_console(const char* code)
         return false;
     }
 
+    // luaL_dostring leaves the error message on failure, or whatever the code returned on success.
+    // Popping a fixed count took one slot too many after every error, and the sixth error ended the game.
+    int top = lua_gettop(Lvl_script);
     int result = luaL_dostring(Lvl_script, code);
     if (result != LUA_OK) {
         const char *message = lua_tostring(Lvl_script, -1);
@@ -265,10 +268,11 @@ TbBool execute_lua_code_from_console(const char* code)
         // Pass the error message to message_add
         message_add(MsgType_Blank, 0, "lua error, see log");
 
-        lua_pop(Lvl_script, 2); // Remove error message and traceback
+        lua_settop(Lvl_script, top);
         return false;
     }
 
+    lua_settop(Lvl_script, top);
     return true;
 }
 
@@ -283,15 +287,18 @@ TbBool execute_lua_code_from_script(const char* code)
         return false;
     }
 
+    // Same stack handling as execute_lua_code_from_console()
+    int top = lua_gettop(Lvl_script);
     int result = luaL_dostring(Lvl_script, code);
     if (result != LUA_OK) {
         const char *message = lua_tostring(Lvl_script, -1);
         ERRORLOG("Failed to execute Lua code: %s", message ? message : "Unknown error");
 
-        lua_pop(Lvl_script, 2); // Remove error message and traceback
+        lua_settop(Lvl_script, top);
         return false;
     }
 
+    lua_settop(Lvl_script, top);
     return true;
 }
 void lua_set_random_seed(unsigned int seed)

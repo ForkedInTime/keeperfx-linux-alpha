@@ -1261,7 +1261,11 @@ void word_of_power_affecting_area(struct Thing *efftng, struct Thing *tngsrc, st
     }
     if (shotst->area_range <= 0)
     {
-        ERRORLOG("Word of power shot configuration does not include area influence.");
+        // A shot without area influence, like a boulder sinking into lava, uses this effect for its look and sound only
+        if (efftng->shot_effect.parent_class_id != TCls_Shot)
+        {
+            ERRORLOG("Word of power shot configuration does not include area influence.");
+        }
         return;
     }
     SYNCDBG(8,"Starting for %s index %d owner %d",thing_model_name(efftng),(int)efftng->index,(int)efftng->owner);

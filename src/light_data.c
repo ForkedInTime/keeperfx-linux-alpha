@@ -468,7 +468,8 @@ void light_set_light_position(long lgt_id, struct Coord3d *pos)
 
 void light_remove_light_from_list(struct Light *lgt, struct StructureList *list)
 {
-  if ( list->count == 0 )
+  // A light that is turned off is already out of the list, so an empty list is only wrong for one still in it
+  if ( (list->count == 0) && flag_is_set(lgt->flags2,LgtF2_InList) )
   {
       ERRORLOG("List %" PRIu32 " has no structures", list->index);
       return;
